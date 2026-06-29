@@ -214,14 +214,25 @@ def find_variable_features(
         data = _get_layer(assay_obj, layer)
     else:
         from .assay5 import Assay5
-        if isinstance(assay_obj, Assay5):
-            # Prefer log-normalized 'data' layer; fall back to 'counts'
-            data = assay_obj.layers.get("data")
-            if data is None:
+        from ._sparse import is_matrix_empty
+        if selection_method == "vst":
+            # Seurat fits the vst mean-variance LOESS on RAW COUNTS, regardless of
+            # whether NormalizeData() has run. Using normalized data here would
+            # change which features are selected.
+            if isinstance(assay_obj, Assay5):
                 data = assay_obj.layers.get("counts")
+                if data is None:
+                    data = assay_obj.layers.get("data")
+            else:
+                data = assay_obj.counts
         else:
-            from ._sparse import is_matrix_empty
-            data = assay_obj.data if not is_matrix_empty(assay_obj.data) else assay_obj.counts
+            # dispersion / mean.var.plot methods operate on log-normalized data
+            if isinstance(assay_obj, Assay5):
+                data = assay_obj.layers.get("data")
+                if data is None:
+                    data = assay_obj.layers.get("counts")
+            else:
+                data = assay_obj.data if not is_matrix_empty(assay_obj.data) else assay_obj.counts
 
     if selection_method == "vst":
         hvg_indices, means, variances, var_std = _vst_hvg(data, nfeatures)
@@ -269,35 +280,73 @@ def _vst_hvg(
     data,
     nfeatures: int = 2000,
     loess_span: float = 0.3,
+    clip_max: Optional[float] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Variance-stabilizing transformation HVG selection.
+    """Variance-stabilizing transformation HVG selection (Seurat's 'vst').
 
-    Fits a LOESS on log10(variance) ~ log10(mean) and ranks genes by
-    actual_variance / expected_variance (variance.standardized).
+    Faithfully reproduces Seurat's algorithm on the raw counts:
+      1. Per-gene mean and *sample* (N-1) variance of the counts.
+      2. Fit a degree-2 LOESS of log10(variance) ~ log10(mean) to get the
+         expected variance for each gene given its mean.
+      3. Standardize each value with z = (x - mean) / expected_sd, clipping z
+         to a maximum of ``clip_max`` (Seurat default sqrt(n_cells)). This clip
+         is what stops a single high-count outlier cell from dominating, and is
+         essential for counts-based VST to recover biologically variable genes.
+      4. variance.standardized = sum(z_clipped^2) / (n_cells - 1).
+      5. Rank genes by variance.standardized (descending).
     """
+    n_genes, n_cells = data.shape
+    if clip_max is None:
+        clip_max = np.sqrt(n_cells)
+
     if sp.issparse(data):
-        means = np.array(data.mean(axis=1)).flatten()
-        mean_sq = np.array(data.power(2).mean(axis=1)).flatten()
+        csr = data.tocsr()
+        means = np.array(csr.mean(axis=1)).flatten()
+        mean_sq = np.array(csr.power(2).mean(axis=1)).flatten()
     else:
         d = np.asarray(data, dtype=float)
         means = d.mean(axis=1)
         mean_sq = (d ** 2).mean(axis=1)
 
-    variances = mean_sq - means ** 2
+    # Sample variance (denominator N-1), matching Seurat's SparseRowVar2.
+    variances = (mean_sq - means ** 2) * (n_cells / (n_cells - 1))
 
-    valid = (means > 0) & (variances > 0)
+    valid = variances > 0
     valid_idx = np.where(valid)[0]
     lm_valid = np.log10(means[valid_idx])
     lv_valid = np.log10(variances[valid_idx])
 
-    fitted_valid = _loess_fit(lm_valid, lv_valid, frac=loess_span)
+    # Seurat uses loess(degree = 2) for vst; use the local-quadratic fitter.
+    fitted_valid = _loess2(lm_valid, lv_valid, frac=loess_span)
 
-    eps = 1e-10
-    expected_valid = 10.0 ** fitted_valid
-    var_std_valid = variances[valid_idx] / (expected_valid + eps)
+    expected_var = np.zeros(n_genes)
+    expected_var[valid_idx] = 10.0 ** fitted_valid
+    expected_sd = np.sqrt(expected_var)
 
-    var_standardized = np.zeros(len(means))
-    var_standardized[valid_idx] = var_std_valid
+    var_standardized = np.zeros(n_genes)
+    if sp.issparse(data):
+        indptr = csr.indptr
+        values = csr.data.astype(float)
+        for g in valid_idx:
+            sd = expected_sd[g]
+            if sd <= 0:
+                continue
+            mu = means[g]
+            row_vals = values[indptr[g]:indptr[g + 1]]
+            n_zero = n_cells - row_vals.size
+            # Zero entries standardize to -mu/sd (negative → never clipped).
+            zero_term = n_zero * (mu / sd) ** 2
+            z = (row_vals - mu) / sd
+            np.minimum(z, clip_max, out=z)
+            var_standardized[g] = (zero_term + np.dot(z, z)) / (n_cells - 1)
+    else:
+        for g in valid_idx:
+            sd = expected_sd[g]
+            if sd <= 0:
+                continue
+            z = (d[g, :] - means[g]) / sd
+            np.minimum(z, clip_max, out=z)
+            var_standardized[g] = np.dot(z, z) / (n_cells - 1)
 
     top_idx = np.argsort(var_standardized)[::-1][:nfeatures]
 

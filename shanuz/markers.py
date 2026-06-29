@@ -105,12 +105,14 @@ def find_markers(
     pct_mask = (pct1 >= min_pct) | (pct2 >= min_pct)
     combined_mask = feat_mask & pct_mask
 
-    # Log2 fold change (log-normalized data is already log-scale, so exponentiate first)
-    mean1 = mat1.mean(axis=1)
-    mean2 = mat2.mean(axis=1)
-    # Since data is log1p(CPM), exponentiate to get CPM then compute fold change
-    fc_mask = np.zeros(len(feature_names))
-    avg_log2fc = np.log2(np.expm1(mean1) + 1) - np.log2(np.expm1(mean2) + 1)
+    # Log2 fold change. Data is log1p-normalized, so to match Seurat's FoldChange()
+    # we un-log each cell (expm1), average within the group, then re-log:
+    #   avg_log2FC = log2(mean(expm1(x1)) + 1) - log2(mean(expm1(x2)) + 1)
+    # NOTE: the mean must be taken AFTER expm1, not before — expm1(mean(x)) is the
+    # geometric-style mean and systematically compresses fold-changes (Jensen).
+    group1_mean = np.expm1(mat1).mean(axis=1)
+    group2_mean = np.expm1(mat2).mean(axis=1)
+    avg_log2fc = np.log2(group1_mean + 1) - np.log2(group2_mean + 1)
 
     # Pre-filter by logfc_threshold
     if logfc_threshold > 0:

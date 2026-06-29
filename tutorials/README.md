@@ -373,12 +373,17 @@ print(top10)
 </tr>
 </table>
 
-> Both plots use **Standardized Variance** (observed variance / LOESS-fitted expected variance)
-> on the y-axis, matching R's `VariableFeaturePlot` exactly.
+> Both plots use **Standardized Variance** on the y-axis, matching R's `VariableFeaturePlot`.
+> Shanuz reproduces Seurat's `vst` algorithm faithfully: it fits the mean–variance LOESS on
+> the **raw counts**, then ranks genes by the variance of the standardized values after
+> clipping each to `sqrt(n_cells)` (the clip step that stops single-cell outliers from
+> dominating).
 > R's `LabelPoints` (with `ggrepel`) avoids label overlaps; Shanuz uses `matplotlib.annotate`
 > which may overlap in dense regions.
-> **Top-10 gene overlap: 5/10 (50%)** — minor rank differences come from LOESS implementation
-> (R: Fortran; Python: `statsmodels.lowess`).
+> **Top-10 gene overlap: 9/10 (90%)** — the same `PPBP, LYZ, S100A9, IGLL5, GNLY, FTL, PF4,
+> FTH1, S100A8` HVGs as the R tutorial; `GNG11` sits just outside the top 10 (rank 11).
+> Minor rank differences come from the LOESS implementation (R: Fortran; Python: local
+> quadratic fit).
 
 ---
 

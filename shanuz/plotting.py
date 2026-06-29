@@ -891,7 +891,9 @@ def ridge_plot(
             ax.plot(xs, j + ys, color="white", linewidth=0.5)
 
         ax.set_yticks(range(len(unique)))
-        ax.set_yticklabels(unique[::-1], fontsize=9)
+        # Row j holds the density for unique[j] (see loop above), so the tick
+        # labels must be `unique`, not its reverse.
+        ax.set_yticklabels(unique, fontsize=9)
         ax.set_xlabel("Expression")
         ax.set_title(feat, fontsize=11, fontweight="bold")
         _strip_axes(ax)
