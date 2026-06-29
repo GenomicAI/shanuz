@@ -1,204 +1,961 @@
-# PBMC 3k Tutorial — Shanuz vs R Seurat: Visual Comparison
+# PBMC 3k Tutorial — R Seurat vs Shanuz (Python)
 
-Side-by-side comparison of plots produced by the **Shanuz** Python package and the
-official **R Seurat** PBMC 3k guided clustering tutorial
-([satijalab.org/seurat/articles/pbmc3k_tutorial](https://satijalab.org/seurat/articles/pbmc3k_tutorial)).
+A step-by-step translation of the official
+[Seurat PBMC 3k tutorial](https://satijalab.org/seurat/articles/pbmc3k_tutorial)
+into Python using the **Shanuz** package.
+Every R code block is paired with the equivalent Python code and both plots are
+shown side by side so R users can follow along directly.
 
 > **Dataset:** 3k PBMCs from a Healthy Donor — 10x Genomics (2016)  
-> **Seurat version referenced:** v5 (Hao et al. 2024)  
-> **Shanuz version:** 0.1.0
+> **R reference:** Seurat v5 · Hao et al. 2024  
+> **Python:** Shanuz v0.1.0
 
-To reproduce all Shanuz plots:
-```bash
-python tutorials/generate_plots.py
+---
+
+## Setup
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+library(Seurat)
+library(dplyr)
+library(patchwork)   # combine plots
+library(ggplot2)     # theming
+```
+
+</td>
+<td>
+
+```python
+# Data structures + analysis
+from shanuz.datasets import pbmc3k
+from shanuz.shanuz import create_shanuz_object
+from shanuz.preprocessing import (
+    normalize_data, find_variable_features,
+    scale_data, percentage_feature_set,
+)
+from shanuz.reduction import run_pca
+from shanuz.neighbors import find_neighbors
+from shanuz.clustering import find_clusters
+from shanuz.umap import run_umap
+from shanuz.markers import find_markers, find_all_markers
+
+# Plotting (mirrors Seurat's plotting API)
+from shanuz.plotting import (
+    dim_plot, feature_plot, vln_plot,
+    elbow_plot, feature_scatter,
+    variable_feature_plot, dim_heatmap,
+    do_heatmap, ridge_plot,
+)
+
+import matplotlib.pyplot as plt   # save / display figures
+```
+
+</td>
+</tr>
+</table>
+
+> **Key difference:** R plots render to the graphics device automatically.
+> Shanuz functions return a `matplotlib.Figure` — display it in a Jupyter
+> notebook (it shows inline), or save it with `fig.savefig("out.png")`.
+
+---
+
+## Step 1 · Load Data
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+# Read 10x sparse matrix from disk
+pbmc.data <- Read10X(
+  data.dir = "pbmc3k/filtered_gene_bc_matrices/hg19/"
+)
+# 32,738 genes × 2,700 cells
+```
+
+</td>
+<td>
+
+```python
+# Downloads automatically to ~/.shanuz_data/pbmc3k
+# (or pass data_dir= to point at an existing folder)
+counts, genes, cells = pbmc3k()
+# counts : scipy.sparse.csc_matrix  (32,738 × 2,700)
+# genes  : list[str]  – feature names
+# cells  : list[str]  – barcode names
+```
+
+</td>
+</tr>
+</table>
+
+---
+
+## Step 2 · Create Object
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- CreateSeuratObject(
+  counts     = pbmc.data,
+  project    = "pbmc3k",
+  min.cells  = 3,     # keep genes in ≥3 cells
+  min.features = 200  # keep cells with ≥200 genes
+)
+# 13,714 features × 2,700 cells
+```
+
+</td>
+<td>
+
+```python
+pbmc = create_shanuz_object(
+    counts       = counts,
+    project      = "pbmc3k",
+    min_cells    = 3,    # keep genes in ≥3 cells
+    min_features = 200,  # keep cells with ≥200 genes
+    feature_names = genes,
+    cell_names    = cells,
+)
+# 13,714 features × 2,700 cells
+print(pbmc)
+# Shanuz object — pbmc3k
+#   2700 cells × 13714 features
+#   Active assay: 'RNA'
+```
+
+</td>
+</tr>
+</table>
+
+> **Naming:** `CreateSeuratObject` → `create_shanuz_object`.
+> Arguments use `_` instead of `.` (`min.cells` → `min_cells`).
+> The returned object exposes the same slots: `pbmc.meta_data`, `pbmc.assays`, etc.
+
+---
+
+## Step 3 · QC Metrics & Violin Plot
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+# Percent mitochondrial reads
+pbmc[["percent.mt"]] <- PercentageFeatureSet(
+  pbmc, pattern = "^MT-"
+)
+
+# Violin plot of three QC metrics
+VlnPlot(
+  pbmc,
+  features = c("nFeature_RNA",
+               "nCount_RNA",
+               "percent.mt"),
+  ncol = 3
+)
+```
+
+</td>
+<td>
+
+```python
+# Percent mitochondrial reads
+percentage_feature_set(
+    pbmc, pattern=r"^MT-", col_name="percent.mt"
+)
+
+# Violin plot of three QC metrics
+fig = vln_plot(
+    pbmc,
+    features=["nFeature_RNA", "nCount_RNA", "percent.mt"],
+    ncol=3,
+    figsize=(12, 4),
+)
+fig.savefig("qc_violin.png", dpi=150, bbox_inches="tight")
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/qc2-1.png" width="420"/></td>
+<td><img src="figures/01_qc_violin.png" width="420"/></td>
+</tr>
+</table>
+
+> `vln_plot` accepts both gene names and metadata column names as `features`.
+> The `group_by` argument (default: active idents) controls the x-axis grouping —
+> same as R's `group.by`.
+
+---
+
+## Step 4 · QC Scatter Plots
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+plot1 <- FeatureScatter(
+  pbmc,
+  feature1 = "nCount_RNA",
+  feature2 = "percent.mt"
+)
+plot2 <- FeatureScatter(
+  pbmc,
+  feature1 = "nCount_RNA",
+  feature2 = "nFeature_RNA"
+)
+plot1 + plot2   # patchwork combines them
+```
+
+</td>
+<td>
+
+```python
+fig1 = feature_scatter(
+    pbmc, "nCount_RNA", "percent.mt"
+)
+fig2 = feature_scatter(
+    pbmc, "nCount_RNA", "nFeature_RNA"
+)
+# Save individually or combine with matplotlib subplots
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/qc2-2.png" width="420"/></td>
+<td><img src="figures/02_qc_scatter.png" width="420"/></td>
+</tr>
+</table>
+
+> R uses `patchwork`'s `+` operator to combine plots.
+> In Python, pass `figsize` or use `matplotlib.gridspec` to arrange figures manually.
+
+---
+
+## Step 5 · Filter Cells
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- subset(
+  pbmc,
+  subset = nFeature_RNA > 200 &
+           nFeature_RNA < 2500 &
+           percent.mt < 5
+)
+# 2,638 cells retained
+```
+
+</td>
+<td>
+
+```python
+md   = pbmc.meta_data
+keep = (
+    (md["nFeature_RNA"] > 200) &
+    (md["nFeature_RNA"] < 2500) &
+    (md["percent.mt"]   < 5)
+)
+pbmc = pbmc.subset(cells=list(md.index[keep]))
+# 2,638 cells retained
+```
+
+</td>
+</tr>
+</table>
+
+> `subset()` works in both languages. Python uses boolean pandas indexing;
+> the result is identical (2,638 cells).
+
+---
+
+## Step 6 · Normalise Data
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- NormalizeData(
+  pbmc,
+  normalization.method = "LogNormalize",
+  scale.factor = 10000
+)
+```
+
+</td>
+<td>
+
+```python
+normalize_data(
+    pbmc,
+    normalization_method = "LogNormalize",
+    scale_factor         = 10000,
+)
+# Stored in pbmc.assays["RNA"].layers["data"]
+```
+
+</td>
+</tr>
+</table>
+
+> Both apply `log1p(counts / total_counts × 10,000)`.
+> Result is stored in the `data` layer of the active assay.
+
+---
+
+## Step 7 · Highly Variable Features
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- FindVariableFeatures(
+  pbmc,
+  selection.method = "vst",
+  nfeatures = 2000
+)
+
+# Visualise
+top10 <- head(VariableFeatures(pbmc), 10)
+plot1 <- VariableFeaturePlot(pbmc)
+plot2 <- LabelPoints(
+  plot = plot1, points = top10, repel = TRUE
+)
+plot1 + plot2
+```
+
+</td>
+<td>
+
+```python
+find_variable_features(
+    pbmc,
+    selection_method = "vst",
+    nfeatures        = 2000,
+)
+
+# Visualise (labels top 10 automatically)
+fig = variable_feature_plot(
+    pbmc, label=True, n_label=10
+)
+# Access the list:
+hvg = pbmc.assays["RNA"].variable_features
+top10 = hvg[:10]
+print(top10)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/var_features-1.png" width="420"/></td>
+<td><img src="figures/03_variable_features.png" width="420"/></td>
+</tr>
+</table>
+
+> R's `LabelPoints` (with `ggrepel`) handles non-overlapping labels.
+> Shanuz uses `matplotlib.annotate` — labels may overlap for very dense regions.
+> **Top-10 overlap: 5/10 (50%)** — minor differences come from LOESS implementation
+> (R: Fortran; Python: `statsmodels.lowess`).
+
+---
+
+## Step 8 · Scale Data
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+all.genes <- rownames(pbmc)
+pbmc <- ScaleData(pbmc, features = all.genes)
+# Stores z-scores in pbmc[["RNA"]]@scale.data
+```
+
+</td>
+<td>
+
+```python
+all_genes = pbmc.assays["RNA"]._all_feature_names
+scale_data(pbmc, features=all_genes)
+# Stored in pbmc.assays["RNA"].layers["scale.data"]
+```
+
+</td>
+</tr>
+</table>
+
+---
+
+## Step 9 · PCA
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- RunPCA(
+  pbmc,
+  features = VariableFeatures(pbmc),
+  npcs     = 50
+)
+
+# Visualise top loading genes
+VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+
+# PCA scatter
+DimPlot(pbmc, reduction = "pca")
+```
+
+</td>
+<td>
+
+```python
+hvg = pbmc.assays["RNA"].variable_features
+run_pca(pbmc, n_pcs=50, features=hvg,
+        reduction_name="pca")
+
+# Visualise top loading genes (as heatmap)
+fig = dim_heatmap(
+    pbmc, reduction="pca", dims=[1, 2], cells=500
+)
+
+# PCA scatter
+fig = dim_plot(pbmc, reduction="pca", label=True)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/pca_viz-1.png" width="420"/></td>
+<td><img src="figures/04_pca_loadings.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/pca_viz-2.png" width="420"/></td>
+<td><img src="figures/05_pca_dimplot.png" width="420"/></td>
+</tr>
+</table>
+
+> R's `VizDimLoadings` draws bar charts; `dim_heatmap` draws a heatmap of the most
+> extreme cells — closer to R's `DimHeatmap`. Both show the same genes dominating PC1
+> (CST3, TYROBP, LST1, AIF1).
+
+---
+
+## Step 10 · Elbow Plot — Choose Dimensionality
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+ElbowPlot(pbmc)
+# Elbow visible around PC 9–10
+```
+
+</td>
+<td>
+
+```python
+fig = elbow_plot(pbmc, ndims=20)
+# Elbow visible around PC 9–10
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/elbow_plot-1.png" width="420"/></td>
+<td><img src="figures/06_elbow_plot.png" width="420"/></td>
+</tr>
+</table>
+
+| PC | R stdev | Shanuz stdev |
+|----|---------|--------------|
+| 1  | ~6.8    | 6.766        |
+| 2  | ~4.8    | 4.808        |
+| 10 | ~1.7    | 1.684        |
+
+---
+
+## Step 11 · Find Neighbors & Cluster
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(
+  pbmc,
+  resolution = 0.5   # → 9 clusters
+)
+# pbmc$seurat_clusters holds the labels
+```
+
+</td>
+<td>
+
+```python
+find_neighbors(pbmc, dims=range(10), k_param=20)
+find_clusters(
+    pbmc,
+    resolution  = 0.5,   # → 9 clusters
+    algorithm   = 1,     # 1=Louvain, 2=Leiden
+    random_seed = 0,
+)
+# pbmc.meta_data["seurat_clusters"] holds labels
+```
+
+</td>
+</tr>
+</table>
+
+> Both use Louvain community detection via `igraph`.
+> `resolution=0.5` gives **9 clusters** in both R and Python.
+
+---
+
+## Step 12 · UMAP
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+DimPlot(pbmc, reduction = "umap")
+```
+
+</td>
+<td>
+
+```python
+run_umap(pbmc, dims=range(10),
+         reduction_name="umap", seed=42)
+fig = dim_plot(pbmc, reduction="umap", label=True)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/umapplot-1.png" width="420"/></td>
+<td><img src="figures/07_umap_clusters.png" width="420"/></td>
+</tr>
+</table>
+
+> Same 9-cluster topology. Cluster label numbers may differ (Louvain assigns IDs by
+> graph traversal order) but the biological groups are identical.
+
+---
+
+## Step 13 · Feature Plots — Canonical Markers
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+FeaturePlot(
+  pbmc,
+  features = c(
+    "MS4A1", "CD79A",
+    "NKG7",  "GNLY",
+    "FCGR3A","LYZ",
+    "PPBP",  "CD8A",
+    "IL7R"
+  )
+)
+```
+
+</td>
+<td>
+
+```python
+fig = feature_plot(
+    pbmc,
+    features=[
+        "MS4A1", "CD79A",
+        "NKG7",  "GNLY",
+        "FCGR3A","LYZ",
+        "PPBP",  "CD8A",
+        "IL7R",
+    ],
+    reduction = "umap",
+    ncol      = 3,
+    colormap  = "YlOrRd",
+)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/unnamed-chunk-3-1.png" width="420"/></td>
+<td><img src="figures/08_feature_plots.png" width="420"/></td>
+</tr>
+</table>
+
+> R uses a yellow–red gradient by default; Shanuz uses `"YlOrRd"` (same scheme).
+> The `order=True` argument (default) ensures high-expression cells are plotted on top,
+> matching R's `order = TRUE` behaviour.
+
+---
+
+## Step 14 · Violin Plots — Marker Expression
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+VlnPlot(
+  pbmc,
+  features = c("MS4A1", "CD79A")
+)
+VlnPlot(
+  pbmc,
+  features = c("NKG7", "PF4"),
+  slot = "counts",
+  log  = TRUE
+)
+```
+
+</td>
+<td>
+
+```python
+fig = vln_plot(
+    pbmc,
+    features=["MS4A1", "CD79A", "NKG7", "PF4"],
+    ncol=2,
+    figsize=(14, 8),
+)
+
+# For raw counts layer, pass layer="counts"
+fig = vln_plot(
+    pbmc,
+    features=["NKG7", "PF4"],
+    layer="counts",
+)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/markerplots-1.png" width="420"/></td>
+<td><img src="figures/09_marker_violins.png" width="420"/></td>
+</tr>
+</table>
+
+> Both show cluster-specific marker expression.
+> The `layer` argument in Shanuz maps to Seurat's `slot` argument.
+
+---
+
+## Step 15 · Find Markers
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+# Markers for one cluster
+cluster2.markers <- FindMarkers(
+  pbmc, ident.1 = 2
+)
+head(cluster2.markers, 5)
+
+# Markers for all clusters
+pbmc.markers <- FindAllMarkers(
+  pbmc,
+  only.pos        = TRUE,
+  min.pct         = 0.25,
+  logfc.threshold = 0.25
+)
+pbmc.markers %>%
+  group_by(cluster) %>%
+  slice_max(n = 2, order_by = avg_log2FC)
+```
+
+</td>
+<td>
+
+```python
+# Markers for one cluster
+c2_markers = find_markers(
+    pbmc, ident_1="2", only_pos=True
+)
+print(c2_markers.head(5))
+
+# Markers for all clusters
+all_markers = find_all_markers(
+    pbmc,
+    only_pos        = True,
+    min_pct         = 0.25,
+    logfc_threshold = 0.25,
+)
+top2 = (
+    all_markers
+    .groupby("cluster", group_keys=False)
+    .apply(lambda x: x.nlargest(2, "avg_log2FC"))
+)
+print(top2)
+```
+
+</td>
+</tr>
+</table>
+
+> Argument names use `_` instead of `.` (`ident.1` → `ident_1`,
+> `only.pos` → `only_pos`). The returned `DataFrame` has the same columns:
+> `p_val`, `avg_log2FC`, `pct.1`, `pct.2`, `p_val_adj`, `cluster`, `gene`.
+
+---
+
+## Step 16 · Expression Heatmap
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+top10 <- pbmc.markers %>%
+  group_by(cluster) %>%
+  top_n(n = 10, wt = avg_log2FC)
+
+DoHeatmap(pbmc, features = top10$gene) +
+  NoLegend()
+```
+
+</td>
+<td>
+
+```python
+top10_genes = (
+    all_markers
+    .groupby("cluster", group_keys=False)
+    .apply(lambda x: x.nlargest(10, "avg_log2FC"))
+    ["gene"].tolist()
+)
+top10_genes = list(dict.fromkeys(top10_genes))
+
+fig = do_heatmap(pbmc, features=top10_genes)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/clusterHeatmap-1.png" width="420"/></td>
+<td><img src="figures/10_marker_heatmap.png" width="420"/></td>
+</tr>
+</table>
+
+> `do_heatmap` automatically sorts cells by cluster and draws a coloured cluster
+> bar at the top — matching R's `DoHeatmap` layout.
+> `NoLegend()` in R is handled by `do_heatmap`'s internal layout.
+
+---
+
+## Step 17 · Cell Type Annotation
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+new.cluster.ids <- c(
+  "Naive CD4 T", "CD14+ Mono",
+  "Memory CD4 T", "B",
+  "CD8 T", "FCGR3A+ Mono",
+  "NK", "DC", "Platelet"
+)
+names(new.cluster.ids) <- levels(pbmc)
+pbmc <- RenameIdents(pbmc, new.cluster.ids)
+
+DimPlot(
+  pbmc,
+  reduction = "umap",
+  label     = TRUE,
+  pt.size   = 0.5
+) + NoLegend()
+```
+
+</td>
+<td>
+
+```python
+cell_type_map = {
+    "0": "Naive CD4 T",
+    "1": "Memory CD4 T",
+    "2": "CD14+ Mono",
+    "3": "CD8 T",
+    "4": "B",
+    "5": "FCGR3A+ Mono",
+    "6": "NK",
+    "7": "DC",
+    "8": "Platelet",
+}
+pbmc.rename_idents(cell_type_map)
+
+fig = dim_plot(
+    pbmc,
+    reduction = "umap",
+    label     = True,
+    pt_size   = 0.5,
+    title     = "UMAP — Cell Type Annotations",
+)
+```
+
+</td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/labelplot-1.png" width="420"/></td>
+<td><img src="figures/11_umap_labeled.png" width="420"/></td>
+</tr>
+</table>
+
+> Cluster index ordering differs between R and Shanuz (Louvain is non-deterministic
+> by cluster ID), so the cluster-to-cell-type mapping uses different numeric keys.
+> The biological result — 9 identical cell types — is the same.
+
+---
+
+## Step 18 · Ridge Plot (Bonus)
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td>
+
+```r
+RidgePlot(
+  pbmc,
+  features = c("LYZ", "NKG7",
+               "MS4A1", "CD8A"),
+  ncol = 2
+)
+```
+
+</td>
+<td>
+
+```python
+fig = ridge_plot(
+    pbmc,
+    features=["LYZ", "NKG7", "MS4A1", "CD8A"],
+    ncol=2,
+    figsize=(12, 8),
+)
+```
+
+</td>
+</tr>
+<tr>
+<td><em>R Seurat RidgePlot (ggridges)</em></td>
+<td><img src="figures/12_ridge_plot.png" width="420"/></td>
+</tr>
+</table>
+
+> R's `RidgePlot` uses the `ggridges` package.
+> Shanuz implements equivalent KDE ridgelines using `scipy.stats.gaussian_kde`.
+
+---
+
+## Quick Reference — API Translation
+
+| Task | R (Seurat) | Python (Shanuz) |
+|------|-----------|-----------------|
+| Create object | `CreateSeuratObject(counts, min.cells, min.features)` | `create_shanuz_object(counts, min_cells, min_features)` |
+| % mito genes | `PercentageFeatureSet(pbmc, pattern="^MT-")` | `percentage_feature_set(pbmc, pattern=r"^MT-", col_name=...)` |
+| Normalise | `NormalizeData(pbmc, normalization.method, scale.factor)` | `normalize_data(pbmc, normalization_method, scale_factor)` |
+| HVGs | `FindVariableFeatures(pbmc, selection.method, nfeatures)` | `find_variable_features(pbmc, selection_method, nfeatures)` |
+| Scale | `ScaleData(pbmc, features)` | `scale_data(pbmc, features)` |
+| PCA | `RunPCA(pbmc, features, npcs)` | `run_pca(pbmc, features, n_pcs)` |
+| Neighbors | `FindNeighbors(pbmc, dims)` | `find_neighbors(pbmc, dims, k_param)` |
+| Cluster | `FindClusters(pbmc, resolution)` | `find_clusters(pbmc, resolution, algorithm)` |
+| UMAP | `RunUMAP(pbmc, dims)` | `run_umap(pbmc, dims)` |
+| Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
+| All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
+| Rename idents | `RenameIdents(pbmc, new.ids)` | `pbmc.rename_idents(mapping_dict)` |
+| Subset | `subset(pbmc, subset = condition)` | `pbmc.subset(cells=keep_list)` |
+| Get expression | `FetchData(pbmc, vars)` | `pbmc.fetch_data(vars)` |
+| Access metadata | `pbmc@meta.data` | `pbmc.meta_data` |
+| Access assay | `pbmc[["RNA"]]` | `pbmc.assays["RNA"]` |
+| Active idents | `Idents(pbmc)` | `pbmc.idents` |
+
+### Plotting API Translation
+
+| R (Seurat) | Python (Shanuz) | Key argument changes |
+|-----------|-----------------|---------------------|
+| `VlnPlot(pbmc, features, ncol, slot)` | `vln_plot(pbmc, features, ncol, layer)` | `slot` → `layer` |
+| `FeaturePlot(pbmc, features, order)` | `feature_plot(pbmc, features, order)` | same |
+| `DimPlot(pbmc, reduction, label, pt.size)` | `dim_plot(pbmc, reduction, label, pt_size)` | `.` → `_` |
+| `ElbowPlot(pbmc)` | `elbow_plot(pbmc)` | same |
+| `FeatureScatter(pbmc, feature1, feature2)` | `feature_scatter(pbmc, feature1, feature2)` | same |
+| `VariableFeaturePlot(pbmc)` | `variable_feature_plot(pbmc)` | same |
+| `DimHeatmap(pbmc, dims, cells, balanced)` | `dim_heatmap(pbmc, dims, cells, balanced)` | same |
+| `DoHeatmap(pbmc, features)` | `do_heatmap(pbmc, features)` | same |
+| `RidgePlot(pbmc, features, ncol)` | `ridge_plot(pbmc, features, ncol)` | same |
+
+### Plot output difference
+
+```r
+# R — plots render to graphics device automatically
+VlnPlot(pbmc, features = "LYZ")
+```
+
+```python
+# Python — functions return a Figure; display or save explicitly
+fig = vln_plot(pbmc, features="LYZ")
+
+# In a Jupyter notebook: just call the function — it displays inline
+# To save:
+fig.savefig("lyz_violin.png", dpi=150, bbox_inches="tight")
+# To display interactively:
+plt.show()
 ```
 
 ---
 
-## 1 · QC Metrics — Violin Plot
+## Reproducing All Plots
 
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R QC violin](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/qc2-1.png) | ![Shanuz QC violin](figures/01_qc_violin.png) |
-
-Both plots show the distribution of three QC metrics across 2,700 cells: unique feature counts
-(nFeature_RNA), total molecule counts (nCount_RNA), and mitochondrial percentage (percent.mt).
-Cells with nFeature_RNA > 2,500 or percent.mt > 5% are excluded downstream.
-
----
-
-## 2 · QC Metrics — Scatter Plot
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R QC scatter](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/qc2-2.png) | ![Shanuz QC scatter](figures/02_qc_scatter.png) |
-
-Scatter plots confirm the expected positive correlation between total counts and feature counts,
-and the typical low-mt outlier cells visible in both implementations.
-
----
-
-## 3 · Highly Variable Features
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R HVG](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/var_features-1.png) | ![Shanuz HVG](figures/03_variable_features.png) |
-
-Both plots use the VST (variance-stabilizing transformation) method to select 2,000 highly
-variable genes (shown in red). The mean–variance relationship and the overall shape of the
-selected gene set are consistent. Minor differences in the top-10 labels reflect small
-numerical differences between R's Fortran LOESS and Python's `statsmodels.lowess`.
-
-**Top 10 overlap: 5/10 (50%)** — shared: GNLY, PF4, PPBP, S100A8, S100A9.
-
----
-
-## 4 · PCA — Top Loading Genes
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R PCA loadings](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/pca_viz-1.png) | ![Shanuz PCA loadings](figures/04_pca_loadings.png) |
-
-PC1 captures the myeloid–lymphoid axis in both implementations. The top positive-loading
-genes (CST3, TYROBP, LST1, AIF1) are reproduced identically in Shanuz.
-
----
-
-## 5 · PCA — Cells in PC1 / PC2 Space
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R PCA dimplot](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/pca_viz-2.png) | ![Shanuz PCA dimplot](figures/05_pca_dimplot.png) |
-
-The PCA scatter shows the same separation structure. Clusters are coloured consistently
-and the overall topology — with myeloid cells on one end of PC1 and lymphoid cells on
-the other — is reproduced.
-
----
-
-## 6 · Elbow Plot — Dimensionality Selection
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R elbow](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/elbow_plot-1.png) | ![Shanuz elbow](figures/06_elbow_plot.png) |
-
-Both plots show a clear elbow around PC 9–10, confirming the choice of 10 PCs for
-downstream neighbor-finding and clustering.
-
-| PC | R Seurat stdev | Shanuz stdev |
-|----|---------------|--------------|
-| 1  | ~6.8          | 6.766        |
-| 2  | ~4.8          | 4.808        |
-| 10 | ~1.7          | 1.684        |
-
----
-
-## 7 · UMAP — Coloured by Cluster
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R UMAP clusters](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/umapplot-1.png) | ![Shanuz UMAP clusters](figures/07_umap_clusters.png) |
-
-Both embeddings resolve the same 9 clusters at resolution = 0.5. The topology is
-consistent: a large T-cell group, a monocyte population, a B-cell island, and small
-peripheral populations (NK, DC, Platelet). Cluster label numbers differ because Louvain
-assigns IDs by graph traversal order (random-seed dependent), not by size.
-
----
-
-## 8 · Feature Plots — Canonical Marker Genes
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R feature plots](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/unnamed-chunk-3-1.png) | ![Shanuz feature plots](figures/08_feature_plots.png) |
-
-Expression of 9 canonical marker genes overlaid on the UMAP embedding. Key observations
-reproduced in Shanuz:
-
-| Gene | Cell type | Shanuz result |
-|------|-----------|---------------|
-| MS4A1, CD79A | B cells | Focal expression on B-cell island |
-| NKG7, GNLY | NK / CD8 T | NK cluster clearly lit |
-| FCGR3A | FCGR3A+ Mono | FCGR3A+ monocyte cluster |
-| LYZ | CD14+ Mono | Strong in CD14+ monocytes |
-| PPBP | Platelet | Isolated platelet cluster |
-| CD8A | CD8 T | CD8 T cluster |
-| IL7R | CD4 T | Naive + Memory CD4 T |
-
----
-
-## 9 · Violin Plots — Marker Gene Expression per Cluster
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R violin markers](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/markerplots-1.png) | ![Shanuz violin markers](figures/09_marker_violins.png) |
-
-Violin plots confirm cluster-specific marker expression. MS4A1 (B cells) and CD79A
-(B cells) show high expression in the B-cell cluster in both implementations. NKG7
-and PF4 (Platelet) are similarly cluster-restricted.
-
----
-
-## 10 · Top Marker Gene Heatmap
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R heatmap](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/clusterHeatmap-1.png) | ![Shanuz heatmap](figures/10_marker_heatmap.png) |
-
-Heatmaps of the top 5 marker genes per cluster (by avg_log2FC, scaled expression).
-Both show clear block-diagonal structure confirming that each cluster has a unique
-transcriptional signature. Key marker blocks reproduced: LYZ/S100A9 for CD14+ Mono,
-GNLY/NKG7 for NK, PPBP for Platelet, CD79A for B cells.
-
----
-
-## 11 · UMAP — Cell Type Annotations
-
-| R Seurat | Shanuz |
-|----------|--------|
-| ![R labeled UMAP](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/labelplot-1.png) | ![Shanuz labeled UMAP](figures/11_umap_labeled.png) |
-
-Final annotated UMAP with all 9 cell types labelled. Shanuz recovers the same 9 cell
-populations using the same canonical marker logic as the R tutorial:
-
-| Cell Type | R Seurat | Shanuz |
-|-----------|----------|--------|
-| Naive CD4 T | ✅ | ✅ (568 cells) |
-| Memory CD4 T | ✅ | ✅ (511 cells) |
-| CD14+ Mono | ✅ | ✅ (472 cells) |
-| CD8 T | ✅ | ✅ (370 cells) |
-| B | ✅ | ✅ (347 cells) |
-| FCGR3A+ Mono | ✅ | ✅ (168 cells) |
-| NK | ✅ | ✅ (157 cells) |
-| DC | ✅ | ✅ (30 cells) |
-| Platelet | ✅ | ✅ (15 cells) |
-
----
-
-## Key Numerical Comparison
-
-| Metric | R Seurat | Shanuz | Match |
-|--------|----------|--------|-------|
-| Cells after QC | 2,638 | 2,638 | ✅ |
-| HVGs selected | 2,000 | 2,000 | ✅ |
-| Top-10 HVG overlap | — | 5/10 (50%) | ✅ |
-| PC1 stdev | ~6.8 | 6.766 | ✅ |
-| Number of clusters | 9 | 9 | ✅ |
-| Cell types found | 9 | 9 | ✅ |
-| Canonical markers reproduced | 6/6 | 6/6 | ✅ |
-
----
-
-## Implementation Differences
-
-| Aspect | R Seurat | Shanuz |
-|--------|----------|--------|
-| LOESS (VST) | Fortran (`stats::loess`) | `statsmodels.lowess` (it=3) |
-| PCA | `irlba` randomized SVD | `sklearn.decomposition.PCA` |
-| UMAP | `uwot` (C++) | `umap-learn` (Python) |
-| Louvain | `igraph::cluster_louvain` | `python-igraph community_multilevel` |
-| Wilcoxon | `wilcox.test` | `scipy.stats.ranksums` |
-| Total runtime | ~minutes (R overhead) | ~49 s |
+```bash
+git clone https://github.com/GenomicAI/shanuz.git
+cd shanuz
+uv venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install -e ".[analysis]"
+python tutorials/generate_plots.py
+# Plots saved to tutorials/figures/
+```
 
 ---
 
