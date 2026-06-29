@@ -373,9 +373,11 @@ print(top10)
 </tr>
 </table>
 
-> R's `LabelPoints` (with `ggrepel`) handles non-overlapping labels.
-> Shanuz uses `matplotlib.annotate` — labels may overlap for very dense regions.
-> **Top-10 overlap: 5/10 (50%)** — minor differences come from LOESS implementation
+> Both plots use **Standardized Variance** (observed variance / LOESS-fitted expected variance)
+> on the y-axis, matching R's `VariableFeaturePlot` exactly.
+> R's `LabelPoints` (with `ggrepel`) avoids label overlaps; Shanuz uses `matplotlib.annotate`
+> which may overlap in dense regions.
+> **Top-10 gene overlap: 5/10 (50%)** — minor rank differences come from LOESS implementation
 > (R: Fortran; Python: `statsmodels.lowess`).
 
 ---
@@ -422,7 +424,7 @@ pbmc <- RunPCA(
   npcs     = 50
 )
 
-# Visualise top loading genes
+# Top positive/negative loading genes per PC
 VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
 
 # PCA scatter
@@ -437,13 +439,14 @@ hvg = pbmc.assays["RNA"].variable_features
 run_pca(pbmc, n_pcs=50, features=hvg,
         reduction_name="pca")
 
-# Visualise top loading genes (as heatmap)
-fig = dim_heatmap(
-    pbmc, reduction="pca", dims=[1, 2], cells=500
+# Top positive/negative loading genes per PC
+# viz_dim_loadings mirrors VizDimLoadings exactly
+fig = viz_dim_loadings(
+    pbmc, reduction="pca", dims=[1, 2], n_features=15
 )
 
 # PCA scatter
-fig = dim_plot(pbmc, reduction="pca", label=True)
+fig = dim_plot(pbmc, reduction="pca", label=False)
 ```
 
 </td>
@@ -458,9 +461,9 @@ fig = dim_plot(pbmc, reduction="pca", label=True)
 </tr>
 </table>
 
-> R's `VizDimLoadings` draws bar charts; `dim_heatmap` draws a heatmap of the most
-> extreme cells — closer to R's `DimHeatmap`. Both show the same genes dominating PC1
-> (CST3, TYROBP, LST1, AIF1).
+> Both show horizontal bar charts of top loading genes per PC.
+> The same myeloid genes dominate PC1 positively (CST3, TYROBP, LST1, AIF1)
+> and T-cell genes dominate PC1 negatively (IL7R, LTB, IL32).
 
 ---
 
@@ -557,7 +560,8 @@ DimPlot(pbmc, reduction = "umap")
 ```python
 run_umap(pbmc, dims=range(10),
          reduction_name="umap", seed=42)
-fig = dim_plot(pbmc, reduction="umap", label=True)
+# label=False matches R's default (no centroid labels)
+fig = dim_plot(pbmc, reduction="umap", label=False)
 ```
 
 </td>
@@ -650,18 +654,19 @@ VlnPlot(
 <td>
 
 ```python
+# Matches R's first VlnPlot call (MS4A1 + CD79A)
 fig = vln_plot(
     pbmc,
-    features=["MS4A1", "CD79A", "NKG7", "PF4"],
-    ncol=2,
-    figsize=(14, 8),
+    features=["MS4A1", "CD79A"],
+    figsize=(12, 4),
 )
 
-# For raw counts layer, pass layer="counts"
+# Matches R's second VlnPlot call (raw counts)
 fig = vln_plot(
     pbmc,
     features=["NKG7", "PF4"],
-    layer="counts",
+    layer="counts",   # slot="counts" in R
+    figsize=(12, 4),
 )
 ```
 
@@ -671,10 +676,14 @@ fig = vln_plot(
 <td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/markerplots-1.png" width="420"/></td>
 <td><img src="figures/09_marker_violins.png" width="420"/></td>
 </tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/markerplots-2.png" width="420"/></td>
+<td><img src="figures/09b_marker_violins_counts.png" width="420"/></td>
+</tr>
 </table>
 
 > Both show cluster-specific marker expression.
-> The `layer` argument in Shanuz maps to Seurat's `slot` argument.
+> The `layer` argument in Shanuz maps directly to Seurat's `slot` argument.
 
 ---
 
@@ -922,6 +931,7 @@ fig = ridge_plot(
 | `ElbowPlot(pbmc)` | `elbow_plot(pbmc)` | same |
 | `FeatureScatter(pbmc, feature1, feature2)` | `feature_scatter(pbmc, feature1, feature2)` | same |
 | `VariableFeaturePlot(pbmc)` | `variable_feature_plot(pbmc)` | same |
+| `VizDimLoadings(pbmc, dims, reduction)` | `viz_dim_loadings(pbmc, dims, reduction)` | same |
 | `DimHeatmap(pbmc, dims, cells, balanced)` | `dim_heatmap(pbmc, dims, cells, balanced)` | same |
 | `DoHeatmap(pbmc, features)` | `do_heatmap(pbmc, features)` | same |
 | `RidgePlot(pbmc, features, ncol)` | `ridge_plot(pbmc, features, ncol)` | same |

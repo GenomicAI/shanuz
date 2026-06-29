@@ -490,44 +490,57 @@ def variable_feature_plot(
     plt = _mpl()
 
     assay_obj = _get_assay_obj(obj, assay)
-    mat = _get_data_matrix(assay_obj)
     feat_names = assay_obj._all_feature_names
     hvg_set = set(assay_obj.variable_features)
     top_labeled = assay_obj.variable_features[:n_label]
-
-    if sp.issparse(mat):
-        means = np.array(mat.mean(axis=1)).flatten()
-        sq_means = np.array(mat.power(2).mean(axis=1)).flatten()
-    else:
-        d = np.asarray(mat, dtype=float)
-        means = d.mean(axis=1)
-        sq_means = (d ** 2).mean(axis=1)
-
-    variances = sq_means - means ** 2
     is_hvg = np.array([f in hvg_set for f in feat_names])
 
+    # Prefer pre-computed VST stats stored by find_variable_features
+    md = getattr(assay_obj, "meta_data", None)
+    use_std_var = (md is not None
+                   and "variances.standardized" in md.columns
+                   and "means" in md.columns)
+
+    if use_std_var:
+        means = md["means"].values
+        y_vals = md["variances.standardized"].values
+        y_label = "Standardized Variance"
+        # clip extreme standardized values for readability
+        y_vals = np.clip(y_vals, 0, np.percentile(y_vals[y_vals > 0], 99.5))
+        log = False  # standardized variance on linear scale matches R
+    else:
+        mat = _get_data_matrix(assay_obj)
+        if sp.issparse(mat):
+            means = np.array(mat.mean(axis=1)).flatten()
+            sq_means = np.array(mat.power(2).mean(axis=1)).flatten()
+        else:
+            d = np.asarray(mat, dtype=float)
+            means = d.mean(axis=1)
+            sq_means = (d ** 2).mean(axis=1)
+        y_vals = sq_means - means ** 2
+        y_label = "Dispersion (log)" if log else "Dispersion"
+
     fig, ax = plt.subplots(figsize=figsize)
-    ax.scatter(means[~is_hvg], variances[~is_hvg], s=3, alpha=0.3,
+    ax.scatter(means[~is_hvg], y_vals[~is_hvg], s=3, alpha=0.3,
                color="#AAAAAA", label="Other genes", linewidths=0)
-    ax.scatter(means[is_hvg], variances[is_hvg], s=4, alpha=0.7,
+    ax.scatter(means[is_hvg], y_vals[is_hvg], s=4, alpha=0.7,
                color="#F8766D", label="Variable features", linewidths=0)
 
     if label:
         for gene in top_labeled:
             if gene in feat_names:
                 idx = feat_names.index(gene)
-                ax.annotate(gene, (means[idx], variances[idx]),
+                ax.annotate(gene, (means[idx], y_vals[idx]),
                             fontsize=7, xytext=(3, 3),
                             textcoords="offset points", color="#333333")
 
-    if log:
+    if log and not use_std_var:
         ax.set_xscale("log"); ax.set_yscale("log")
         ax.set_xlabel("Average Expression (log)")
-        ax.set_ylabel("Dispersion (log)")
     else:
         ax.set_xlabel("Average Expression")
-        ax.set_ylabel("Dispersion")
 
+    ax.set_ylabel(y_label)
     ax.set_title(f"Highly Variable Features  ({len(hvg_set):,} selected)",
                  fontsize=12)
     ax.legend(markerscale=3, fontsize=9)
@@ -537,7 +550,78 @@ def variable_feature_plot(
 
 
 # ---------------------------------------------------------------------------
-# 7. dim_heatmap — DimHeatmap
+# 7. viz_dim_loadings — VizDimLoadings
+# ---------------------------------------------------------------------------
+
+def viz_dim_loadings(
+    obj,
+    reduction: str = "pca",
+    dims: Union[int, list[int]] = [1, 2],
+    n_features: int = 15,
+    ncol: Optional[int] = None,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Horizontal bar charts of top positive and negative loading genes per PC.
+
+    Mirrors R's ``VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")``.
+
+    Parameters
+    ----------
+    dims       : PC indices (1-based) to visualise
+    n_features : number of top genes to show per direction (positive + negative)
+    """
+    plt = _mpl()
+    if isinstance(dims, int):
+        dims = [dims]
+    dims_0 = [d - 1 for d in dims]
+
+    dr = obj.reductions[reduction]
+    loadings = dr.feature_loadings
+    feat_names = list(dr._feature_names) if hasattr(dr, "_feature_names") else []
+
+    nrow, nc = _subplot_grid(len(dims), ncol)
+    if figsize is None:
+        figsize = (nc * 4.5, nrow * max(4, n_features * 0.35))
+
+    fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
+    axes_flat = axes.flatten()
+
+    for plot_i, (dim, d0) in enumerate(zip(dims, dims_0)):
+        ax = axes_flat[plot_i]
+        col = loadings[:, d0]
+
+        top_pos_idx = np.argsort(col)[::-1][:n_features]
+        top_neg_idx = np.argsort(col)[:n_features]
+        # Combine: negatives at top (sorted most negative first), positives below
+        idx = np.concatenate([top_pos_idx[::-1], top_neg_idx[::-1]])
+        genes = [feat_names[i] if i < len(feat_names) else f"gene_{i}" for i in idx]
+        vals  = col[idx]
+        colors = ["#F8766D" if v > 0 else "#00BFC4" for v in vals]
+
+        y_pos = np.arange(len(genes))
+        ax.barh(y_pos, vals, color=colors, edgecolor="none", height=0.75)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(genes, fontsize=max(6, 9 - n_features // 10))
+        ax.axvline(0, color="#333333", linewidth=0.8)
+        ax.set_xlabel("Loading score")
+        ax.set_title(f"{reduction.upper()} {dim}", fontsize=12, fontweight="bold")
+        _strip_axes(ax)
+
+        # Compact legend patches
+        from matplotlib.patches import Patch
+        ax.legend(handles=[Patch(color="#F8766D", label="Positive"),
+                            Patch(color="#00BFC4", label="Negative")],
+                  fontsize=8, frameon=False, loc="lower right")
+
+    for i in range(len(dims), len(axes_flat)):
+        axes_flat[i].set_visible(False)
+
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 8. dim_heatmap — DimHeatmap
 # ---------------------------------------------------------------------------
 
 def dim_heatmap(
@@ -817,6 +901,7 @@ __all__ = [
     "elbow_plot",
     "feature_scatter",
     "variable_feature_plot",
+    "viz_dim_loadings",
     "dim_heatmap",
     "do_heatmap",
     "ridge_plot",

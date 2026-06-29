@@ -32,7 +32,7 @@ from shanuz.umap import run_umap
 from shanuz.markers import find_all_markers
 from shanuz.plotting import (
     vln_plot, feature_plot, dim_plot, elbow_plot, feature_scatter,
-    variable_feature_plot, dim_heatmap, do_heatmap, ridge_plot,
+    variable_feature_plot, viz_dim_loadings, dim_heatmap, do_heatmap, ridge_plot,
 )
 
 FIGURES = Path(__file__).parent / "figures"
@@ -96,8 +96,9 @@ def main(data_dir=None):
         project="pbmc3k_qc", feature_names=genes, cell_names=cells,
     )
     percentage_feature_set(pbmc_raw, pattern=r"^MT-", col_name="percent.mt")
+    # pt_size=1.0 matches R's default of showing individual data points on violins
     _save(vln_plot(pbmc_raw, ["nFeature_RNA", "nCount_RNA", "percent.mt"], ncol=3,
-                   figsize=(12, 4)), "01_qc_violin.png")
+                   figsize=(12, 4), pt_size=1.0), "01_qc_violin.png")
 
     # 2. QC scatter
     _save(feature_scatter(pbmc_raw, "nCount_RNA", "percent.mt",
@@ -131,20 +132,20 @@ def main(data_dir=None):
     _save(variable_feature_plot(pbmc, label=True, n_label=10, figsize=(9, 5)),
           "03_variable_features.png")
 
-    # 4. PCA loadings
-    _save(dim_heatmap(pbmc, reduction="pca", dims=[1, 2], cells=500,
-                      figsize=(12, 6)), "04_pca_loadings.png")
+    # 4. PCA loadings — viz_dim_loadings matches R's VizDimLoadings (bar charts)
+    _save(viz_dim_loadings(pbmc, reduction="pca", dims=[1, 2], n_features=15,
+                           figsize=(10, 6)), "04_pca_loadings.png")
 
-    # 5. PCA dimplot
-    _save(dim_plot(pbmc, reduction="pca", label=True,
+    # 5. PCA dimplot — no labels to match R's DimPlot(pbmc, reduction="pca")
+    _save(dim_plot(pbmc, reduction="pca", label=False,
                    title="PCA — coloured by cluster", figsize=(7, 6)),
           "05_pca_dimplot.png")
 
     # 6. Elbow plot
     _save(elbow_plot(pbmc, ndims=20, figsize=(7, 4)), "06_elbow_plot.png")
 
-    # 7. UMAP clusters
-    _save(dim_plot(pbmc, reduction="umap", label=True,
+    # 7. UMAP clusters — no labels to match R's DimPlot(pbmc, reduction="umap")
+    _save(dim_plot(pbmc, reduction="umap", label=False,
                    title="UMAP — coloured by cluster", figsize=(7, 6)),
           "07_umap_clusters.png")
 
@@ -153,9 +154,12 @@ def main(data_dir=None):
     _save(feature_plot(pbmc, canon, reduction="umap", ncol=3,
                        figsize=(13, 11)), "08_feature_plots.png")
 
-    # 9. Violin plots — key markers
-    _save(vln_plot(pbmc, ["MS4A1", "CD79A", "NKG7", "PF4"],
-                   figsize=(14, 8), ncol=2), "09_marker_violins.png")
+    # 9. Violin plots — MS4A1 + CD79A only, to match R's markerplots-1.png reference
+    _save(vln_plot(pbmc, ["MS4A1", "CD79A"], figsize=(12, 4), ncol=2),
+          "09_marker_violins.png")
+    # Also save NKG7 + PF4 separately (matches R's markerplots-2.png)
+    _save(vln_plot(pbmc, ["NKG7", "PF4"], layer="counts", figsize=(12, 4), ncol=2),
+          "09b_marker_violins_counts.png")
 
     # 10. DoHeatmap — top 5 markers per cluster
     top_genes = (
