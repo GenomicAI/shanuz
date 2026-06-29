@@ -22,6 +22,18 @@ from .spatial import (
     create_segmentation,
 )
 from . import generics
+from . import plotting
+from .plotting import (
+    vln_plot,
+    feature_plot,
+    dim_plot,
+    elbow_plot,
+    feature_scatter,
+    variable_feature_plot,
+    dim_heatmap,
+    do_heatmap,
+    ridge_plot,
+)
 
 __version__ = "5.4.0"
 
@@ -56,5 +68,16 @@ __all__ = [
     "log_shanuz_command",
     # Generic functions module
     "generics",
+    # Plotting module
+    "plotting",
+    "vln_plot",
+    "feature_plot",
+    "dim_plot",
+    "elbow_plot",
+    "feature_scatter",
+    "variable_feature_plot",
+    "dim_heatmap",
+    "do_heatmap",
+    "ridge_plot",
     "__version__",
 ]

@@ -24,6 +24,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
 - **UMAP** — `run_umap` (via umap-learn)
 - **Differential expression** — `find_markers`, `find_all_markers` (Wilcoxon rank-sum)
+- **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 
@@ -164,6 +165,44 @@ from shanuz.markers import find_markers, find_all_markers
 markers = find_markers(pbmc, ident_1=1)
 all_markers = find_all_markers(pbmc, only_pos=True, logfc_threshold=0.25)
 ```
+
+### Plotting
+
+All plotting functions return a `matplotlib.figure.Figure` — save or display as needed.
+
+```python
+from shanuz.plotting import (
+    dim_plot,            # DimPlot   — cells on UMAP/PCA coloured by ident
+    feature_plot,        # FeaturePlot — gene expression on embedding
+    vln_plot,            # VlnPlot   — violin plots per cluster
+    elbow_plot,          # ElbowPlot — stdev per PC
+    feature_scatter,     # FeatureScatter — two features vs each other
+    variable_feature_plot, # VariableFeaturePlot — mean-variance HVG plot
+    dim_heatmap,         # DimHeatmap — top loading genes per PC
+    do_heatmap,          # DoHeatmap  — expression heatmap sorted by cluster
+    ridge_plot,          # RidgePlot  — ridgeline plots per cluster
+)
+
+# Quick examples
+fig = dim_plot(pbmc, reduction="umap", label=True)
+fig = feature_plot(pbmc, ["LYZ", "MS4A1", "NKG7"], reduction="umap", ncol=3)
+fig = vln_plot(pbmc, ["LYZ", "CD3D", "PPBP"], group_by=None)
+fig = elbow_plot(pbmc, ndims=20)
+fig = do_heatmap(pbmc, top_marker_genes)
+fig.savefig("output.png", dpi=150, bbox_inches="tight")
+```
+
+| Shanuz function | R Seurat equivalent |
+|-----------------|---------------------|
+| `dim_plot` | `DimPlot` |
+| `feature_plot` | `FeaturePlot` |
+| `vln_plot` | `VlnPlot` |
+| `elbow_plot` | `ElbowPlot` |
+| `feature_scatter` | `FeatureScatter` |
+| `variable_feature_plot` | `VariableFeaturePlot` |
+| `dim_heatmap` | `DimHeatmap` |
+| `do_heatmap` | `DoHeatmap` |
+| `ridge_plot` | `RidgePlot` |
 
 ---
 
