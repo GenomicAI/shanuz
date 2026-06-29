@@ -151,8 +151,8 @@ def main(data_dir=None):
 
     # 8. Feature plots (canonical markers)
     canon = ["MS4A1", "CD79A", "NKG7", "GNLY", "FCGR3A", "LYZ", "PPBP", "CD8A", "IL7R"]
-    _save(feature_plot(pbmc, canon, reduction="umap", ncol=3,
-                       figsize=(13, 11)), "08_feature_plots.png")
+    _save(feature_plot(pbmc, canon, reduction="umap", ncol=3, pt_size=1.5,
+                       figsize=(12, 10)), "08_feature_plots.png")
 
     # 9. Violin plots — MS4A1 + CD79A only, to match R's markerplots-1.png reference
     _save(vln_plot(pbmc, ["MS4A1", "CD79A"], figsize=(12, 4), ncol=2),

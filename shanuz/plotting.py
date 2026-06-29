@@ -290,16 +290,26 @@ def feature_plot(
         vmax = np.percentile(expr, 95) if max_cutoff == "q95" else (max_cutoff or expr.max())
         vmax = max(vmax, vmin + 1e-9)
 
-        if order:
-            idx = np.argsort(expr)
-        else:
-            idx = np.arange(len(expr))
+        # R Seurat default: non-expressing (zero) cells rendered in light gray,
+        # expressing cells drawn on top sorted by expression level.
+        zero_mask = expr <= vmin
+        nonzero_mask = ~zero_mask
+        ax.scatter(emb[zero_mask, 0], emb[zero_mask, 1],
+                   c="#D3D3D3", s=pt_size, linewidths=0, rasterized=True)
 
-        sc = ax.scatter(emb[idx, 0], emb[idx, 1], c=expr[idx], s=pt_size,
-                        cmap=colormap, vmin=vmin, vmax=vmax, linewidths=0)
-        plt.colorbar(sc, ax=ax, shrink=0.7, pad=0.02, label="Expression")
-        ax.set_xlabel(ax1_label, fontsize=9)
-        ax.set_ylabel(ax2_label, fontsize=9)
+        expr_nz = expr[nonzero_mask]
+        emb_nz = emb[nonzero_mask]
+        if order:
+            sort_idx = np.argsort(expr_nz)
+            expr_nz = expr_nz[sort_idx]
+            emb_nz = emb_nz[sort_idx]
+
+        sc = ax.scatter(emb_nz[:, 0], emb_nz[:, 1], c=expr_nz, s=pt_size,
+                        cmap=colormap, vmin=vmin, vmax=vmax, linewidths=0,
+                        rasterized=True)
+        plt.colorbar(sc, ax=ax, shrink=0.6, pad=0.01, aspect=25)
+        ax.set_xlabel(ax1_label, fontsize=8)
+        ax.set_ylabel(ax2_label, fontsize=8)
         ax.set_title(feat, fontsize=11, fontweight="bold")
         ax.set_xticks([])
         ax.set_yticks([])
