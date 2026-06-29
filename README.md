@@ -31,6 +31,8 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 
 ## Installation
 
+Shanuz is not yet published to PyPI. Install directly from the GitHub repository.
+
 ### With uv (recommended)
 
 ```bash
@@ -38,18 +40,22 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
 # or: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
 
-# Create a virtual environment and install
+git clone https://github.com/GenomicAI/shanuz.git
+cd shanuz
 uv venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -e ".[analysis]"
 ```
 
 ### With pip
 
 ```bash
-pip install shanuz[analysis]
+git clone https://github.com/GenomicAI/shanuz.git
+cd shanuz
+pip install -e ".[analysis]"
 ```
 
-### Development installation
+### Full development installation (includes tests and linting)
 
 ```bash
 git clone https://github.com/GenomicAI/shanuz.git
