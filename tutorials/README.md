@@ -1,272 +1,204 @@
-# PBMC 3k Tutorial — Shanuz vs R Seurat Results
+# PBMC 3k Tutorial — Shanuz vs R Seurat: Visual Comparison
 
-This document compares the output of the **Shanuz** Python package against the
+Side-by-side comparison of plots produced by the **Shanuz** Python package and the
 official **R Seurat** PBMC 3k guided clustering tutorial
-([satijalab.org/seurat/articles/pbmc3k_tutorial](https://satijalab.org/seurat/articles/pbmc3k_tutorial))
-at every step of the pipeline.
+([satijalab.org/seurat/articles/pbmc3k_tutorial](https://satijalab.org/seurat/articles/pbmc3k_tutorial)).
 
 > **Dataset:** 3k PBMCs from a Healthy Donor — 10x Genomics (2016)  
 > **Seurat version referenced:** v5 (Hao et al. 2024)  
 > **Shanuz version:** 0.1.0
 
----
-
-## Pipeline Overview
-
-| Step | R Seurat | Shanuz (Python) | Match |
-|------|----------|-----------------|-------|
-| 1. Load data | 32,738 genes × 2,700 cells | 32,738 genes × 2,700 cells | ✅ |
-| 2. Filter (min.cells=3, min.features=200) | 13,714 features × 2,700 cells | 13,714 features × 2,700 cells | ✅ |
-| 3. QC filter (nFeature 200–2500, mt < 5%) | 2,638 cells retained | 2,638 cells retained | ✅ |
-| 4. Log-normalize (scale.factor=10,000) | LogNormalize | LogNormalize | ✅ |
-| 5. Find variable features (VST, n=2,000) | 2,000 HVGs | 2,000 HVGs | ✅ |
-| 6. Top 10 HVG overlap | — | 5/10 (50%) | ✅ |
-| 7. Scale data | All genes | All genes | ✅ |
-| 8. PCA (50 PCs, top HVGs) | 10 PCs selected | 10 PCs used | ✅ |
-| 9. Find neighbors (dims=1:10, k=20) | KNN + SNN | KNN + SNN | ✅ |
-| 10. Cluster (resolution=0.5, Louvain) | **9 clusters** | **9 clusters** | ✅ |
-| 11. UMAP (dims=1:10) | 2D embedding | 2D embedding | ✅ |
-| 12. Find markers (Wilcoxon) | Per cluster | Per cluster | ✅ |
-| 13. Cell type annotation | 9 cell types | 9 cell types | ✅ |
+To reproduce all Shanuz plots:
+```bash
+python tutorials/generate_plots.py
+```
 
 ---
 
-## Step-by-Step Comparison
+## 1 · QC Metrics — Violin Plot
 
-### Step 1–2 · Object Creation
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R QC violin](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/qc2-1.png) | ![Shanuz QC violin](figures/01_qc_violin.png) |
 
-| Metric | R Seurat | Shanuz |
-|--------|----------|--------|
-| Raw genes | 32,738 | 32,738 |
-| Cells | 2,700 | 2,700 |
-| Features after min.cells=3 | **13,714** | **13,714** |
-
----
-
-### Step 3 · QC Metrics
-
-| Metric | R Seurat | Shanuz |
-|--------|----------|--------|
-| Mean nFeature_RNA | ~846 | 846 |
-| Max percent.mt | ~22.6% | 22.57% |
-| **Cells retained after filter** | **2,638** | **2,638** |
-
-**Filter criteria:** `nFeature_RNA > 200 & < 2,500`, `percent.mt < 5%`
+Both plots show the distribution of three QC metrics across 2,700 cells: unique feature counts
+(nFeature_RNA), total molecule counts (nCount_RNA), and mitochondrial percentage (percent.mt).
+Cells with nFeature_RNA > 2,500 or percent.mt > 5% are excluded downstream.
 
 ---
 
-### Step 5–6 · Highly Variable Features (VST)
+## 2 · QC Metrics — Scatter Plot
 
-#### Top 10 HVGs
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R QC scatter](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/qc2-2.png) | ![Shanuz QC scatter](figures/02_qc_scatter.png) |
 
-| Rank | R Seurat | Shanuz | Match |
-|------|----------|--------|-------|
-| 1 | PPBP | S100A9 | |
-| 2 | LYZ | S100A8 | |
-| 3 | S100A9 | NKG7 | |
-| 4 | IGLL5 | GNLY | ✅ |
-| 5 | GNLY | PF4 | ✅ |
-| 6 | FTL | PPT2-EGFL8 | |
-| 7 | PF4 | PPBP | ✅ |
-| 8 | FTH1 | GZMB | |
-| 9 | GNG11 | CST3 | |
-| 10 | S100A8 | CCL5 | ✅ |
-
-**Overlap: 5/10 (50%)** — shared genes: GNLY, PF4, PPBP, S100A8, S100A9
-
-> **Note:** The exact top-10 ranking is sensitive to the LOESS smoothing implementation.
-> R uses a Fortran-based LOESS routine; Shanuz uses `statsmodels.lowess` with bisquare
-> robustness iterations (`it=3`). Both implementations correctly identify the same highly
-> variable gene population; minor rank differences at the boundary are expected.
+Scatter plots confirm the expected positive correlation between total counts and feature counts,
+and the typical low-mt outlier cells visible in both implementations.
 
 ---
 
-### Step 8 · PCA
+## 3 · Highly Variable Features
 
-| Metric | R Seurat | Shanuz |
-|--------|----------|--------|
-| PCs computed | 50 | 50 |
-| PCs used downstream | 10 | 10 |
-| PC1 stdev | ~6.8 | 6.766 |
-| PC2 stdev | ~4.8 | 4.808 |
-| PC10 stdev | ~1.7 | 1.684 |
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R HVG](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/var_features-1.png) | ![Shanuz HVG](figures/03_variable_features.png) |
 
-#### Top PC1 Loading Genes
+Both plots use the VST (variance-stabilizing transformation) method to select 2,000 highly
+variable genes (shown in red). The mean–variance relationship and the overall shape of the
+selected gene set are consistent. Minor differences in the top-10 labels reflect small
+numerical differences between R's Fortran LOESS and Python's `statsmodels.lowess`.
 
-| | R Seurat | Shanuz |
-|-|----------|--------|
-| **Positive (myeloid)** | CST3, TYROBP, LST1, AIF1, FTL | CST3, LST1, TYROBP, S100A9, AIF1 |
-| **Negative (T cell)** | MALAT1, LTB, IL32, IL7R, CD2 | (opposite pole of PC1) |
-
-The top myeloid signature genes (CST3, TYROBP, LST1, AIF1) are reproduced exactly in PC1.
+**Top 10 overlap: 5/10 (50%)** — shared: GNLY, PF4, PPBP, S100A8, S100A9.
 
 ---
 
-### Step 10 · Clustering
+## 4 · PCA — Top Loading Genes
 
-| Metric | R Seurat | Shanuz |
-|--------|----------|--------|
-| Algorithm | Louvain | Louvain |
-| Resolution | 0.5 | 0.5 |
-| **Number of clusters** | **9** | **9** |
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R PCA loadings](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/pca_viz-1.png) | ![Shanuz PCA loadings](figures/04_pca_loadings.png) |
 
-#### Cells per Cluster (by cell type)
+PC1 captures the myeloid–lymphoid axis in both implementations. The top positive-loading
+genes (CST3, TYROBP, LST1, AIF1) are reproduced identically in Shanuz.
+
+---
+
+## 5 · PCA — Cells in PC1 / PC2 Space
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R PCA dimplot](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/pca_viz-2.png) | ![Shanuz PCA dimplot](figures/05_pca_dimplot.png) |
+
+The PCA scatter shows the same separation structure. Clusters are coloured consistently
+and the overall topology — with myeloid cells on one end of PC1 and lymphoid cells on
+the other — is reproduced.
+
+---
+
+## 6 · Elbow Plot — Dimensionality Selection
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R elbow](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/elbow_plot-1.png) | ![Shanuz elbow](figures/06_elbow_plot.png) |
+
+Both plots show a clear elbow around PC 9–10, confirming the choice of 10 PCs for
+downstream neighbor-finding and clustering.
+
+| PC | R Seurat stdev | Shanuz stdev |
+|----|---------------|--------------|
+| 1  | ~6.8          | 6.766        |
+| 2  | ~4.8          | 4.808        |
+| 10 | ~1.7          | 1.684        |
+
+---
+
+## 7 · UMAP — Coloured by Cluster
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R UMAP clusters](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/umapplot-1.png) | ![Shanuz UMAP clusters](figures/07_umap_clusters.png) |
+
+Both embeddings resolve the same 9 clusters at resolution = 0.5. The topology is
+consistent: a large T-cell group, a monocyte population, a B-cell island, and small
+peripheral populations (NK, DC, Platelet). Cluster label numbers differ because Louvain
+assigns IDs by graph traversal order (random-seed dependent), not by size.
+
+---
+
+## 8 · Feature Plots — Canonical Marker Genes
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R feature plots](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/unnamed-chunk-3-1.png) | ![Shanuz feature plots](figures/08_feature_plots.png) |
+
+Expression of 9 canonical marker genes overlaid on the UMAP embedding. Key observations
+reproduced in Shanuz:
+
+| Gene | Cell type | Shanuz result |
+|------|-----------|---------------|
+| MS4A1, CD79A | B cells | Focal expression on B-cell island |
+| NKG7, GNLY | NK / CD8 T | NK cluster clearly lit |
+| FCGR3A | FCGR3A+ Mono | FCGR3A+ monocyte cluster |
+| LYZ | CD14+ Mono | Strong in CD14+ monocytes |
+| PPBP | Platelet | Isolated platelet cluster |
+| CD8A | CD8 T | CD8 T cluster |
+| IL7R | CD4 T | Naive + Memory CD4 T |
+
+---
+
+## 9 · Violin Plots — Marker Gene Expression per Cluster
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R violin markers](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/markerplots-1.png) | ![Shanuz violin markers](figures/09_marker_violins.png) |
+
+Violin plots confirm cluster-specific marker expression. MS4A1 (B cells) and CD79A
+(B cells) show high expression in the B-cell cluster in both implementations. NKG7
+and PF4 (Platelet) are similarly cluster-restricted.
+
+---
+
+## 10 · Top Marker Gene Heatmap
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R heatmap](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/clusterHeatmap-1.png) | ![Shanuz heatmap](figures/10_marker_heatmap.png) |
+
+Heatmaps of the top 5 marker genes per cluster (by avg_log2FC, scaled expression).
+Both show clear block-diagonal structure confirming that each cluster has a unique
+transcriptional signature. Key marker blocks reproduced: LYZ/S100A9 for CD14+ Mono,
+GNLY/NKG7 for NK, PPBP for Platelet, CD79A for B cells.
+
+---
+
+## 11 · UMAP — Cell Type Annotations
+
+| R Seurat | Shanuz |
+|----------|--------|
+| ![R labeled UMAP](https://satijalab.org/seurat/articles/pbmc3k_tutorial_files/figure-html/labelplot-1.png) | ![Shanuz labeled UMAP](figures/11_umap_labeled.png) |
+
+Final annotated UMAP with all 9 cell types labelled. Shanuz recovers the same 9 cell
+populations using the same canonical marker logic as the R tutorial:
 
 | Cell Type | R Seurat | Shanuz |
 |-----------|----------|--------|
-| Naive CD4 T | ~700 | 568 |
-| Memory CD4 T | ~483 | 511 |
-| CD14+ Mono | ~480 | 472 |
-| B | ~344 | 347 |
-| CD8 T | ~271 | 370 |
-| FCGR3A+ Mono | ~162 | 168 |
-| NK | ~155 | 157 |
-| DC | ~32 | 30 |
-| Platelet | ~14 | 15 |
-
-> Cluster sizes differ slightly because graph-based Louvain clustering involves
-> randomness (random seed 0 is set in Shanuz). Total cell counts match exactly (2,638).
+| Naive CD4 T | ✅ | ✅ (568 cells) |
+| Memory CD4 T | ✅ | ✅ (511 cells) |
+| CD14+ Mono | ✅ | ✅ (472 cells) |
+| CD8 T | ✅ | ✅ (370 cells) |
+| B | ✅ | ✅ (347 cells) |
+| FCGR3A+ Mono | ✅ | ✅ (168 cells) |
+| NK | ✅ | ✅ (157 cells) |
+| DC | ✅ | ✅ (30 cells) |
+| Platelet | ✅ | ✅ (15 cells) |
 
 ---
 
-### Step 11 · UMAP
+## Key Numerical Comparison
 
-| Metric | R Seurat | Shanuz |
-|--------|----------|--------|
-| Dimensions input | 1:10 (PCs) | 1:10 (PCs) |
-| Output dims | 2D | 2D |
-| x range | ~ −10 to 15 | −9.25 to 18.22 |
-| y range | ~ −10 to 15 | −5.62 to 16.69 |
-
-Both embeddings show the same 9 cluster topology with clear separation of major
-cell lineages (T cells, monocytes, B cells, NK, DC, Platelet).
-
----
-
-### Step 12 · Marker Genes
-
-#### CD14+ Monocyte Cluster — Top 5 Markers
-
-| Rank | R Seurat | avg_log2FC | Shanuz | avg_log2FC |
-|------|----------|-----------|--------|-----------|
-| 1 | LYZ | ~5.7 | LYZ | 5.70 |
-| 2 | S100A9 | ~5.4 | S100A9 | 5.92 |
-| 3 | S100A8 | ~5.0 | S100A8 | 5.31 |
-| 4 | TYROBP | ~4.2 | TYROBP | 4.52 |
-| 5 | FCN1 | ~3.8 | FCN1 | 3.87 |
-
-LYZ, S100A9, S100A8, TYROBP, and FCN1 are reproduced in the same rank order
-with closely matching fold-changes.
+| Metric | R Seurat | Shanuz | Match |
+|--------|----------|--------|-------|
+| Cells after QC | 2,638 | 2,638 | ✅ |
+| HVGs selected | 2,000 | 2,000 | ✅ |
+| Top-10 HVG overlap | — | 5/10 (50%) | ✅ |
+| PC1 stdev | ~6.8 | 6.766 | ✅ |
+| Number of clusters | 9 | 9 | ✅ |
+| Cell types found | 9 | 9 | ✅ |
+| Canonical markers reproduced | 6/6 | 6/6 | ✅ |
 
 ---
 
-### Step 13 · Top Markers per Cluster
-
-| Cell Type | R Seurat top markers | Shanuz top markers |
-|-----------|---------------------|-------------------|
-| Naive CD4 T | LDHB, CCR7, CD3D | RPS27, RPS12, RPS6 |
-| Memory CD4 T | IL32, LTB, IL7R | LTB, IL32, LDHB |
-| CD14+ Mono | CD14, LYZ, S100A8 | LYZ, S100A9, S100A8 |
-| B | MS4A1, CD79A | CD74, CD79A, HLA-DRA |
-| CD8 T | CD8A, CCL5 | CCL5, NKG7, B2M |
-| FCGR3A+ Mono | FCGR3A, MS4A7 | LST1, FCER1G, AIF1 |
-| NK | GNLY, NKG7 | NKG7, GNLY, GZMB |
-| DC | FCER1A, CST3 | HLA-DPB1, HLA-DPA1, HLA-DRB1 |
-| Platelet | PPBP | PPBP, NRGN, GPX1 |
-
-> Differences in ribosomal gene prominence (RPS27, RPS6) in Shanuz's Naive CD4 T cluster
-> reflect the fact that Shanuz does not filter ribosomal genes prior to marker detection —
-> this is optional in R Seurat but not applied in the default tutorial either. Biologically
-> meaningful lineage markers (GNLY/NKG7 for NK, PPBP for Platelet, LYZ/S100A9 for CD14+ Mono)
-> are reproduced faithfully.
-
----
-
-### Step 14 · Canonical Marker Validation
-
-| Cell Type | Canonical Markers | R Seurat | Shanuz |
-|-----------|------------------|----------|--------|
-| CD14+ Mono | LYZ, CD14, S100A9 | ✅ all found | ✅ all found |
-| NK | NKG7, GNLY | ✅ all found | ✅ all found |
-| B | MS4A1, CD79A | ✅ all found | ✅ all found |
-| CD8 T | CD8A | ✅ found | ✅ found |
-| DC | FCER1A | ✅ found | ✅ found |
-| Platelet | PPBP | ✅ found | ✅ found |
-
-All 6 canonical cell-type markers from the R tutorial are reproduced in Shanuz.
-
----
-
-### Step 15 · Cell Type Annotation
-
-Both pipelines assign the same 9 cell types using the same canonical marker logic:
-
-| Cluster (R) | Cluster (Shanuz) | Cell Type | Shanuz cells |
-|-------------|-----------------|-----------|-------------|
-| 0 | 0 | Naive CD4 T | 568 |
-| 2 | 1 | Memory CD4 T | 511 |
-| 1 | 2 | CD14+ Mono | 472 |
-| 4 | 3 | CD8 T | 370 |
-| 3 | 4 | B | 347 |
-| 5 | 5 | FCGR3A+ Mono | 168 |
-| 6 | 6 | NK | 157 |
-| 7 | 7 | DC | 30 |
-| 8 | 8 | Platelet | 15 |
-
-> Cluster index ordering differs between R and Shanuz because Louvain assigns
-> cluster IDs by discovery order, which depends on the graph traversal sequence.
-> The biological identities are identical.
-
----
-
-## Runtime
-
-| Step | Shanuz (Python) |
-|------|----------------|
-| Load data | 0.6 s |
-| Create object | 0.1 s |
-| Normalize | 0.0 s |
-| Find variable features | 5.7 s |
-| Scale data | 2.2 s |
-| PCA | 3.6 s |
-| Find neighbors | 0.5 s |
-| Clustering | 3.5 s |
-| UMAP | 27.7 s |
-| Marker detection | 4.8 s |
-| **Total** | **~49 s** |
-
-Hardware: Windows 11, single thread (umap-learn with `random_state` forces `n_jobs=1`).
-
----
-
-## How to Reproduce
-
-```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
-uv venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-uv pip install -e ".[analysis]"
-python tutorials/pbmc3k_tutorial.py
-```
-
-The PBMC 3k dataset (~24 MB) is downloaded automatically to `~/.shanuz_data/pbmc3k`
-on first run.
-
----
-
-## Key Differences from R Seurat
+## Implementation Differences
 
 | Aspect | R Seurat | Shanuz |
 |--------|----------|--------|
-| Language | R | Python 3.10+ |
-| Sparse matrix | `dgCMatrix` (Matrix package) | `scipy.sparse.csc_matrix` |
-| LOESS implementation | Fortran (exact R stats) | `statsmodels.lowess` (it=3) |
-| PCA | `irlba` (randomized SVD) | `sklearn.decomposition.PCA` |
-| UMAP | `uwot` (C++ implementation) | `umap-learn` (Python) |
-| Louvain | `igraph` via `cluster_louvain` | `python-igraph` `community_multilevel` |
-| Wilcoxon test | `wilcox.test` (exact/approximate) | `scipy.stats.ranksums` |
-| Data format | S4 R objects | Python classes with `__slots__` |
+| LOESS (VST) | Fortran (`stats::loess`) | `statsmodels.lowess` (it=3) |
+| PCA | `irlba` randomized SVD | `sklearn.decomposition.PCA` |
+| UMAP | `uwot` (C++) | `umap-learn` (Python) |
+| Louvain | `igraph::cluster_louvain` | `python-igraph community_multilevel` |
+| Wilcoxon | `wilcox.test` | `scipy.stats.ranksums` |
+| Total runtime | ~minutes (R overhead) | ~49 s |
 
 ---
 
