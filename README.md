@@ -7,7 +7,6 @@
 analysis framework, implementing Seurat's core data structures, preprocessing pipeline,
 dimensionality reduction, clustering, and marker detection — entirely in Python.
 
-> **Name origin:** *Shanuz* is derived from the author's name (*Shanika*).
 > The package is spiritually and algorithmically faithful to Seurat v5 while providing a
 > pure-Python, pip-installable alternative that integrates naturally with NumPy, SciPy,
 > and AnnData ecosystems.
