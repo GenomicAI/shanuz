@@ -19,6 +19,13 @@ _PBMC3K_URLS = [
 ]
 _PBMC3K_DIR = "filtered_gene_bc_matrices/hg19"
 
+# PBMC 8k dataset (10x Genomics, GRCh38, v2 chemistry) — ~8,400 cells.
+_PBMC8K_URLS = [
+    "https://cf.10xgenomics.com/samples/cell-exp/2.1.0/pbmc8k/"
+    "pbmc8k_filtered_gene_bc_matrices.tar.gz",
+]
+_PBMC8K_DIR = "filtered_gene_bc_matrices/GRCh38"
+
 
 def pbmc3k(
     data_dir: Optional[str] = None,
@@ -45,21 +52,55 @@ def pbmc3k(
     matrix_dir = data_dir / _PBMC3K_DIR
 
     if force_download or not (matrix_dir / "matrix.mtx").exists():
-        _download_pbmc3k(data_dir)
+        _download_10x(_PBMC3K_URLS, data_dir, label="PBMC3k", size_mb=24)
 
     mat, genes, cells = read_10x(matrix_dir, var_names="gene_symbols")
     return mat, genes, cells
 
 
-def _download_pbmc3k(dest_dir: Path) -> None:
-    """Download and extract the PBMC3k tarball into dest_dir."""
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    tar_path = dest_dir / "pbmc3k.tar.gz"
+def pbmc8k(
+    data_dir: Optional[str] = None,
+    force_download: bool = False,
+) -> tuple[sp.csc_matrix, list[str], list[str]]:
+    """Download (if needed) and load the 10x Genomics PBMC 8k dataset.
 
-    print(f"Downloading PBMC3k dataset (~24 MB)...")
+    ~8,400 peripheral blood mononuclear cells (GRCh38, v2 chemistry). Larger
+    than :func:`pbmc3k` and used by the advanced subclustering tutorial.
+
+    Returns (counts_matrix, gene_names, cell_barcodes); matrix is
+    (genes x cells) csc_matrix with raw counts.
+
+    Parameters
+    ----------
+    data_dir        : directory to cache the raw files
+                      (defaults to ~/.shanuz_data/pbmc8k)
+    force_download  : re-download even if files exist
+    """
+    from .io import read_10x
+
+    if data_dir is None:
+        data_dir = Path.home() / ".shanuz_data" / "pbmc8k"
+    else:
+        data_dir = Path(data_dir)
+
+    matrix_dir = data_dir / _PBMC8K_DIR
+
+    if force_download or not (matrix_dir / "matrix.mtx").exists():
+        _download_10x(_PBMC8K_URLS, data_dir, label="PBMC8k", size_mb=38)
+
+    mat, genes, cells = read_10x(matrix_dir, var_names="gene_symbols")
+    return mat, genes, cells
+
+
+def _download_10x(urls: list[str], dest_dir: Path, label: str, size_mb: int) -> None:
+    """Download and extract a 10x Genomics ``*.tar.gz`` matrix bundle."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    tar_path = dest_dir / "download.tar.gz"
+
+    print(f"Downloading {label} dataset (~{size_mb} MB)...")
     print(f"  Dest: {tar_path}")
 
-    for url in _PBMC3K_URLS:
+    for url in urls:
         print(f"  Trying: {url}")
         try:
             req = urllib.request.Request(
@@ -94,11 +135,9 @@ def _download_pbmc3k(dest_dir: Path) -> None:
             print(f"\n  Failed ({e}), trying next source...")
     else:
         raise RuntimeError(
-            "Could not download PBMC3k data from any known source.\n"
-            "Please download manually from:\n"
-            "  https://cf.10xgenomics.com/samples/cell/pbmc3k/"
-            "pbmc3k_filtered_gene_bc_matrices.tar.gz\n"
-            "and extract to: " + str(dest_dir)
+            f"Could not download {label} data from any known source.\n"
+            "Please download manually from:\n  " + "\n  ".join(urls) +
+            "\nand extract to: " + str(dest_dir)
         )
 
     print("Extracting...")

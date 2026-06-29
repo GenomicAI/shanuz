@@ -26,6 +26,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
+- **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
 
 ---
 
@@ -108,6 +109,26 @@ and validates each step against the R Seurat expected outputs:
 | HVG top-10 overlap (≥50%) | PPBP, LYZ, S100A9 … | ✅ |
 | Number of clusters (resolution=0.5) | 9 | ✅ |
 | Canonical markers per cell type | all 6 cell types | ✅ |
+
+A step-by-step R-vs-Python walkthrough is in
+[`tutorials/README.md`](tutorials/README.md).
+
+---
+
+## Advanced Tutorial — PBMC 8k Subclustering
+
+A more complex example on a larger dataset (~8,400 PBMCs, GRCh38) that adds the
+standard Seurat **subclustering** workflow: the T/NK lymphoid compartment is
+isolated and re-analysed to resolve naive CD4, memory CD4, CD8 (incl. MAIT and
+γδ T), and NK subsets that global clustering merges.
+
+```bash
+python tutorials/pbmc8k_subclustering_tutorial.py   # printed validation
+python tutorials/generate_advanced_plots.py         # writes figures
+```
+
+See [`tutorials/advanced_pbmc8k_subclustering.md`](tutorials/advanced_pbmc8k_subclustering.md)
+for the full R-vs-Python walkthrough.
 
 ---
 
