@@ -572,8 +572,17 @@ fig = dim_plot(pbmc, reduction="umap", label=False)
 </tr>
 </table>
 
-> Same 9-cluster topology. Cluster label numbers may differ (Louvain assigns IDs by
-> graph traversal order) but the biological groups are identical.
+> **Note — UMAP layout difference is expected, not a bug.**
+> R Seurat uses the [`uwot`](https://github.com/jlmelville/uwot) UMAP implementation
+> while Python uses [`umap-learn`](https://umap-learn.readthedocs.io). Both libraries
+> apply the same UMAP algorithm but differ in initialisation strategy, nearest-neighbour
+> graph construction, and optimisation details. As a result, the **spatial arrangement**
+> of clusters will look different even with the same random seed — clusters may be
+> rotated, reflected, or positioned further apart. This is a known and well-documented
+> difference between the two libraries and does **not** indicate an error in the
+> analysis. The important thing is that the **same 9 biologically meaningful clusters**
+> are recovered in both. Cluster label numbers may also differ (Louvain assigns IDs by
+> graph traversal order) but the cell-type groupings are identical.
 
 ---
 
@@ -624,9 +633,14 @@ fig = feature_plot(
 </tr>
 </table>
 
-> R uses a yellow–red gradient by default; Shanuz uses `"YlOrRd"` (same scheme).
-> The `order=True` argument (default) ensures high-expression cells are plotted on top,
-> matching R's `order = TRUE` behaviour.
+> **Note — minor visual differences are expected, not bugs.**
+> Both plots use the same yellow→red expression gradient and the `order=True` behaviour
+> (high-expression cells drawn on top). Cells with zero expression are rendered in light
+> gray in both R and Shanuz, making the expressing cells stand out clearly.
+> The **spatial layout** of the underlying UMAP differs for the same reason described
+> in Step 12 (different UMAP implementations), but the **gene expression patterns are
+> biologically identical**: MS4A1/CD79A in B cells, NKG7/GNLY in NK cells, LYZ/FCGR3A
+> in monocytes, PPBP in platelets, CD8A in CD8 T cells, and IL7R in T cells.
 
 ---
 
