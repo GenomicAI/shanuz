@@ -783,7 +783,7 @@ def do_heatmap(
     matrix = np.clip(np.array(rows), -2.5, 2.5)
 
     if figsize is None:
-        figsize = (max(10, len(groups) / 200), max(4, len(features) * 0.28))
+        figsize = (max(10, len(groups) / 200), min(14, max(4, len(features) * 0.28)))
 
     fig, axes = plt.subplots(
         2, 1, figsize=figsize,
@@ -806,21 +806,24 @@ def do_heatmap(
     axes[1].set_yticklabels(features, fontsize=max(5, 9 - len(features) // 20))
     axes[1].set_xticks([])
 
-    # Cluster boundary lines + labels
+    # Cluster boundary lines + labels inside the colour bar row
     if label:
         prev = 0
         for gi, g in enumerate(unique):
             count = np.sum(sorted_groups == g)
             mid = prev + count / 2
+            # Separator lines in both the colour bar and the heatmap
+            axes[0].axvline(prev - 0.5, color="white", linewidth=1.2)
             axes[1].axvline(prev - 0.5, color="white", linewidth=0.8)
-            axes[1].text(mid, len(features) + 0.6, g, ha="center", va="bottom",
-                         fontsize=8, color=colors[gi], fontweight="bold",
-                         transform=axes[1].get_xaxis_transform())
+            # Labels sit inside axes[0] (the colour bar) — y=0.5 centres vertically
+            axes[0].text(mid, 0.5, g, ha="center", va="center",
+                         fontsize=7, color="white", fontweight="bold")
             prev += count
 
     plt.colorbar(im, ax=axes[1], shrink=0.4, pad=0.01, label="Scaled expression")
     axes[1].set_xlabel("Cells (sorted by cluster)")
-    fig.suptitle("Expression Heatmap", fontsize=13, fontweight="bold")
+    fig.suptitle("Expression Heatmap", fontsize=13, fontweight="bold", y=1.0)
+    fig.tight_layout()
     return fig
 
 

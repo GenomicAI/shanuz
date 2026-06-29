@@ -169,7 +169,7 @@ def main(data_dir=None):
     )
     top_genes = list(dict.fromkeys(top_genes))
     pbmc.rename_idents({v: k for k, v in CELL_TYPE_MAP.items()})  # restore cluster numbers
-    _save(do_heatmap(pbmc, top_genes, figsize=(14, max(6, len(top_genes) * 0.32))),
+    _save(do_heatmap(pbmc, top_genes, figsize=(14, min(10, max(5, len(top_genes) * 0.2)))),
           "10_marker_heatmap.png")
     pbmc.rename_idents(CELL_TYPE_MAP)  # restore cell type names
 
