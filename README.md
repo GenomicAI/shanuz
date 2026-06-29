@@ -90,65 +90,28 @@ print(sobj.meta_data.head())
 
 ---
 
-## PBMC 3k Tutorial
+## Tutorials
 
-The complete PBMC 3k guided clustering tutorial (mirroring the official
-[Seurat PBMC 3k tutorial](https://satijalab.org/seurat/articles/pbmc3k_tutorial))
-is included in the `tutorials/` folder.
+Three end-to-end tutorials — from basic guided clustering to multimodal CITE-seq —
+each pairing R Seurat code side-by-side with the Python Shanuz equivalent.
+See **[`tutorials/README.md`](tutorials/README.md)** for the full index.
 
-```bash
-python tutorials/pbmc3k_tutorial.py
-```
-
-This downloads the PBMC 3k dataset (~24 MB) automatically, runs the full analysis pipeline,
-and validates each step against the R Seurat expected outputs:
-
-| Step | Expected | Status |
-|------|----------|--------|
-| Features after filtering | 13,714 | ✅ |
-| Cells after QC | 2,638 | ✅ |
-| HVG top-10 overlap (≥50%) | PPBP, LYZ, S100A9 … | ✅ |
-| Number of clusters (resolution=0.5) | 9 | ✅ |
-| Canonical markers per cell type | all 6 cell types | ✅ |
-
-A step-by-step R-vs-Python walkthrough is in
-[`tutorials/README.md`](tutorials/README.md).
-
----
-
-## Advanced Tutorial — PBMC 8k Subclustering
-
-A more complex example on a larger dataset (~8,400 PBMCs, GRCh38) that adds the
-standard Seurat **subclustering** workflow: the T/NK lymphoid compartment is
-isolated and re-analysed to resolve naive CD4, memory CD4, CD8 (incl. MAIT and
-γδ T), and NK subsets that global clustering merges.
+| # | Tutorial | Dataset | Complexity |
+|---|----------|---------|-----------|
+| 1 | [PBMC 3k — Guided Clustering](tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
+| 2 | [PBMC 8k — Advanced Subclustering](tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
+| 3 | [CBMC CITE-seq — Multimodal](tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
 
 ```bash
-python tutorials/pbmc8k_subclustering_tutorial.py   # printed validation
-python tutorials/generate_advanced_plots.py         # writes figures
+# Tutorial 1 — PBMC 3k
+python tutorials/pbmc3k_tutorial.py && python tutorials/generate_plots.py
+
+# Tutorial 2 — PBMC 8k subclustering
+python tutorials/pbmc8k_subclustering_tutorial.py && python tutorials/generate_advanced_plots.py
+
+# Tutorial 3 — CITE-seq multimodal
+python tutorials/cbmc_citeseq_tutorial.py && python tutorials/generate_multimodal_plots.py
 ```
-
-See [`tutorials/advanced_pbmc8k_subclustering.md`](tutorials/advanced_pbmc8k_subclustering.md)
-for the full R-vs-Python walkthrough.
-
----
-
-## Multimodal Tutorial — CITE-seq (RNA + Protein)
-
-A Python port of Seurat's
-[multimodal vignette](https://satijalab.org/seurat/articles/multimodal_vignette)
-on the CBMC CITE-seq dataset (~8,600 cells, RNA + 13 surface proteins). It
-demonstrates Shanuz's multi-assay support: cluster on RNA, attach the antibody
-counts as a second `ADT` assay, CLR-normalise the proteins, and read protein
-levels on the RNA UMAP.
-
-```bash
-python tutorials/cbmc_citeseq_tutorial.py     # printed validation
-python tutorials/generate_multimodal_plots.py # writes figures
-```
-
-See [`tutorials/multimodal_citeseq.md`](tutorials/multimodal_citeseq.md)
-for the full R-vs-Python walkthrough.
 
 ---
 
@@ -274,7 +237,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 101 unit tests pass.
+All 114 unit tests pass.
 
 ---
 
