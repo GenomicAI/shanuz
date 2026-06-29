@@ -10,6 +10,7 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import scipy.sparse as sp
 
 
@@ -90,6 +91,103 @@ def pbmc8k(
 
     mat, genes, cells = read_10x(matrix_dir, var_names="gene_symbols")
     return mat, genes, cells
+
+
+# CBMC CITE-seq dataset (GSE100866) — cord-blood mononuclear cells with paired
+# RNA + 13-antibody surface-protein (ADT) measurements. Used by the multimodal
+# tutorial. Files are gzipped CSVs (features x cells) hosted on NCBI GEO.
+_CBMC_BASE = (
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE100nnn/GSE100866/suppl/"
+)
+_CBMC_RNA = "GSE100866_CBMC_8K_13AB_10X-RNA_umi.csv.gz"
+_CBMC_ADT = "GSE100866_CBMC_8K_13AB_10X-ADT_umi.csv.gz"
+_CBMC_SPECIES_PREFIX = "HUMAN_"
+
+
+def cbmc_citeseq(
+    data_dir: Optional[str] = None,
+    force_download: bool = False,
+    species_prefix: str = _CBMC_SPECIES_PREFIX,
+):
+    """Download (if needed) and load the CBMC CITE-seq dataset (GSE100866).
+
+    ~8,600 cord-blood mononuclear cells profiled for both RNA and 13 surface
+    proteins (ADT). The RNA matrix mixes human and mouse spike-in genes; this
+    loader keeps the human genes and strips the ``HUMAN_`` prefix (mirroring
+    Seurat's CollapseSpeciesExpressionMatrix). RNA and ADT are aligned to their
+    shared cell barcodes.
+
+    Returns
+    -------
+    (rna_counts, rna_genes, adt_counts, adt_proteins, cell_names)
+      rna_counts : (genes x cells) csc_matrix
+      adt_counts : (proteins x cells) csc_matrix, same cell order as rna_counts
+    """
+    import pandas as pd
+
+    from .io import _make_unique
+
+    if data_dir is None:
+        data_dir = Path.home() / ".shanuz_data" / "cbmc"
+    else:
+        data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    rna_path = data_dir / _CBMC_RNA
+    adt_path = data_dir / _CBMC_ADT
+    for fname, path in ((_CBMC_RNA, rna_path), (_CBMC_ADT, adt_path)):
+        if force_download or not path.exists():
+            _download_file(_CBMC_BASE + fname, path, label=fname)
+
+    # ADT is tiny — read directly (proteins x cells).
+    adt_df = pd.read_csv(adt_path, index_col=0)
+    adt_cells = list(adt_df.columns)
+
+    # RNA is larger — read in row-chunks, keeping only human genes.
+    rna_blocks, rna_genes, rna_cells = [], [], None
+    for chunk in pd.read_csv(rna_path, index_col=0, chunksize=4000):
+        if rna_cells is None:
+            rna_cells = list(chunk.columns)
+        mask = np.asarray(chunk.index.str.startswith(species_prefix))
+        sub = chunk[mask]
+        if len(sub):
+            rna_genes.extend(g[len(species_prefix):] for g in sub.index)
+            rna_blocks.append(sp.csr_matrix(sub.values.astype(np.float32)))
+    rna_mat = sp.vstack(rna_blocks, format="csc")
+    rna_genes = _make_unique(rna_genes)
+
+    # Align to shared barcodes, ordered by the RNA matrix.
+    adt_set = set(adt_cells)
+    rna_pos = {c: i for i, c in enumerate(rna_cells)}
+    common = [c for c in rna_cells if c in adt_set]
+    rna_cols = [rna_pos[c] for c in common]
+    rna_mat = rna_mat[:, rna_cols].tocsc()
+    adt_mat = sp.csc_matrix(adt_df[common].values.astype(np.float32))
+
+    return rna_mat, rna_genes, adt_mat, list(adt_df.index), common
+
+
+def _download_file(url: str, dest: Path, label: str) -> None:
+    """Download a single file (with a simple progress print)."""
+    print(f"Downloading {label} ...")
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0", "Accept": "*/*"},
+    )
+    with urllib.request.urlopen(req, timeout=300) as response:
+        total = int(response.headers.get("Content-Length", 0))
+        downloaded = 0
+        with open(dest, "wb") as fh:
+            while True:
+                block = response.read(65536)
+                if not block:
+                    break
+                fh.write(block)
+                downloaded += len(block)
+                if total:
+                    print(f"\r  {min(downloaded / total * 100, 100):.1f}%",
+                          end="", flush=True)
+    print()
 
 
 def _download_10x(urls: list[str], dest_dir: Path, label: str, size_mb: int) -> None:

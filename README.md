@@ -27,6 +27,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 - **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
+- **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization
 
 ---
 
@@ -128,6 +129,25 @@ python tutorials/generate_advanced_plots.py         # writes figures
 ```
 
 See [`tutorials/advanced_pbmc8k_subclustering.md`](tutorials/advanced_pbmc8k_subclustering.md)
+for the full R-vs-Python walkthrough.
+
+---
+
+## Multimodal Tutorial — CITE-seq (RNA + Protein)
+
+A Python port of Seurat's
+[multimodal vignette](https://satijalab.org/seurat/articles/multimodal_vignette)
+on the CBMC CITE-seq dataset (~8,600 cells, RNA + 13 surface proteins). It
+demonstrates Shanuz's multi-assay support: cluster on RNA, attach the antibody
+counts as a second `ADT` assay, CLR-normalise the proteins, and read protein
+levels on the RNA UMAP.
+
+```bash
+python tutorials/cbmc_citeseq_tutorial.py     # printed validation
+python tutorials/generate_multimodal_plots.py # writes figures
+```
+
+See [`tutorials/multimodal_citeseq.md`](tutorials/multimodal_citeseq.md)
 for the full R-vs-Python walkthrough.
 
 ---

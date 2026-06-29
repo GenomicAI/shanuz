@@ -121,12 +121,20 @@ def normalize_data(
     normalization_method: str = "LogNormalize",
     scale_factor: float = 10000.0,
     assay: Optional[str] = None,
+    margin: int = 1,
 ) -> None:
     """Log-normalize counts.
 
     Mirrors R's NormalizeData(pbmc, normalization.method = "LogNormalize",
     scale.factor = 10000). Modifies the assay in-place by adding / updating
     the 'data' layer.
+
+    Parameters
+    ----------
+    normalization_method : 'LogNormalize', 'CLR', or 'RC'
+    margin               : for CLR only — normalize across features within each
+                           cell (1, default) or across cells within each feature
+                           (2). ADT/CITE-seq panels typically use margin=2.
     """
     assay_name = assay or seurat.active_assay
     assay_obj = seurat.assays[assay_name]
@@ -135,7 +143,7 @@ def normalize_data(
     if normalization_method == "LogNormalize":
         normed = _log_normalize(counts, scale_factor)
     elif normalization_method == "CLR":
-        normed = _clr_normalize(counts)
+        normed = _clr_normalize(counts, margin=margin)
     elif normalization_method == "RC":
         normed = _rc_normalize(counts, scale_factor)
     else:
@@ -163,14 +171,24 @@ def _log_normalize(counts, scale_factor: float = 10000.0):
         return np.log1p(normed)
 
 
-def _clr_normalize(counts):
-    """Centered log-ratio normalization (for protein assays)."""
+def _clr_normalize(counts, margin: int = 1):
+    """Centered log-ratio normalization (for protein / ADT assays).
+
+    counts is features x cells. ``margin`` selects the CLR direction:
+      * 1 — center each cell across its features (the geometric mean is taken
+            over features within a column).
+      * 2 — center each feature across all cells (geometric mean over cells
+            within a row). Recommended for small ADT panels.
+    """
     if sp.issparse(counts):
         counts = counts.toarray().astype(float)
     else:
         counts = np.asarray(counts, dtype=float)
     log1p = np.log1p(counts)
-    geo_means = log1p.mean(axis=0, keepdims=True)
+    if margin == 2:
+        geo_means = log1p.mean(axis=1, keepdims=True)   # per-feature, across cells
+    else:
+        geo_means = log1p.mean(axis=0, keepdims=True)   # per-cell, across features
     return log1p - geo_means
 
 

@@ -12,7 +12,9 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from shanuz.preprocessing import normalize_data, find_variable_features, _vst_hvg
+from shanuz.preprocessing import (
+    normalize_data, find_variable_features, _vst_hvg, _clr_normalize,
+)
 from shanuz.markers import find_markers
 
 
@@ -115,6 +117,41 @@ def test_vst_clipping_suppresses_single_cell_outliers():
 # Bug 3 — ridge_plot row j holds the density for unique[j]; the y tick labels
 # must therefore be `unique` (not its reverse).
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# CLR normalization margin (multimodal / ADT support). margin=1 centers each
+# cell across features; margin=2 centers each feature across cells.
+# ---------------------------------------------------------------------------
+
+def test_clr_margin_centering_direction():
+    mat = np.array([[1.0, 2, 3, 4],
+                    [5, 6, 7, 8],
+                    [0, 1, 0, 2]])  # features x cells
+
+    r1 = _clr_normalize(mat, margin=1)   # per-cell (column) centering
+    assert np.allclose(r1.mean(axis=0), 0.0, atol=1e-9)
+
+    r2 = _clr_normalize(mat, margin=2)   # per-feature (row) centering
+    assert np.allclose(r2.mean(axis=1), 0.0, atol=1e-9)
+
+    assert not np.allclose(r1, r2)
+
+
+def test_clr_margin_routed_through_normalize_data():
+    rng = np.random.default_rng(0)
+    counts = sp.csc_matrix(rng.poisson(3.0, size=(6, 12)).astype(float))
+    from shanuz.shanuz import create_shanuz_object
+    obj = create_shanuz_object(
+        counts=counts, assay="ADT",
+        feature_names=[f"p{i}" for i in range(6)],
+        cell_names=[f"c{i}" for i in range(12)],
+    )
+    normalize_data(obj, normalization_method="CLR", margin=2)
+    data = obj.assays["ADT"].layers["data"]
+    dense = data.toarray() if sp.issparse(data) else np.asarray(data)
+    # margin=2 → each feature (row) is centered across cells
+    assert np.allclose(dense.mean(axis=1), 0.0, atol=1e-9)
+
 
 def test_ridge_plot_labels_align_with_rows(small_seurat):
     matplotlib = pytest.importorskip("matplotlib")
