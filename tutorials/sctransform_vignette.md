@@ -118,12 +118,20 @@ run_umap(pbmc, dims=range(30), seed=42)
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_sctransform/02_sct_umap_celltypes.png" width="640"/></td></tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/sctransform_vignette_files/figure-html/pca-1.png" width="420"/></td>
+<td><img src="figures_sctransform/01_sct_umap_clusters.png" width="420"/></td>
+</tr>
 </table>
 
 The T-cell mass resolves as a **cytotoxicity gradient** — Naive CD4 → Memory
 CD4 → CD8 Effector → NK — alongside two monocyte types, B cells, DC/pDC, and
-platelets.
+platelets. After manual annotation the Python UMAP looks like this:
+
+<img src="figures_sctransform/02_sct_umap_celltypes.png" width="640"/>
+
+> *Python (Shanuz) only — the R vignette does not include a cell-type-annotated
+> plot; labels were assigned by inspecting the marker feature plots below.*
 
 ---
 
@@ -154,8 +162,14 @@ feature_plot(pbmc, ["CD3D","ISG15","TCL1A","FCER2","XCL1","FCGR3A"],
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_sctransform/03_sct_featureplots_1.png" width="720"/></td></tr>
-<tr><td colspan="2"><img src="figures_sctransform/04_sct_featureplots_2.png" width="720"/></td></tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/sctransform_vignette_files/figure-html/fplot-2.png" width="420"/></td>
+<td><img src="figures_sctransform/03_sct_featureplots_1.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/sctransform_vignette_files/figure-html/fplot-3.png" width="420"/></td>
+<td><img src="figures_sctransform/04_sct_featureplots_2.png" width="420"/></td>
+</tr>
 </table>
 
 `CD8A`/`GZMK`/`CCL5` mark the CD8 effector tip; `CCR7` marks the naive end;
@@ -184,16 +198,23 @@ vln_plot(pbmc, ["CD8A","GZMK","CCL5","S100A4","ANXA1","CCR7","ISG15","CD3D"],
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_sctransform/05_sct_violins.png" width="760"/></td></tr>
+<tr>
+<td><img src="https://satijalab.org/seurat/articles/sctransform_vignette_files/figure-html/fplot-1.png" width="420"/></td>
+<td><img src="figures_sctransform/05_sct_violins.png" width="420"/></td>
+</tr>
 </table>
 
 ---
 
-## Step 6 · SCTransform vs standard log-normalization
+## Step 6 · SCTransform vs standard log-normalization *(Python only)*
 
-The same cells run through both pipelines, side by side:
+The R vignette does not include this comparison figure. Shanuz runs both
+pipelines on the same cells and renders them side by side for a direct view
+of the resolution difference:
 
 <img src="figures_sctransform/06_sct_vs_std_umap.png" width="820"/>
+
+> *Python (Shanuz) only — left: SCTransform (dims 1:30), right: LogNormalize (dims 1:10)*
 
 ---
 
