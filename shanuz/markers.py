@@ -9,7 +9,7 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-from scipy.stats import wilcoxon, ranksums
+from scipy.stats import mannwhitneyu
 
 
 def find_markers(
@@ -21,7 +21,6 @@ def find_markers(
     test_use: str = "wilcox",
     only_pos: bool = False,
     min_pct: float = 0.1,
-    min_pct_2: float = 0.0,
     logfc_threshold: float = 0.25,
     features: Optional[list[str]] = None,
     max_cells_per_ident: Optional[int] = None,
@@ -35,7 +34,7 @@ def find_markers(
     ----------
     ident_1         : cluster label(s) for group 1
     ident_2         : cluster label(s) for group 2 (None = all others)
-    test_use        : statistical test: 'wilcox', 't', 'bimod', 'roc'
+    test_use        : statistical test: 'wilcox' (default) or 't'
     only_pos        : only return positive markers
     min_pct         : minimum fraction cells expressing gene in either group
     logfc_threshold : minimum log2 fold-change filter
@@ -135,7 +134,18 @@ def find_markers(
             if x1.sum() == 0 and x2.sum() == 0:
                 p_vals[i] = 1.0
             else:
-                _, p = ranksums(x1, x2)
+                # mannwhitneyu (asymptotic) applies the tie correction and
+                # continuity correction that base-R wilcox.test / presto use —
+                # essential for scRNA data, which is dominated by zero ties.
+                # scipy.stats.ranksums does NOT correct for ties.
+                try:
+                    _, p = mannwhitneyu(
+                        x1, x2, alternative="two-sided",
+                        use_continuity=True, method="asymptotic",
+                    )
+                except ValueError:
+                    # Raised only when every value in both groups is identical.
+                    p = 1.0
                 p_vals[i] = p if not np.isnan(p) else 1.0
     elif test_use == "t":
         from scipy.stats import ttest_ind

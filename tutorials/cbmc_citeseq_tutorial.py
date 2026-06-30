@@ -154,13 +154,13 @@ def annotate_cells(obj):
             assignment[c] = "Erythroid"
         elif cd3 > 0.5:
             assignment[c] = "CD8 T" if cd8 > cd4 else "CD4 T"
-        elif cd16 > 0.8 and cd56 > 0.8 and cd3 < 0:
+        elif cd16 > 0.8 and cd56 > 0.8 and cd3 < 0.5:
             assignment[c] = "NK"
-        elif cd19 > 1.0 and cd3 < 0:
+        elif cd19 > 1.0 and cd3 < 0.5:
             assignment[c] = "B"
         elif cd14 > 0.5:
             assignment[c] = "CD14+ Mono"
-        elif cd11c > 0.8 and cd3 < 0:
+        elif cd11c > 0.8 and cd3 < 0.5:
             assignment[c] = "DC / Mono"
         elif cd34 > 0.8:
             assignment[c] = "Progenitor"

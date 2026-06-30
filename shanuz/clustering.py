@@ -28,8 +28,8 @@ def find_clusters(
     Parameters
     ----------
     resolution   : higher values give more / finer clusters
-    algorithm    : 1 = Louvain (default), 2 = Louvain refined,
-                   4 = Leiden
+    algorithm    : 1 = Louvain, 2 = Louvain (multilevel, igraph's default),
+                   4 = Leiden. (3 = SLM is not implemented.)
     graph_name   : SNN graph to use (defaults to '{assay}_snn')
     random_seed  : for reproducibility
     n_iterations : Leiden iterations (-1 = until stable)
@@ -51,8 +51,19 @@ def find_clusters(
 
     if algorithm == 4:
         labels = _leiden_clustering(mat, resolution, random_seed, n_iterations)
-    else:
+    elif algorithm in (1, 2):
+        # python-igraph's community_multilevel is the multilevel Louvain
+        # algorithm (closest to Seurat's algorithm 1/2).
         labels = _louvain_clustering(mat, resolution, random_seed)
+    elif algorithm == 3:
+        raise NotImplementedError(
+            "algorithm=3 (SLM) is not implemented. Use 1 or 2 (Louvain) or "
+            "4 (Leiden)."
+        )
+    else:
+        raise ValueError(
+            f"Unknown algorithm {algorithm!r}. Use 1 or 2 (Louvain) or 4 (Leiden)."
+        )
 
     cluster_series = pd.Categorical(
         [str(c) for c in labels],
@@ -67,16 +78,29 @@ def find_clusters(
 # Louvain via igraph
 # ------------------------------------------------------------------
 
+def _seed_igraph(seed: int) -> None:
+    """Seed igraph's own RNG (igraph does not use numpy's global RNG)."""
+    import random as _random
+    import igraph as ig
+
+    _random.seed(seed)
+    try:
+        ig.set_random_number_generator(_random)
+    except Exception:
+        # Older igraph: fall back to seeding the stdlib RNG igraph reads from.
+        pass
+
+
 def _louvain_clustering(
     mat: sp.spmatrix,
     resolution: float,
     seed: int,
 ) -> np.ndarray:
     """Louvain community detection using python-igraph."""
-    import igraph as ig
+    import warnings
 
     g = _sparse_to_igraph(mat)
-    np.random.seed(seed)
+    _seed_igraph(seed)
 
     try:
         result = g.community_multilevel(
@@ -84,8 +108,16 @@ def _louvain_clustering(
             resolution=resolution,
             return_levels=False,
         )
-    except Exception:
-        result = g.community_multilevel(resolution=resolution, return_levels=False)
+    except TypeError:
+        # Older igraph builds lack the `resolution` parameter. Keep the edge
+        # weights — never silently downgrade to an unweighted clustering.
+        warnings.warn(
+            "This python-igraph version does not support the 'resolution' "
+            "parameter for community_multilevel; clustering at the default "
+            "resolution (1.0).",
+            RuntimeWarning,
+        )
+        result = g.community_multilevel(weights="weight", return_levels=False)
 
     labels = np.array(result.membership)
 
@@ -105,10 +137,10 @@ def _leiden_clustering(
     n_iterations: int,
 ) -> np.ndarray:
     """Leiden community detection."""
-    import igraph as ig
     import leidenalg
 
     g = _sparse_to_igraph(mat)
+    _seed_igraph(seed)
 
     partition = leidenalg.find_partition(
         g,

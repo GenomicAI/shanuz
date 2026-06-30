@@ -49,6 +49,41 @@ def test_avg_log2fc_matches_seurat_formula(small_seurat):
         assert np.isclose(res.loc[gene, "avg_log2FC"], expected, atol=1e-9), gene
 
 
+def test_wilcox_uses_tie_corrected_mannwhitney(small_seurat):
+    """Seurat's wilcox test (presto / base-R wilcox.test) tie-corrects the
+    rank-sum statistic. scipy.stats.ranksums does not, so marker p-values must
+    match scipy.stats.mannwhitneyu (asymptotic, continuity-corrected), and must
+    differ from the un-tie-corrected ranksums on this zero-heavy data."""
+    from scipy.stats import mannwhitneyu, ranksums
+
+    normalize_data(small_seurat)
+    small_seurat.idents = ["A"] * 10 + ["B"] * 10
+    res = find_markers(
+        small_seurat, ident_1="A", ident_2="B",
+        min_pct=0.0, logfc_threshold=0.0,
+    )
+    assert len(res) > 0
+
+    assay = small_seurat.assays["RNA"]
+    dense = assay.layers["data"].toarray()
+    feats = assay._all_feature_names
+    a_idx, b_idx = list(range(10)), list(range(10, 20))
+
+    saw_difference = False
+    for gene in res.index:
+        gi = feats.index(gene)
+        x1, x2 = dense[gi, a_idx], dense[gi, b_idx]
+        if x1.sum() == 0 and x2.sum() == 0:
+            continue
+        _, p_mwu = mannwhitneyu(x1, x2, alternative="two-sided",
+                                use_continuity=True, method="asymptotic")
+        assert np.isclose(res.loc[gene, "p_val"], p_mwu, atol=1e-9), gene
+        _, p_rs = ranksums(x1, x2)
+        if not np.isclose(p_mwu, p_rs, atol=1e-6):
+            saw_difference = True
+    assert saw_difference  # tie correction actually changes the p-value here
+
+
 def test_avg_log2fc_differs_from_buggy_formula(small_seurat):
     """The correct (mean-of-expm1) and buggy (expm1-of-mean) formulas must
     actually disagree on this data, otherwise the test above is vacuous."""
@@ -119,22 +154,40 @@ def test_vst_clipping_suppresses_single_cell_outliers():
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# CLR normalization margin (multimodal / ADT support). margin=1 centers each
-# cell across features; margin=2 centers each feature across cells.
+# CLR normalization (multimodal / ADT support). Seurat's clr_function is
+#   log1p(x / exp(sum(log1p(x[x>0])) / length(x)))
+# applied along the chosen margin. margin=1 normalizes each cell across
+# features; margin=2 normalizes each feature across cells.
 # ---------------------------------------------------------------------------
 
-def test_clr_margin_centering_direction():
-    mat = np.array([[1.0, 2, 3, 4],
-                    [5, 6, 7, 8],
-                    [0, 1, 0, 2]])  # features x cells
+def _seurat_clr_vector(x):
+    """Reference: Seurat's clr_function — log1p(x / exp(sum(log1p(x>0))/len))."""
+    x = np.asarray(x, dtype=float)
+    denom = np.exp(np.sum(np.log1p(x[x > 0])) / len(x))
+    return np.log1p(x / denom)
 
-    r1 = _clr_normalize(mat, margin=1)   # per-cell (column) centering
-    assert np.allclose(r1.mean(axis=0), 0.0, atol=1e-9)
 
-    r2 = _clr_normalize(mat, margin=2)   # per-feature (row) centering
-    assert np.allclose(r2.mean(axis=1), 0.0, atol=1e-9)
+def test_clr_matches_seurat_formula():
+    """CLR must equal Seurat's clr_function along the margin, NOT a simple
+    log1p-then-mean-center (the two are not algebraically equal)."""
+    rng = np.random.default_rng(1)
+    mat = rng.poisson(2.0, size=(5, 8)).astype(float)
+    mat[0, 0] = 0.0
+    mat[2, 3] = 0.0  # exercise the x>0 geometric-mean path
 
+    # margin=2 → per feature (row), geometric mean across cells
+    r2 = _clr_normalize(mat, margin=2)
+    ref2 = np.vstack([_seurat_clr_vector(mat[i, :]) for i in range(mat.shape[0])])
+    assert np.allclose(r2, ref2, atol=1e-12)
+
+    # margin=1 → per cell (column), geometric mean across features
+    r1 = _clr_normalize(mat, margin=1)
+    ref1 = np.column_stack([_seurat_clr_vector(mat[:, j]) for j in range(mat.shape[1])])
+    assert np.allclose(r1, ref1, atol=1e-12)
+
+    # The two margins differ, and CLR is non-negative (log1p of a ratio ≥ 0).
     assert not np.allclose(r1, r2)
+    assert np.all(r1 >= 0) and np.all(r2 >= 0)
 
 
 def test_clr_margin_routed_through_normalize_data():
@@ -149,8 +202,105 @@ def test_clr_margin_routed_through_normalize_data():
     normalize_data(obj, normalization_method="CLR", margin=2)
     data = obj.assays["ADT"].layers["data"]
     dense = data.toarray() if sp.issparse(data) else np.asarray(data)
-    # margin=2 → each feature (row) is centered across cells
-    assert np.allclose(dense.mean(axis=1), 0.0, atol=1e-9)
+
+    counts_dense = counts.toarray()
+    ref = np.vstack([_seurat_clr_vector(counts_dense[i, :]) for i in range(counts_dense.shape[0])])
+    assert np.allclose(dense, ref, atol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# Assay5 subset-layer support — scale.data may legitimately hold only the
+# variable features (Seurat's default), and the default ScaleData() call must
+# therefore succeed and feed PCA.
+# ---------------------------------------------------------------------------
+
+def test_scale_data_default_subset_features_then_pca():
+    from shanuz.shanuz import create_shanuz_object
+    from shanuz.preprocessing import scale_data
+    from shanuz.reduction import run_pca
+
+    rng = np.random.default_rng(0)
+    counts = sp.csc_matrix(rng.poisson(0.5, size=(200, 80)).astype(float))
+    obj = create_shanuz_object(
+        counts=counts, assay="RNA",
+        feature_names=[f"g{i}" for i in range(200)],
+        cell_names=[f"c{i}" for i in range(80)],
+    )
+    normalize_data(obj)
+    find_variable_features(obj, selection_method="vst", nfeatures=50)
+    # Default features = the 50 variable features — must NOT raise on Assay5.
+    scale_data(obj)
+    sd = obj.assays["RNA"].layers["scale.data"]
+    assert sd.shape == (50, 80)
+    assert obj.assays["RNA"].features("scale.data") == obj.assays["RNA"].variable_features
+    run_pca(obj, n_pcs=10)
+    assert obj.reductions["pca"].cell_embeddings.shape == (80, 10)
+
+
+def test_subset_resizes_graphs_and_drops_neighbors():
+    from shanuz.shanuz import create_shanuz_object
+    from shanuz.graph import Graph
+
+    rng = np.random.default_rng(0)
+    counts = sp.csc_matrix(rng.poisson(0.5, size=(40, 30)).astype(float))
+    obj = create_shanuz_object(
+        counts=counts, assay="RNA",
+        feature_names=[f"g{i}" for i in range(40)],
+        cell_names=[f"c{i}" for i in range(30)],
+    )
+    obj.graphs["RNA_snn"] = Graph(
+        matrix=sp.random(30, 30, density=0.3, format="csc"),
+        cell_names=obj.cell_names(), assay_used="RNA",
+    )
+    keep = [f"c{i}" for i in range(12)]
+    sub = obj.subset(cells=keep)
+    # Graph is resized to the retained cells (not the stale 30×30 matrix).
+    assert sub.graphs["RNA_snn"]._matrix.shape == (12, 12)
+    assert sub.graphs["RNA_snn"].cells() == keep
+    # Neighbor indices are invalidated by subsetting and therefore dropped.
+    assert dict(sub.neighbors) == {}
+
+
+# ---------------------------------------------------------------------------
+# JackStraw permutation test (jackstraw.py) — features carrying real PC
+# structure must score far lower empirical p-values than noise features, and
+# a structured PC must be flagged significant by score_jackstraw.
+# ---------------------------------------------------------------------------
+
+def test_jackstraw_separates_signal_from_noise():
+    from shanuz.shanuz import create_shanuz_object
+    from shanuz.preprocessing import scale_data
+    from shanuz.reduction import run_pca
+    from shanuz.jackstraw import jack_straw, score_jackstraw
+
+    rng = np.random.default_rng(0)
+    base = rng.poisson(0.5, size=(150, 120)).astype(float)
+    base[:10, :60] += 6.0  # genes 0-9 carry strong structure across two groups
+    obj = create_shanuz_object(
+        counts=sp.csc_matrix(base), assay="RNA",
+        feature_names=[f"g{i}" for i in range(150)],
+        cell_names=[f"c{i}" for i in range(120)],
+    )
+    normalize_data(obj)
+    find_variable_features(obj, nfeatures=150)
+    scale_data(obj)
+    run_pca(obj, n_pcs=15)
+
+    js = jack_straw(obj, dims=10, num_replicate=100, seed=0)
+    emp = js.empirical_p_values
+    assert emp.shape == (150, 10)
+    assert emp.min() >= 0.0 and emp.max() <= 1.0
+
+    feats = obj.reductions["pca"].features()
+    sig = [feats.index(f"g{i}") for i in range(10) if f"g{i}" in feats]
+    rest = [i for i in range(len(feats)) if i not in sig]
+    # Signal genes load significantly on PC1; noise genes do not.
+    assert emp[sig, 0].mean() < 0.05
+    assert emp[rest, 0].mean() > emp[sig, 0].mean()
+
+    overall = score_jackstraw(obj, dims=10)
+    assert overall.shape == (10,)
+    assert overall[0] < 0.05  # the structured PC1 is significant
 
 
 def test_ridge_plot_labels_align_with_rows(small_seurat):

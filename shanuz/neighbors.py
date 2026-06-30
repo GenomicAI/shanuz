@@ -84,18 +84,21 @@ def _build_knn(
     k: int,
     seed: int = 42,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (nn_idx, nn_dist) arrays of shape (n_cells, k)."""
+    """Return (nn_idx, nn_dist) of shape (n_cells, k), *including self*.
+
+    Matches Seurat, whose ``k.param`` neighbourhood includes the cell itself
+    (column 0, at distance 0), i.e. k total entries / k-1 other cells.
+    """
     from sklearn.neighbors import NearestNeighbors
 
-    nn = NearestNeighbors(n_neighbors=k + 1, metric="euclidean", n_jobs=-1)
+    nn = NearestNeighbors(n_neighbors=k, metric="euclidean", n_jobs=-1)
     nn.fit(embeddings)
     distances, indices = nn.kneighbors(embeddings)
-    # Drop self (first column is always distance=0 to itself)
-    return indices[:, 1:], distances[:, 1:]
+    return indices, distances
 
 
 def _knn_to_sparse(nn_idx: np.ndarray, n_cells: int) -> sp.csc_matrix:
-    """Build a symmetric binary KNN adjacency matrix."""
+    """Build a symmetric binary KNN adjacency matrix (nn_idx includes self)."""
     n, k = nn_idx.shape
     rows = np.repeat(np.arange(n), k)
     cols = nn_idx.flatten()
@@ -116,41 +119,33 @@ def _build_snn(
 ) -> sp.csc_matrix:
     """Build sparse SNN graph with Jaccard similarity weights.
 
-    SNN[i,j] = |NN(i) ∩ NN(j)| / |NN(i) ∪ NN(j)|
-    Edges below prune_snn are dropped.
-    """
-    # Build set-based NN lookup for Jaccard computation
-    # This is O(n*k) memory-efficient via sparse matrix multiplication
+    SNN[i,j] = |NN(i) ∩ NN(j)| / |NN(i) ∪ NN(j)|, where each neighbourhood has
+    ``k`` members (self included, matching Seurat). Edges with Jaccard below
+    ``prune_snn`` are dropped.
 
+    The intersection is computed via a sparse matrix product and kept sparse
+    throughout — never materialised as a dense n×n array — so this scales to
+    large cell counts.
+    """
     n = nn_idx.shape[0]
-    # Build boolean membership matrix: M[i,j] = 1 if j is a NN of i
+    # Membership matrix M[i, j] = 1 if j ∈ NN(i). nn_idx already includes self,
+    # so each row has exactly k ones.
     rows = np.repeat(np.arange(n), k)
     cols = nn_idx.flatten()
     vals = np.ones(len(rows), dtype=np.float32)
-    # Include self
-    self_rows = np.arange(n)
-    self_cols = np.arange(n)
-    self_vals = np.ones(n, dtype=np.float32)
+    M = sp.csr_matrix((vals, (rows, cols)), shape=(n_cells, n_cells), dtype=np.float32)
 
-    rows_all = np.concatenate([rows, self_rows])
-    cols_all = np.concatenate([cols, self_cols])
-    vals_all = np.concatenate([vals, self_vals])
+    # |NN(i) ∩ NN(j)| as a *sparse* product (nonzero only for overlapping
+    # neighbourhoods); the diagonal equals k (self-overlap) and is pruned below.
+    inter = (M @ M.T).tocoo()
+    r, c, inter_vals = inter.row, inter.col, inter.data
 
-    M = sp.csr_matrix(
-        (vals_all, (rows_all, cols_all)), shape=(n_cells, n_cells), dtype=np.float32
+    # |NN(i) ∪ NN(j)| = k + k − |intersection|.
+    union = 2 * k - inter_vals
+    jaccard = inter_vals / np.maximum(union, 1.0)
+
+    keep = (jaccard >= prune_snn) & (r != c)
+    snn = sp.csc_matrix(
+        (jaccard[keep], (r[keep], c[keep])), shape=(n_cells, n_cells)
     )
-
-    # |NN(i) ∩ NN(j)| = (M @ M.T)[i,j]
-    intersection = (M @ M.T).toarray().astype(float)
-
-    # |NN(i)| = k+1 (including self)
-    union = (k + 1) + (k + 1) - intersection
-
-    # Jaccard
-    jaccard = intersection / np.maximum(union, 1)
-
-    # Prune and convert to sparse
-    jaccard[jaccard < prune_snn] = 0
-    np.fill_diagonal(jaccard, 0)
-
-    return sp.csc_matrix(jaccard)
+    return snn

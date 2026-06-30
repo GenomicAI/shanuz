@@ -75,7 +75,8 @@ def run_pca(
         loadings = pca.components_.T  # (features × n_pcs)
         explained = pca.explained_variance_ratio_
 
-    stdev = np.sqrt(np.var(embeddings, axis=0))
+    # Per-PC standard deviation (sample SD, ddof=1) — matches Seurat's @stdev.
+    stdev = np.sqrt(np.var(embeddings, axis=0, ddof=1))
 
     # Cell names
     cells = seurat.cell_names()

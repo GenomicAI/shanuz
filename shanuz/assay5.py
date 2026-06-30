@@ -37,6 +37,8 @@ class StdAssay(KeyMixin, ABC):
         "layers",
         "_cells",
         "_features",
+        "_layer_features",
+        "_layer_cells",
         "default",
         "assay_orig",
         "meta_data",
@@ -58,6 +60,8 @@ class StdAssay(KeyMixin, ABC):
         misc: Optional[dict] = None,
         key: str = "rna_",
         default: int = 0,
+        layer_features: Optional[dict[str, list[str]]] = None,
+        layer_cells: Optional[dict[str, list[str]]] = None,
     ) -> None:
         self._key = key
         self.assay_orig = assay_orig
@@ -72,11 +76,22 @@ class StdAssay(KeyMixin, ABC):
         self.layers: dict[str, Union[np.ndarray, sp.spmatrix]] = {}
         self._cells = LogMap()
         self._features = LogMap()
+        # Per-layer *ordered* feature / cell names. A layer may legitimately
+        # span only a subset of the assay's features (e.g. scale.data holds
+        # only the variable features, as in Seurat) or cells.
+        self._layer_features: dict[str, list[str]] = {}
+        self._layer_cells: dict[str, list[str]] = {}
         self._scaled_features: list[str] = []
         self._var_features: list[str] = []
 
+        layer_features = layer_features or {}
+        layer_cells = layer_cells or {}
         for name, mat in layers.items():
-            self._add_layer(name, mat)
+            self._add_layer(
+                name, mat,
+                feature_names=layer_features.get(name),
+                cell_names=layer_cells.get(name),
+            )
 
         self.meta_data = (
             meta_data
@@ -88,39 +103,58 @@ class StdAssay(KeyMixin, ABC):
     # Internal layer management
     # ------------------------------------------------------------------
 
-    def _add_layer(self, name: str, mat: Union[np.ndarray, sp.spmatrix]) -> None:
-        n_feat = len(self._all_feature_names)
-        n_cells = len(self._all_cell_names)
+    def _add_layer(
+        self,
+        name: str,
+        mat: Union[np.ndarray, sp.spmatrix],
+        feature_names: Optional[list[str]] = None,
+        cell_names: Optional[list[str]] = None,
+    ) -> None:
+        """Register a layer, optionally spanning a feature / cell subset.
 
-        if mat.shape[0] != n_feat:
+        ``feature_names`` / ``cell_names`` give the *ordered* names for the
+        layer's rows / columns. When omitted the layer is assumed to span all
+        of the assay's features / cells (the common case for counts / data).
+        """
+        lf = list(feature_names) if feature_names is not None else list(self._all_feature_names)
+        lc = list(cell_names) if cell_names is not None else list(self._all_cell_names)
+
+        if mat.shape[0] != len(lf):
             raise ValueError(
                 f"Layer '{name}' has {mat.shape[0]} rows but "
-                f"{n_feat} features are registered."
+                f"{len(lf)} feature names were supplied."
             )
-        if mat.shape[1] != n_cells:
+        if mat.shape[1] != len(lc):
             raise ValueError(
                 f"Layer '{name}' has {mat.shape[1]} columns but "
-                f"{n_cells} cells are registered."
+                f"{len(lc)} cell names were supplied."
             )
 
         self.layers[name] = mat
-        self._cells[name] = np.ones(n_cells, dtype=bool)
-        self._features[name] = np.ones(n_feat, dtype=bool)
+        self._layer_features[name] = lf
+        self._layer_cells[name] = lc
+
+        feat_set = set(lf)
+        cell_set = set(lc)
+        self._features[name] = np.array(
+            [f in feat_set for f in self._all_feature_names], dtype=bool
+        )
+        self._cells[name] = np.array(
+            [c in cell_set for c in self._all_cell_names], dtype=bool
+        )
 
     # ------------------------------------------------------------------
     # Accessors
     # ------------------------------------------------------------------
 
     def cells(self, layer: Optional[str] = None) -> list[str]:
-        if layer is not None and layer in self._cells:
-            mask = self._cells[layer]
-            return [c for c, m in zip(self._all_cell_names, mask) if m]
+        if layer is not None and layer in self._layer_cells:
+            return list(self._layer_cells[layer])
         return list(self._all_cell_names)
 
     def features(self, layer: Optional[str] = None) -> list[str]:
-        if layer is not None and layer in self._features:
-            mask = self._features[layer]
-            return [f for f, m in zip(self._all_feature_names, mask) if m]
+        if layer is not None and layer in self._layer_features:
+            return list(self._layer_features[layer])
         return list(self._all_feature_names)
 
     def layers_list(self, pattern: Optional[str] = None) -> list[str]:
@@ -166,14 +200,16 @@ class StdAssay(KeyMixin, ABC):
             raise KeyError(f"Layer '{layer}' not found.")
 
         mat = self.layers[layer]
-        all_feat = self._all_feature_names
-        all_cells = self._all_cell_names
+        # Index against the layer's *own* feature / cell names, which may be a
+        # subset of the assay (e.g. scale.data holds only variable features).
+        layer_feat = self._layer_features.get(layer, self._all_feature_names)
+        layer_cell = self._layer_cells.get(layer, self._all_cell_names)
 
         row_idx = (
-            [all_feat.index(f) for f in features] if features is not None else slice(None)
+            [layer_feat.index(f) for f in features] if features is not None else slice(None)
         )
         col_idx = (
-            [all_cells.index(c) for c in cells] if cells is not None else slice(None)
+            [layer_cell.index(c) for c in cells] if cells is not None else slice(None)
         )
 
         if isinstance(row_idx, list) or isinstance(col_idx, list):
@@ -189,10 +225,20 @@ class StdAssay(KeyMixin, ABC):
         cell_names: Optional[list[str]] = None,
         feature_names: Optional[list[str]] = None,
     ) -> None:
+        """Store (or replace) a layer.
+
+        ``feature_names`` / ``cell_names`` declare which features / cells the
+        matrix spans, so a layer may legitimately cover only a subset (e.g.
+        scale.data over the variable features). When replacing an existing
+        layer without supplying names, the previous span is reused.
+        """
         if layer in self.layers:
-            self.layers[layer] = value
-        else:
-            self._add_layer(layer, value)
+            if feature_names is None:
+                feature_names = self._layer_features.get(layer)
+            if cell_names is None:
+                cell_names = self._layer_cells.get(layer)
+            del self.layers[layer]
+        self._add_layer(layer, value, feature_names=feature_names, cell_names=cell_names)
 
     # ------------------------------------------------------------------
     # Variable features
@@ -232,9 +278,19 @@ class StdAssay(KeyMixin, ABC):
             joined = np.hstack(mats)
         # For simplicity: joined layer keeps all cells from all joined layers
         new_obj = self._copy()
+        joined_cells: list[str] = []
         for n in names:
+            joined_cells.extend(new_obj._layer_cells.get(n, new_obj._all_cell_names))
             del new_obj.layers[n]
+            new_obj._layer_features.pop(n, None)
+            new_obj._layer_cells.pop(n, None)
+            if n in new_obj._features:
+                del new_obj._features[n]
+            if n in new_obj._cells:
+                del new_obj._cells[n]
         new_obj.layers["joined"] = joined
+        new_obj._layer_features["joined"] = list(new_obj._all_feature_names)
+        new_obj._layer_cells["joined"] = joined_cells
         return new_obj
 
     def split_layers(self, f: list[str], layer: Optional[str] = None) -> "StdAssay":
@@ -251,10 +307,22 @@ class StdAssay(KeyMixin, ABC):
             groups.setdefault(g, []).append(i)
 
         new_obj = self._copy()
+        base_feats = list(new_obj._layer_features.get(layer, new_obj._all_feature_names))
+        base_cells = list(new_obj._layer_cells.get(layer, new_obj._all_cell_names))
         del new_obj.layers[layer]
+        new_obj._layer_features.pop(layer, None)
+        new_obj._layer_cells.pop(layer, None)
+        if layer in new_obj._features:
+            del new_obj._features[layer]
+        if layer in new_obj._cells:
+            del new_obj._cells[layer]
         for g, idxs in groups.items():
-            sub = mat[:, idxs]
-            new_obj.layers[f"{layer}_{g}"] = sub
+            key = f"{layer}_{g}"
+            new_obj._add_layer(
+                key, mat[:, idxs],
+                feature_names=base_feats,
+                cell_names=[base_cells[i] for i in idxs],
+            )
         return new_obj
 
     # ------------------------------------------------------------------
@@ -281,27 +349,37 @@ class StdAssay(KeyMixin, ABC):
     ) -> "StdAssay":
         all_feat = self._all_feature_names
         all_cells = self._all_cell_names
+        feat_set = set(all_feat)
+        cell_set = set(all_cells)
 
-        row_idx = (
-            [all_feat.index(f) for f in features]
-            if features is not None
-            else list(range(len(all_feat)))
+        # New global axes (preserve assay order, keep only requested members).
+        new_features = (
+            [f for f in features if f in feat_set] if features is not None else list(all_feat)
         )
-        col_idx = (
-            [all_cells.index(c) for c in cells]
-            if cells is not None
-            else list(range(len(all_cells)))
+        new_cells = (
+            [c for c in cells if c in cell_set] if cells is not None else list(all_cells)
         )
 
-        new_layers = {}
+        # Subset each layer against its *own* feature / cell span.
+        new_layers: dict = {}
+        new_layer_features: dict = {}
+        new_layer_cells: dict = {}
+        keep_feat = set(new_features)
+        keep_cell = set(new_cells)
         for name, mat in self.layers.items():
-            new_layers[name] = mat[np.ix_(row_idx, col_idx)]
+            lf = self._layer_features.get(name, all_feat)
+            lc = self._layer_cells.get(name, all_cells)
+            fsel = [f for f in lf if f in keep_feat]
+            csel = [c for c in lc if c in keep_cell]
+            ridx = [lf.index(f) for f in fsel]
+            cidx = [lc.index(c) for c in csel]
+            new_layers[name] = mat[np.ix_(ridx, cidx)]
+            new_layer_features[name] = fsel
+            new_layer_cells[name] = csel
 
-        new_features = [all_feat[i] for i in row_idx]
-        new_cells = [all_cells[i] for i in col_idx]
-        new_meta = self.meta_data.iloc[row_idx].copy()
+        new_meta = self.meta_data.reindex(new_features).copy()
 
-        return self.__class__(
+        new = self.__class__(
             layers=new_layers,
             feature_names=new_features,
             cell_names=new_cells,
@@ -310,7 +388,12 @@ class StdAssay(KeyMixin, ABC):
             misc=dict(self.misc),
             key=self._key,
             default=self.default,
+            layer_features=new_layer_features,
+            layer_cells=new_layer_cells,
         )
+        new._var_features = [f for f in self._var_features if f in keep_feat]
+        new._scaled_features = [f for f in self._scaled_features if f in keep_feat]
+        return new
 
     # ------------------------------------------------------------------
     # Cell renaming
@@ -408,6 +491,8 @@ class StdAssay(KeyMixin, ABC):
             misc=dict(self.misc),
             key=self._key,
             default=self.default,
+            layer_features={k: list(v) for k, v in self._layer_features.items()},
+            layer_cells={k: list(v) for k, v in self._layer_cells.items()},
         )
         new._var_features = list(self._var_features)
         new._scaled_features = list(self._scaled_features)

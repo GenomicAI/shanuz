@@ -174,22 +174,33 @@ def _log_normalize(counts, scale_factor: float = 10000.0):
 def _clr_normalize(counts, margin: int = 1):
     """Centered log-ratio normalization (for protein / ADT assays).
 
-    counts is features x cells. ``margin`` selects the CLR direction:
-      * 1 — center each cell across its features (the geometric mean is taken
-            over features within a column).
-      * 2 — center each feature across all cells (geometric mean over cells
-            within a row). Recommended for small ADT panels.
+    Faithfully reproduces Seurat's CLR (``clr_function`` in NormalizeData):
+
+        clr(x) = log1p( x / exp( sum(log1p(x[x > 0])) / length(x) ) )
+
+    i.e. the geometric-mean denominator sums log1p over the *non-zero* entries
+    but divides by the full length (zeros included). ``counts`` is
+    features × cells; ``margin`` selects the direction:
+      * 1 — normalize each cell across its features (denominator over a column).
+      * 2 — normalize each feature across all cells (denominator over a row).
+            Recommended for small ADT panels.
     """
     if sp.issparse(counts):
         counts = counts.toarray().astype(float)
     else:
         counts = np.asarray(counts, dtype=float)
-    log1p = np.log1p(counts)
+
+    log1p_pos = np.where(counts > 0, np.log1p(counts), 0.0)
     if margin == 2:
-        geo_means = log1p.mean(axis=1, keepdims=True)   # per-feature, across cells
+        # per-feature (row): length = number of cells
+        length = counts.shape[1]
+        geo = np.exp(log1p_pos.sum(axis=1, keepdims=True) / length)
     else:
-        geo_means = log1p.mean(axis=0, keepdims=True)   # per-cell, across features
-    return log1p - geo_means
+        # per-cell (column): length = number of features
+        length = counts.shape[0]
+        geo = np.exp(log1p_pos.sum(axis=0, keepdims=True) / length)
+    # geo >= 1 always (log1p >= 0), so the division is always well-defined.
+    return np.log1p(counts / geo)
 
 
 def _rc_normalize(counts, scale_factor: float = 10000.0):
@@ -460,14 +471,17 @@ def _dispersion_hvg(
     Mirrors Seurat v2's FindVariableGenes.
     """
     if sp.issparse(data):
+        n_cells = data.shape[1]
         means = np.array(data.mean(axis=1)).flatten()
         mean_sq = np.array(data.power(2).mean(axis=1)).flatten()
     else:
         data = np.asarray(data, dtype=float)
+        n_cells = data.shape[1]
         means = data.mean(axis=1)
         mean_sq = (data ** 2).mean(axis=1)
 
-    variances = mean_sq - means ** 2
+    # Sample variance (N-1 denominator), consistent with the vst path.
+    variances = (mean_sq - means ** 2) * (n_cells / (n_cells - 1))
     eps = 1e-10
     dispersion = np.log(variances / (means + eps) + eps)
 
@@ -561,9 +575,9 @@ def scale_data(
         gene_means = sub.mean(axis=1, keepdims=True)
         sub = sub - gene_means
 
-    # Scale
+    # Scale (sample SD, ddof=1, matching Seurat's ScaleData)
     if do_scale:
-        gene_stds = sub.std(axis=1, keepdims=True)
+        gene_stds = sub.std(axis=1, ddof=1, keepdims=True)
         gene_stds[gene_stds == 0] = 1.0
         sub = sub / gene_stds
 

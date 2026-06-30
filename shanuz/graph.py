@@ -83,6 +83,14 @@ class Graph:
     def cells(self) -> list[str]:
         return list(self._cell_names)
 
+    def subset(self, cells: list[str]) -> "Graph":
+        """Return a new Graph restricted to ``cells`` (cell×cell submatrix)."""
+        idx_map = {c: i for i, c in enumerate(self._cell_names)}
+        keep = [c for c in cells if c in idx_map]
+        idx = [idx_map[c] for c in keep]
+        sub = self._matrix[np.ix_(idx, idx)]
+        return Graph(matrix=sub, cell_names=keep, assay_used=self.assay_used)
+
     def default_assay(self) -> Optional[str]:
         return self.assay_used
 

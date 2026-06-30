@@ -22,7 +22,8 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
 - **UMAP** — `run_umap` (via umap-learn)
-- **Differential expression** — `find_markers`, `find_all_markers` (Wilcoxon rank-sum)
+- **PC significance** — `jack_straw`, `score_jackstraw` (JackStraw permutation test)
+- **Differential expression** — `find_markers`, `find_all_markers` (tie-corrected Wilcoxon rank-sum)
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
@@ -237,7 +238,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 114 unit tests pass.
+All 118 unit tests pass.
 
 ---
 

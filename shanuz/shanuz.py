@@ -343,13 +343,21 @@ class Shanuz:
         new_reductions = {name: r.subset(cells=cells) for name, r in self.reductions.items()}
         new_images = {name: img.subset(cells) for name, img in self.images.items()}
 
+        # Subset each cell×cell graph to the retained cells. Mirrors Seurat,
+        # which subsets graphs rather than carrying the full-size matrix.
+        new_graphs = {name: g.subset(cells) for name, g in self.graphs.items()}
+        # Neighbor objects store integer KNN indices into the original cell
+        # ordering; those indices are invalidated by subsetting, so (as Seurat
+        # does) drop them — re-run find_neighbors() on the subset.
+        new_neighbors: dict[str, Neighbor] = {}
+
         return Shanuz(
             assays=new_assays,
             meta_data=new_meta,
             active_assay=self.active_assay,
             active_ident=new_ident,
-            graphs=self.graphs,
-            neighbors=self.neighbors,
+            graphs=new_graphs,
+            neighbors=new_neighbors,
             reductions=new_reductions,
             images=new_images,
             project_name=self.project_name,
