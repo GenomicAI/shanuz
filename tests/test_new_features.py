@@ -66,6 +66,43 @@ def test_sctransform_creates_sct_assay_and_stabilizes_variance():
     assert obj.reductions["pca"].cell_embeddings.shape == (N, 10)
 
 
+def test_sctransform_vars_to_regress_removes_covariate_effect():
+    """SCTransform(vars.to.regress=...) must orthogonalise the residuals to the
+    covariate, so the covariate's correlation with the residuals drops to ~0."""
+    rng = np.random.default_rng(0)
+    G, N = 200, 300
+    depth = rng.integers(500, 5000, size=N)
+    base = rng.gamma(0.3, size=(G, 1))
+    counts = rng.poisson(base * depth[None, :] / depth.mean()).astype(float)
+    counts[:10, :150] += rng.poisson(8, size=(10, 150))
+    obj = create_shanuz_object(
+        counts=sp.csc_matrix(counts), assay="RNA",
+        feature_names=[f"g{i}" for i in range(G)],
+        cell_names=[f"c{i}" for i in range(N)],
+    )
+    # A synthetic technical covariate that genuinely drives the residuals.
+    covar = rng.standard_normal(N)
+    obj.meta_data["percent.mt"] = covar
+
+    sctransform(obj, n_cells=300, n_features=40, seed=0)
+    before = obj.assays["SCT"].layers["scale.data"].toarray()
+    # Inject covariate structure, then regress it out.
+    obj2 = create_shanuz_object(
+        counts=sp.csc_matrix(counts + np.outer(np.ones(G), np.clip(covar, 0, None)) * 2),
+        assay="RNA", feature_names=[f"g{i}" for i in range(G)],
+        cell_names=[f"c{i}" for i in range(N)],
+    )
+    obj2.meta_data["percent.mt"] = covar
+    sctransform(obj2, vars_to_regress=["percent.mt"], n_cells=300, n_features=40, seed=0)
+    after = obj2.assays["SCT"].layers["scale.data"].toarray()
+
+    # After regression, each gene's residuals are ~uncorrelated with the covariate.
+    corr_after = np.array([
+        abs(np.corrcoef(after[i], covar)[0, 1]) for i in range(after.shape[0])
+    ])
+    assert np.nanmean(corr_after) < 0.05
+
+
 def test_sctransform_drops_low_detection_genes():
     rng = np.random.default_rng(1)
     counts = rng.poisson(0.5, size=(60, 80)).astype(float)

@@ -104,6 +104,7 @@ See **[`tutorials/README.md`](tutorials/README.md)** for the full index.
 | 1 | [PBMC 3k — Guided Clustering](tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
 | 2 | [PBMC 8k — Advanced Subclustering](tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
+| 4 | [PBMC 3k — SCTransform](tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -114,6 +115,9 @@ python tutorials/pbmc8k_subclustering_tutorial.py && python tutorials/generate_a
 
 # Tutorial 3 — CITE-seq multimodal
 python tutorials/cbmc_citeseq_tutorial.py && python tutorials/generate_multimodal_plots.py
+
+# Tutorial 4 — SCTransform
+python tutorials/pbmc3k_sctransform_tutorial.py && python tutorials/generate_sctransform_plots.py
 ```
 
 ---

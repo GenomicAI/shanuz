@@ -25,7 +25,7 @@ import pandas as pd
 import scipy.sparse as sp
 
 from .assay5 import Assay5
-from .preprocessing import _loess_fit
+from .preprocessing import _loess_fit, _regress_out
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +109,7 @@ def sctransform(
     n_cells: int = 5000,
     n_features: int = 3000,
     min_cells: int = 5,
+    vars_to_regress: Optional[list[str]] = None,
     clip_range: Optional[tuple] = None,
     gene_chunk: int = 500,
     seed: int = 42,
@@ -125,6 +126,8 @@ def sctransform(
     n_cells     : cells subsampled for parameter estimation (Seurat default 5000).
     n_features  : number of variable features by residual variance (default 3000).
     min_cells   : drop genes detected in fewer than this many cells (default 5).
+    vars_to_regress : metadata columns (e.g. 'percent.mt') regressed out of the
+                  Pearson residuals, mirroring SCTransform's vars.to.regress.
     clip_range  : residual clip (low, high); default (−√(N/30), √(N/30)).
     gene_chunk  : genes processed per vectorised batch (memory control).
     set_default : make the new assay the active assay.
@@ -222,6 +225,11 @@ def sctransform(
     sd = np.sqrt(mu + mu * mu / theta_r[top_sorted, None])
     resid = np.clip((y - mu) / sd, clip_lo, clip_hi)
     scale_feats = [genes[i] for i in top_sorted]
+
+    # Regress technical covariates (e.g. percent.mt) out of the residuals,
+    # mirroring SCTransform(vars.to.regress = ...).
+    if vars_to_regress:
+        resid = _regress_out(resid, seurat.meta_data, list(vars_to_regress), scale_feats)
 
     # Build the SCT assay: corrected counts + log1p(data); residual scale.data.
     sct = Assay5(
