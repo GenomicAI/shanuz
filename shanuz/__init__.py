@@ -50,7 +50,7 @@ from .plotting import (
     dot_plot,
 )
 
-__version__ = "5.4.0"
+__version__ = "0.1.0"
 
 __all__ = [
     # Core classes
