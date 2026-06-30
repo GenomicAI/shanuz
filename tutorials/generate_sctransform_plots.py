@@ -59,9 +59,11 @@ def main(data_dir=None):
                        ncol=3, min_cutoff="q05", max_cutoff="q95", pt_size=1.2,
                        figsize=(13, 7)), "04_sct_featureplots_2.png")
 
-    # 5. Violin plots of the eight vignette markers (by cluster)
+    # 5. Violin plots of the eight vignette markers (by cluster).
+    #    pt_size>0 overlays jittered cells to match R's VlnPlot(pt.size = 0.2)
+    #    speckled look (matplotlib sizes points by area, so the value differs).
     _save(vln_plot(sct, VLN_MARKERS, group_by="sct_clusters", assay="SCT",
-                   ncol=4, figsize=(15, 7)), "05_sct_violins.png")
+                   ncol=4, pt_size=2.0, figsize=(15, 7)), "05_sct_violins.png")
 
     # 6. SCTransform vs standard log-normalization, side by side
     fig, axes = plt.subplots(1, 2, figsize=(15, 6.5))

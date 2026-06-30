@@ -194,7 +194,9 @@ VlnPlot(pbmc, features = c("CD8A","GZMK","CCL5","S100A4",
 ```python
 from shanuz.plotting import vln_plot
 vln_plot(pbmc, ["CD8A","GZMK","CCL5","S100A4","ANXA1","CCR7","ISG15","CD3D"],
-         group_by="sct_clusters", assay="SCT", ncol=4)
+         group_by="sct_clusters", assay="SCT", ncol=4, pt_size=2.0)
+# pt_size overlays jittered cells, matching R's VlnPlot(pt.size = 0.2);
+# matplotlib sizes points by area, so the numeric value differs.
 ```
 
 </td></tr>
@@ -203,6 +205,16 @@ vln_plot(pbmc, ["CD8A","GZMK","CCL5","S100A4","ANXA1","CCR7","ISG15","CD3D"],
 <td><img src="figures_sctransform/05_sct_violins.png" width="420"/></td>
 </tr>
 </table>
+
+> Both panels plot the SCT `data` layer (`log1p` of corrected counts) — R's
+> `VlnPlot` default for an SCT assay — with cells jittered over each violin. The
+> distributions track gene-for-gene: `CD8A`/`GZMK` spike on the cytotoxic CD8
+> cluster, `CCL5` across the CD8/NK end, `CD3D` over all T clusters, `CCR7` low
+> and naive-restricted. The **x-axes differ in length** — Shanuz resolves **9
+> clusters (0–8)** here versus the vignette's **12 (0–11)** — so a given cluster
+> number is *not* the same population across the two plots; compare the
+> per-gene shapes, not column positions. (See the accuracy note below on why the
+> exact cluster count differs.)
 
 ---
 
