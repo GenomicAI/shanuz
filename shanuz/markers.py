@@ -4,12 +4,96 @@ Mirrors Seurat's FindMarkers() and FindAllMarkers().
 """
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from scipy.stats import mannwhitneyu
+
+
+def _roc_auc(x1: np.ndarray, x2: np.ndarray) -> tuple[float, float]:
+    """Return (AUC, power) for classifying group 1 vs group 2 by expression.
+
+    AUC is the Mann-Whitney U statistic normalised to [0, 1]; power = |2·AUC−1|
+    (Seurat's classification power), 0 = random, 1 = perfect separation.
+    """
+    n1, n2 = len(x1), len(x2)
+    if n1 == 0 or n2 == 0:
+        return 0.5, 0.0
+    try:
+        u, _ = mannwhitneyu(x1, x2, alternative="two-sided", method="asymptotic")
+        auc = u / (n1 * n2)
+    except ValueError:
+        auc = 0.5
+    return float(auc), float(abs(2.0 * auc - 1.0))
+
+
+def _lr_pvalue(expr: np.ndarray, group: np.ndarray, latent: Optional[np.ndarray]) -> float:
+    """Logistic-regression likelihood-ratio test (Seurat's 'LR').
+
+    Fits group ~ expr (+ latent) vs the reduced group ~ (latent); the LRT on the
+    dropped expression term is χ²(df=1).
+    """
+    import statsmodels.api as sm
+    from scipy.stats import chi2
+
+    n = len(group)
+    full_cols = [np.ones(n), expr]
+    red_cols = [np.ones(n)]
+    if latent is not None and latent.size:
+        full_cols.append(latent)
+        red_cols.append(latent)
+    X_full = np.column_stack(full_cols)
+    X_red = np.column_stack(red_cols)
+    try:
+        with warnings.catch_warnings():
+            # Marker genes often (near-)perfectly separate the groups; that is
+            # the signal, not an error — silence statsmodels' separation noise.
+            warnings.simplefilter("ignore")
+            full = sm.GLM(group, X_full, family=sm.families.Binomial()).fit()
+            red = sm.GLM(group, X_red, family=sm.families.Binomial()).fit()
+        stat = red.deviance - full.deviance
+        return float(chi2.sf(max(stat, 0.0), df=1))
+    except Exception:
+        return 1.0
+
+
+def _negbinom_pvalue(counts: np.ndarray, group: np.ndarray, latent: Optional[np.ndarray]) -> float:
+    """Negative-binomial GLM likelihood-ratio test on counts (Seurat's 'negbinom').
+
+    Fits counts ~ group (+ latent) vs counts ~ (latent) with a fixed
+    moment-estimated dispersion, LRT on the group term is χ²(df=1).
+    """
+    import statsmodels.api as sm
+    from scipy.stats import chi2
+
+    y = counts.astype(float)
+    m = y.mean()
+    if m <= 0:
+        return 1.0
+    v = y.var()
+    alpha = max((v - m) / (m * m), 1e-6) if v > m else 1e-6
+
+    n = len(y)
+    full_cols = [np.ones(n), group]
+    red_cols = [np.ones(n)]
+    if latent is not None and latent.size:
+        full_cols.append(latent)
+        red_cols.append(latent)
+    X_full = np.column_stack(full_cols)
+    X_red = np.column_stack(red_cols)
+    try:
+        fam = sm.families.NegativeBinomial(alpha=alpha)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            full = sm.GLM(y, X_full, family=fam).fit()
+            red = sm.GLM(y, X_red, family=fam).fit()
+        stat = red.deviance - full.deviance
+        return float(chi2.sf(max(stat, 0.0), df=1))
+    except Exception:
+        return 1.0
 
 
 def find_markers(
@@ -23,6 +107,7 @@ def find_markers(
     min_pct: float = 0.1,
     logfc_threshold: float = 0.25,
     features: Optional[list[str]] = None,
+    latent_vars: Optional[list[str]] = None,
     max_cells_per_ident: Optional[int] = None,
     random_seed: int = 1,
 ) -> pd.DataFrame:
@@ -34,17 +119,23 @@ def find_markers(
     ----------
     ident_1         : cluster label(s) for group 1
     ident_2         : cluster label(s) for group 2 (None = all others)
-    test_use        : statistical test: 'wilcox' (default) or 't'
+    test_use        : statistical test — 'wilcox' (default), 't', 'LR'
+                      (logistic-regression LRT), 'negbinom' (negative-binomial
+                      GLM LRT on counts), or 'roc' (AUC classifier power).
     only_pos        : only return positive markers
     min_pct         : minimum fraction cells expressing gene in either group
     logfc_threshold : minimum log2 fold-change filter
     features        : restrict to these genes (default: all)
+    latent_vars     : metadata columns to regress out as covariates in the
+                      'LR' and 'negbinom' models (Seurat's latent.vars).
     max_cells_per_ident : downsample each group to this many cells
 
     Returns
     -------
-    DataFrame with columns: p_val, avg_log2FC, pct.1, pct.2, p_val_adj
-    Sorted by p_val ascending.
+    For 'wilcox' / 't' / 'LR' / 'negbinom': DataFrame with columns
+    p_val, avg_log2FC, pct.1, pct.2, p_val_adj (sorted by p_val).
+    For 'roc': columns myAUC, avg_diff, power, avg_log2FC, pct.1, pct.2
+    (sorted by power), with no p-value — matching Seurat.
     """
     assay_name = assay or seurat.active_assay
     assay_obj = seurat.assays[assay_name]
@@ -119,12 +210,49 @@ def find_markers(
         combined_mask = combined_mask & fc_mask_arr
 
     test_indices = np.where(combined_mask)[0]
+
+    # Per-cell covariates for the regression-based tests (LR / negbinom).
+    latent = None
+    if latent_vars and test_use in ("LR", "negbinom"):
+        lat1 = seurat.meta_data.loc[cells_1, latent_vars].to_numpy(dtype=float)
+        lat2 = seurat.meta_data.loc[cells_2, latent_vars].to_numpy(dtype=float)
+        latent = np.vstack([lat1, lat2])
+
+    # ---- ROC test: returns AUC / power, no p-value (matches Seurat) ----------
+    if test_use == "roc":
+        if len(test_indices) == 0:
+            return pd.DataFrame(
+                columns=["myAUC", "avg_diff", "power", "avg_log2FC", "pct.1", "pct.2"]
+            )
+        aucs = np.empty(len(test_indices))
+        powers = np.empty(len(test_indices))
+        avg_diff = np.empty(len(test_indices))
+        for i, fi in enumerate(test_indices):
+            auc, power = _roc_auc(mat1[fi, :], mat2[fi, :])
+            aucs[i] = auc
+            powers[i] = power
+            avg_diff[i] = mat1[fi, :].mean() - mat2[fi, :].mean()
+        roc_res = pd.DataFrame(
+            {
+                "myAUC": aucs,
+                "avg_diff": avg_diff,
+                "power": powers,
+                "avg_log2FC": avg_log2fc[test_indices],
+                "pct.1": pct1[test_indices],
+                "pct.2": pct2[test_indices],
+            },
+            index=[feature_names[i] for i in test_indices],
+        )
+        if only_pos:
+            roc_res = roc_res[roc_res["avg_log2FC"] > 0]
+        return roc_res.sort_values("power", ascending=False)
+
     if len(test_indices) == 0:
         return pd.DataFrame(
             columns=["p_val", "avg_log2FC", "pct.1", "pct.2", "p_val_adj"]
         )
 
-    # Statistical tests
+    # ---- p-value-based tests -------------------------------------------------
     p_vals = np.ones(len(test_indices))
 
     if test_use == "wilcox":
@@ -154,8 +282,30 @@ def find_markers(
             x2 = mat2[fi, :]
             _, p = ttest_ind(x1, x2, equal_var=False)
             p_vals[i] = p if not np.isnan(p) else 1.0
+    elif test_use == "LR":
+        n1, n2 = mat1.shape[1], mat2.shape[1]
+        group = np.concatenate([np.ones(n1), np.zeros(n2)])
+        for i, fi in enumerate(test_indices):
+            expr = np.concatenate([mat1[fi, :], mat2[fi, :]])
+            p_vals[i] = _lr_pvalue(expr, group, latent)
+    elif test_use == "negbinom":
+        counts_mat, _ = _get_expression_matrix(assay_obj, "counts")
+        if sp.issparse(counts_mat):
+            c1 = counts_mat[:, idx_1].toarray()
+            c2 = counts_mat[:, idx_2].toarray()
+        else:
+            c1 = np.asarray(counts_mat)[:, idx_1]
+            c2 = np.asarray(counts_mat)[:, idx_2]
+        n1, n2 = c1.shape[1], c2.shape[1]
+        group = np.concatenate([np.ones(n1), np.zeros(n2)])
+        for i, fi in enumerate(test_indices):
+            cnts = np.concatenate([c1[fi, :], c2[fi, :]])
+            p_vals[i] = _negbinom_pvalue(cnts, group, latent)
     else:
-        raise ValueError(f"Unsupported test_use: {test_use!r}. Use 'wilcox' or 't'.")
+        raise ValueError(
+            f"Unsupported test_use: {test_use!r}. "
+            "Use 'wilcox', 't', 'LR', 'negbinom', or 'roc'."
+        )
 
     # Bonferroni correction (Seurat default: multiply by total gene count)
     n_total = len(feature_names)
