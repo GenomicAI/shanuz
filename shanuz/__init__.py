@@ -21,6 +21,8 @@ from .neighbors import find_neighbors
 from .clustering import find_clusters
 from .umap import run_umap
 from .markers import find_markers, find_all_markers
+from .sctransform import sctransform
+from .module_score import add_module_score, cell_cycle_scoring, CC_GENES
 from .spatial import (
     Centroids,
     FOV,
@@ -45,6 +47,7 @@ from .plotting import (
     dim_heatmap,
     do_heatmap,
     ridge_plot,
+    dot_plot,
 )
 
 __version__ = "5.4.0"
@@ -91,6 +94,10 @@ __all__ = [
     "find_all_markers",
     "jack_straw",
     "score_jackstraw",
+    "sctransform",
+    "add_module_score",
+    "cell_cycle_scoring",
+    "CC_GENES",
     # Generic functions module
     "generics",
     # Plotting module
@@ -105,5 +112,6 @@ __all__ = [
     "dim_heatmap",
     "do_heatmap",
     "ridge_plot",
+    "dot_plot",
     "__version__",
 ]

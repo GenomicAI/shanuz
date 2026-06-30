@@ -12,6 +12,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers | Beginner |
 | 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison | Advanced |
+| 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize | Advanced |
 
 ---
 
@@ -147,6 +148,49 @@ python tutorials/generate_multimodal_plots.py # writes tutorials/figures_multimo
 
 ---
 
+## Tutorial 4 — PBMC 3k SCTransform
+
+> **Walkthrough:** [`sctransform_vignette.md`](sctransform_vignette.md)
+
+A Python port of Seurat's
+[sctransform vignette](https://satijalab.org/seurat/articles/sctransform_vignette).
+`SCTransform` replaces the `NormalizeData → FindVariableFeatures → ScaleData`
+trio with a single regularized negative-binomial model whose **Pearson
+residuals** are the normalized values, then clusters over 30 PCs. The tutorial
+runs SCTransform *and* the standard log-normalization workflow on the same cells
+to compare their resolution.
+
+```bash
+python tutorials/pbmc3k_sctransform_tutorial.py   # analysis + SCT-vs-std comparison
+python tutorials/generate_sctransform_plots.py    # writes tutorials/figures_sctransform/
+```
+
+**What you'll learn:**
+- Run `sctransform(vars_to_regress=["percent.mt"])` — one call replacing three,
+  producing a new `SCT` assay with corrected counts and residual `scale.data`
+- Cluster over 30 PCs (the vignette's deeper embedding) and read the resulting
+  cytotoxicity gradient: Naive CD4 → Memory CD4 → CD8 Effector → NK
+- Compare SCTransform against log-normalization on identical cells
+
+**Key output figures** (in `tutorials/figures_sctransform/`):
+
+| Figure | Description |
+|--------|-------------|
+| `01_sct_umap_clusters.png` | UMAP — SCT clusters |
+| `02_sct_umap_celltypes.png` | UMAP — annotated cell types |
+| `03_sct_featureplots_1.png` | CD8A, GZMK, CCL5, S100A4, ANXA1, CCR7 |
+| `04_sct_featureplots_2.png` | CD3D, ISG15, TCL1A, FCER2, XCL1, FCGR3A |
+| `05_sct_violins.png` | Vignette marker violins per cluster |
+| `06_sct_vs_std_umap.png` | SCTransform vs LogNormalize, side by side |
+
+**Accuracy vs R:** exact match on the model, the **3,000 variable features**, the
+30-PC embedding, and the recovered biology (CD8-effector/CD4/NK split, marker
+patterns). Exact cluster count differs — `sctransform` is a faithful but not
+bit-identical reimplementation (LOESS/`theta.ml` differ) and clustering/UMAP use
+different libraries, the same caveat as the other tutorials.
+
+---
+
 ## R Seurat → Shanuz API Quick Reference
 
 | Task | R (Seurat) | Python (Shanuz) |
@@ -155,6 +199,7 @@ python tutorials/generate_multimodal_plots.py # writes tutorials/figures_multimo
 | % mito genes | `PercentageFeatureSet(pbmc, pattern="^MT-")` | `percentage_feature_set(pbmc, pattern=r"^MT-")` |
 | Normalize | `NormalizeData(pbmc, method, scale.factor)` | `normalize_data(pbmc, normalization_method, scale_factor)` |
 | CLR (ADT) | `NormalizeData(pbmc, method="CLR", margin=2)` | `normalize_data(pbmc, normalization_method="CLR", margin=2)` |
+| SCTransform | `SCTransform(pbmc, vars.to.regress="percent.mt")` | `sctransform(pbmc, vars_to_regress=["percent.mt"])` |
 | HVGs | `FindVariableFeatures(pbmc, selection.method, nfeatures)` | `find_variable_features(pbmc, selection_method, nfeatures)` |
 | Scale | `ScaleData(pbmc, features)` | `scale_data(pbmc, features)` |
 | PCA | `RunPCA(pbmc, features, npcs)` | `run_pca(pbmc, features, n_pcs)` |

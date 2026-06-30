@@ -18,13 +18,15 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Shanuz object** — mirrors the R `Seurat` S4 class with `__slots__`-based Python classes
 - **Assay5** — sparse-matrix-backed multi-layer assay (counts, data, scale.data)
 - **Preprocessing** — `normalize_data`, `find_variable_features` (VST), `scale_data`, `percentage_feature_set`
+- **SCTransform** — `sctransform` (regularized negative-binomial Pearson residuals)
+- **Signature scoring** — `add_module_score`, `cell_cycle_scoring` (S/G2M + Phase)
 - **Dimensionality reduction** — `run_pca` (via scikit-learn)
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
 - **UMAP** — `run_umap` (via umap-learn)
 - **PC significance** — `jack_straw`, `score_jackstraw` (JackStraw permutation test)
-- **Differential expression** — `find_markers`, `find_all_markers` (tie-corrected Wilcoxon rank-sum)
-- **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
+- **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `LR`, `negbinom`, `roc`)
+- **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `dot_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 - **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
@@ -102,6 +104,7 @@ See **[`tutorials/README.md`](tutorials/README.md)** for the full index.
 | 1 | [PBMC 3k — Guided Clustering](tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
 | 2 | [PBMC 8k — Advanced Subclustering](tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
+| 4 | [PBMC 3k — SCTransform](tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -112,6 +115,9 @@ python tutorials/pbmc8k_subclustering_tutorial.py && python tutorials/generate_a
 
 # Tutorial 3 — CITE-seq multimodal
 python tutorials/cbmc_citeseq_tutorial.py && python tutorials/generate_multimodal_plots.py
+
+# Tutorial 4 — SCTransform
+python tutorials/pbmc3k_sctransform_tutorial.py && python tutorials/generate_sctransform_plots.py
 ```
 
 ---
@@ -201,6 +207,7 @@ fig.savefig("output.png", dpi=150, bbox_inches="tight")
 | `dim_plot` | `DimPlot` |
 | `feature_plot` | `FeaturePlot` |
 | `vln_plot` | `VlnPlot` |
+| `dot_plot` | `DotPlot` |
 | `elbow_plot` | `ElbowPlot` |
 | `feature_scatter` | `FeatureScatter` |
 | `variable_feature_plot` | `VariableFeaturePlot` |
@@ -238,7 +245,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 118 unit tests pass.
+All 128 unit tests pass.
 
 ---
 

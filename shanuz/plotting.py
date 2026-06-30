@@ -906,6 +906,119 @@ def ridge_plot(
 
 
 # ---------------------------------------------------------------------------
+# dot_plot — DotPlot
+# ---------------------------------------------------------------------------
+
+def dot_plot(
+    obj,
+    features: Union[str, list[str]],
+    group_by: Optional[str] = None,
+    assay: Optional[str] = None,
+    layer: str = "data",
+    cols: tuple = ("lightgrey", "blue"),
+    col_min: float = -2.5,
+    col_max: float = 2.5,
+    dot_min: float = 0.0,
+    dot_scale: float = 6.0,
+    scale: bool = True,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Dot plot of feature expression across groups.
+
+    Mirrors R's ``DotPlot(pbmc, features = c("LYZ", "CD3D"))``. For each
+    (feature, group) the **dot size** encodes the fraction of cells in the group
+    expressing the feature (counts > 0) and the **colour** encodes the average
+    expression (z-scored across groups when ``scale=True``, matching Seurat).
+
+    Parameters
+    ----------
+    features : gene name(s) to plot (x-axis).
+    group_by : metadata column for grouping (default: active idents, y-axis).
+    scale    : z-score each feature's average expression across groups.
+    col_min/col_max : colour scale limits for the scaled average expression.
+    dot_min  : minimum fraction-expressing to draw a dot.
+    dot_scale: scaling factor for dot area.
+    """
+    plt = _mpl()
+    import matplotlib as mpl
+
+    if isinstance(features, str):
+        features = [features]
+
+    groups = _get_groups(obj, group_by)
+    unique = sorted(set(groups), key=lambda x: (int(x) if x.isdigit() else x))
+
+    # Per (feature, group): average expression and fraction expressing.
+    avg = np.zeros((len(features), len(unique)))
+    pct = np.zeros((len(features), len(unique)))
+    for fi, feat in enumerate(features):
+        expr = _get_expression(obj, feat, assay, layer)
+        for gi, g in enumerate(unique):
+            cell_vals = expr[groups == g]
+            if cell_vals.size == 0:
+                continue
+            avg[fi, gi] = cell_vals.mean()
+            pct[fi, gi] = float((cell_vals > 0).mean())
+
+    # Scale average expression across groups (z-score per feature), like Seurat.
+    color_vals = avg.copy()
+    if scale:
+        mu = avg.mean(axis=1, keepdims=True)
+        sd = avg.std(axis=1, ddof=1, keepdims=True)
+        sd[sd == 0] = 1.0
+        color_vals = np.clip((avg - mu) / sd, col_min, col_max)
+        vmin, vmax = col_min, col_max
+    else:
+        # log1p of average expression, as Seurat does for the unscaled case.
+        color_vals = np.log1p(avg)
+        vmin, vmax = float(color_vals.min()), float(color_vals.max())
+
+    cmap = mpl.colors.LinearSegmentedColormap.from_list("dotplot", list(cols))
+    norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+
+    if figsize is None:
+        figsize = (max(5, 0.7 * len(features) + 2), max(3, 0.5 * len(unique) + 1.5))
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for fi in range(len(features)):
+        for gi in range(len(unique)):
+            frac = pct[fi, gi]
+            if frac < dot_min or frac == 0:
+                continue
+            ax.scatter(
+                fi, gi, s=(frac * dot_scale) ** 2 * np.pi,
+                c=[cmap(norm(color_vals[fi, gi]))],
+                edgecolors="black", linewidths=0.3, zorder=3,
+            )
+
+    ax.set_xticks(range(len(features)))
+    ax.set_xticklabels(features, rotation=90, fontsize=9)
+    ax.set_yticks(range(len(unique)))
+    ax.set_yticklabels(unique, fontsize=9)
+    ax.set_xlim(-0.5, len(features) - 0.5)
+    ax.set_ylim(-0.5, len(unique) - 0.5)
+    ax.set_axisbelow(True)
+    ax.grid(True, color="0.9", linewidth=0.6)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+
+    # Colour bar (average expression) and a size legend (% expressed).
+    sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.4, pad=0.02, aspect=12)
+    cbar.set_label("Average expression" + (" (scaled)" if scale else ""), fontsize=8)
+
+    for frac in (0.25, 0.5, 0.75, 1.0):
+        ax.scatter([], [], s=(frac * dot_scale) ** 2 * np.pi, c="grey",
+                   edgecolors="black", linewidths=0.3, label=f"{int(frac * 100)}%")
+    ax.legend(title="% expressed", bbox_to_anchor=(1.22, 0.0), loc="lower left",
+              labelspacing=1.2, frameon=False, fontsize=8, title_fontsize=8)
+
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -920,4 +1033,5 @@ __all__ = [
     "dim_heatmap",
     "do_heatmap",
     "ridge_plot",
+    "dot_plot",
 ]
