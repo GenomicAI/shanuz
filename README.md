@@ -80,12 +80,14 @@ import numpy as np
 from shanuz import create_shanuz_object
 
 # Create a Shanuz object from a counts matrix
-counts = sp.random(2000, 500, density=0.05, format="csc")
+counts = sp.random(2000, 500, density=0.2, format="csc")
 sobj = create_shanuz_object(counts, project="my_project", min_cells=3, min_features=200)
 print(sobj)
-# Shanuz object: my_project
+# Shanuz object — my_project
 #   500 cells × 2000 features
 #   Active assay: 'RNA'
+#   Reductions: []
+#   Version: 5.4.0
 
 # Access metadata
 print(sobj.meta_data.head())
