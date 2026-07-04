@@ -46,6 +46,36 @@ def _row(mat, idx) -> np.ndarray:
     return np.asarray(row).flatten()
 
 
+def _alnum(s: str) -> str:
+    return "".join(ch for ch in s if ch.isalnum()).upper()
+
+
+def _resolve_symbols(genes, feat_names, search: bool) -> list[str]:
+    """Map requested gene symbols onto feature names actually in the assay.
+
+    With ``search=False`` this is a plain membership filter. With ``search=True``
+    it also matches case-insensitively and ignoring punctuation — a local
+    stand-in for Seurat's ``UpdateSymbolList`` (no network lookup), enough to
+    reconcile e.g. ``HLA-A`` vs ``HLA.A`` or lower/upper-case panels.
+    """
+    feat_set = set(feat_names)
+    if not search:
+        return [g for g in genes if g in feat_set]
+    lut: dict[str, str] = {}
+    for f in feat_names:
+        lut.setdefault(f.upper(), f)
+        lut.setdefault(_alnum(f), f)
+    resolved = []
+    for g in genes:
+        if g in feat_set:
+            resolved.append(g)
+            continue
+        cand = lut.get(g.upper()) or lut.get(_alnum(g))
+        if cand is not None:
+            resolved.append(cand)
+    return resolved
+
+
 # ---------------------------------------------------------------------------
 # AddModuleScore  (mirrors R AddModuleScore())
 # ---------------------------------------------------------------------------
@@ -60,6 +90,7 @@ def add_module_score(
     assay: Optional[str] = None,
     layer: str = "data",
     seed: int = 1,
+    search: bool = False,
 ) -> "object":
     """Score one or more gene programs per cell.
 
@@ -76,6 +107,8 @@ def add_module_score(
     name     : metadata column prefix; programs become ``{name}1``, ``{name}2`` …
                (or the dict keys when ``features`` is a dict).
     seed     : RNG seed for control-gene sampling.
+    search   : if True, resolve program genes not found verbatim by a
+               case/punctuation-insensitive match (local ``UpdateSymbolList``).
 
     Stores one metadata column per program and returns ``seurat``.
     """
@@ -113,7 +146,7 @@ def add_module_score(
 
     n_cells = mat.shape[1]
     for label, genes in zip(labels, programs):
-        used = [g for g in genes if g in feat_idx]
+        used = _resolve_symbols(genes, feat_names, search)
         if not used:
             seurat.meta_data[label] = np.zeros(n_cells)
             continue

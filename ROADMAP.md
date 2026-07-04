@@ -172,6 +172,14 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 > Data structures already exist (`FOV`, `Centroids`, `Segmentation`, `Molecules`).
 > This milestone adds the loaders and spatial-aware analysis functions.
+>
+> **Partially delivered** (branch `feature/spatial-seurat-parity`): `load_xenium`,
+> `load_visium`, `load_cosmx`; spatial-aware `from_anndata` (rebuilds `images`
+> from `obsm['spatial']`); `get_tissue_coordinates`, `spatial_knn`,
+> `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`;
+> `image_dim_plot` / `image_feature_plot`; `composition_test`;
+> `add_module_score(search=)`. Still open: `FindSpatiallyVariableFeatures`
+> (Moran's I) and `load_merscope`.
 
 ### Loaders
 | Function | Technology | File format |

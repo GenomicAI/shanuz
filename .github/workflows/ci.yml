@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Create venv and install
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[all]"
+
+      - name: Lint (ruff, advisory)
+        # Pre-existing lint debt in older modules is not yet cleared, so the
+        # full check is informational; it must not gate the build.
+        run: uv run ruff check shanuz || true
+
+      - name: Run tests
+        run: uv run pytest tests/ -q

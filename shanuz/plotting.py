@@ -1019,6 +1019,123 @@ def dot_plot(
 
 
 # ---------------------------------------------------------------------------
+# Spatial plots — ImageDimPlot / ImageFeaturePlot
+# ---------------------------------------------------------------------------
+
+def image_dim_plot(
+    obj,
+    group_by: Optional[str] = None,
+    image: Optional[Union[str, list]] = None,
+    size: float = 1.0,
+    cols: Optional[dict] = None,
+    ncol: Optional[int] = None,
+    flip_y: bool = True,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Plot cell centroids in physical space, coloured by a grouping variable.
+
+    Matplotlib equivalent of Seurat's ``ImageDimPlot`` — drawn directly from
+    centroids (``obj.get_tissue_coordinates``), so it is immune to the
+    ggplot2-4.x blank-render issue. One panel per image.
+
+    Parameters
+    ----------
+    group_by : metadata column (default: active idents) for point colour.
+    image    : image name(s) to draw (default: all).
+    cols     : optional ``{group: colour}`` mapping.
+    flip_y   : invert the y-axis so images match Seurat's orientation.
+    """
+    plt = _mpl()
+    coords = obj.get_tissue_coordinates(image)
+    if coords.empty:
+        raise ValueError("Object has no spatial coordinates to plot.")
+
+    labels = _get_groups(obj, group_by)
+    lab_by_cell = dict(zip(obj.cell_names(), labels))
+    coords = coords.assign(group=coords["cell"].map(lab_by_cell).astype(str))
+
+    images = list(dict.fromkeys(coords["image"]))
+    uniq = sorted(coords["group"].unique())
+    if cols is None:
+        cols = dict(zip(uniq, _palette(len(uniq))))
+
+    nrow, ncol = _subplot_grid(len(images), ncol)
+    if figsize is None:
+        figsize = (5 * ncol, 4.5 * nrow)
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, squeeze=False)
+    axes_flat = axes.ravel()
+
+    for ax, img in zip(axes_flat, images):
+        d = coords[coords["image"] == img]
+        for g, dd in d.groupby("group"):
+            ax.scatter(dd["x"], dd["y"], s=size, c=[cols.get(g, "grey")],
+                       label=g, linewidths=0)
+        ax.set_title(str(img), fontsize=9, fontweight="bold")
+        ax.set_aspect("equal"); ax.axis("off")
+        if flip_y:
+            ax.invert_yaxis()
+    for ax in axes_flat[len(images):]:
+        ax.axis("off")
+
+    handles = [plt.Line2D([], [], marker="o", linestyle="", markersize=6,
+                          markerfacecolor=cols.get(g, "grey"), markeredgewidth=0)
+               for g in uniq]
+    fig.legend(handles, uniq, title=group_by or "ident", loc="center right",
+               fontsize=8, title_fontsize=8, frameon=False)
+    fig.tight_layout(rect=(0, 0, 0.88, 1))
+    return fig
+
+
+def image_feature_plot(
+    obj,
+    feature: str,
+    image: Optional[Union[str, list]] = None,
+    size: float = 1.0,
+    cmap: str = "viridis",
+    assay: Optional[str] = None,
+    layer: Optional[str] = None,
+    ncol: Optional[int] = None,
+    flip_y: bool = True,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Plot cell centroids in physical space, coloured by a feature's expression.
+
+    Matplotlib equivalent of Seurat's ``ImageFeaturePlot``. One panel per image.
+    """
+    plt = _mpl()
+    coords = obj.get_tissue_coordinates(image)
+    if coords.empty:
+        raise ValueError("Object has no spatial coordinates to plot.")
+
+    expr = _get_expression(obj, feature, assay, layer)
+    expr_by_cell = dict(zip(obj.cell_names(), expr))
+    coords = coords.assign(val=coords["cell"].map(expr_by_cell).astype(float))
+
+    images = list(dict.fromkeys(coords["image"]))
+    nrow, ncol = _subplot_grid(len(images), ncol)
+    if figsize is None:
+        figsize = (5 * ncol, 4.5 * nrow)
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, squeeze=False)
+    axes_flat = axes.ravel()
+    vmax = float(np.nanmax(coords["val"])) if len(coords) else 1.0
+
+    sc = None
+    for ax, img in zip(axes_flat, images):
+        d = coords[coords["image"] == img]
+        sc = ax.scatter(d["x"], d["y"], s=size, c=d["val"], cmap=cmap,
+                        vmin=0, vmax=vmax, linewidths=0)
+        ax.set_title(str(img), fontsize=9, fontweight="bold")
+        ax.set_aspect("equal"); ax.axis("off")
+        if flip_y:
+            ax.invert_yaxis()
+    for ax in axes_flat[len(images):]:
+        ax.axis("off")
+    if sc is not None:
+        fig.colorbar(sc, ax=axes_flat.tolist(), shrink=0.5, label=feature)
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -1034,4 +1151,6 @@ __all__ = [
     "do_heatmap",
     "ridge_plot",
     "dot_plot",
+    "image_dim_plot",
+    "image_feature_plot",
 ]
