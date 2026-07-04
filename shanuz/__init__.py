@@ -31,9 +31,19 @@ from .spatial import (
     SpatialImage,
     create_centroids,
     create_fov,
+    create_fovs,
     create_molecules,
     create_segmentation,
+    build_niche_assay,
+    get_tissue_coordinates,
+    local_neighborhood,
+    nearest_neighbor_distance,
+    spatial_knn,
+    load_cosmx,
+    load_visium,
+    load_xenium,
 )
+from .composition import composition_test
 from . import generics
 from . import plotting
 from .plotting import (
@@ -48,6 +58,8 @@ from .plotting import (
     do_heatmap,
     ridge_plot,
     dot_plot,
+    image_dim_plot,
+    image_feature_plot,
 )
 
 __version__ = "0.1.0"
@@ -79,6 +91,18 @@ __all__ = [
     "create_segmentation",
     "create_molecules",
     "create_fov",
+    "create_fovs",
+    # Spatial analysis
+    "get_tissue_coordinates",
+    "spatial_knn",
+    "nearest_neighbor_distance",
+    "local_neighborhood",
+    "build_niche_assay",
+    "composition_test",
+    # Spatial loaders
+    "load_xenium",
+    "load_visium",
+    "load_cosmx",
     "as_graph",
     "log_shanuz_command",
     # Analysis pipeline (mirrors Seurat's top-level functions)
@@ -113,5 +137,7 @@ __all__ = [
     "do_heatmap",
     "ridge_plot",
     "dot_plot",
+    "image_dim_plot",
+    "image_feature_plot",
     "__version__",
 ]

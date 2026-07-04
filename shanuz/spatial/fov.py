@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -231,3 +231,45 @@ def create_fov(
         return FOV(molecules={"molecules": mol}, assay=assay, key=key)
     else:
         raise ValueError(f"Unknown type_ '{type_}'. Choose centroids, segmentation, or molecules.")
+
+
+def create_fovs(
+    coords: pd.DataFrame,
+    fov: Optional[Union[str, "pd.Series", Sequence]] = None,
+    assay: str = "",
+    default_name: str = "fov",
+) -> dict[str, FOV]:
+    """Build a ``{name: FOV}`` dict of centroid FOVs from a coordinate frame.
+
+    ``coords`` must have columns ``x, y, cell``. When ``fov`` is given (a column
+    name in ``coords`` or a per-row array of labels) the cells are split into one
+    FOV per distinct label — matching a multi-FOV Xenium/CosMx run. Otherwise a
+    single FOV named ``default_name`` is returned.
+
+    Shared by the spatial loaders and ``from_anndata`` so both build identical,
+    accessor-ready ``seurat.images`` structures.
+    """
+    coords = coords.copy()
+    for col in ("x", "y", "cell"):
+        if col not in coords.columns:
+            raise ValueError(f"coords must have a '{col}' column.")
+
+    if fov is None:
+        return {default_name: create_fov(coords, type_="centroids", assay=assay,
+                                         key=f"{default_name}_")}
+
+    if isinstance(fov, str):
+        if fov not in coords.columns:
+            raise ValueError(f"fov column '{fov}' not in coords.")
+        labels = coords[fov].astype(str).to_numpy()
+    else:
+        labels = pd.Series(fov).astype(str).to_numpy()
+        if len(labels) != len(coords):
+            raise ValueError("fov label length must match number of rows in coords.")
+
+    images: dict[str, FOV] = {}
+    for name in pd.unique(labels):
+        sub = coords.loc[labels == name, ["x", "y", "cell"]]
+        safe = str(name).replace(" ", "_")
+        images[safe] = create_fov(sub, type_="centroids", assay=assay, key=f"{safe}_")
+    return images

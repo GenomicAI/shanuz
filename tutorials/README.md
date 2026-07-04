@@ -13,6 +13,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison | Advanced |
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize | Advanced |
+| 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
 
 ---
 
@@ -191,6 +192,49 @@ different libraries, the same caveat as the other tutorials.
 
 ---
 
+## Tutorial 5 — Xenium Spatial (R vs Python)
+
+> **Walkthrough:** [`xenium_spatial_tutorial.md`](xenium_spatial_tutorial.md)
+
+The spatial counterpart to the others: a 10x **Xenium** section (mouse brain
+coronal CTX+HP subset — the dataset in Seurat's spatial vignette, **36,602 cells
+× 248 genes**) analysed side by side in R Seurat and Shanuz. It reproduces the
+style of an internal Xenium mast-cell/neighbourhood workflow on fully public
+data, exercising the spatial Seurat-parity layer end to end.
+
+```bash
+python tutorials/generate_spatial_plots.py     # auto-downloads ~20 MB → figures_spatial/
+Rscript tutorials/xenium_spatial_verify.R      # R reference figures + r_reference.json
+python tutorials/compare_xenium_anchors.py     # prints the R-vs-Python parity table
+```
+
+**What you'll learn:**
+- `load_xenium` — build an object with expression **and** centroids, keeping only
+  `Gene Expression` features (like `LoadXenium`)
+- Deterministic marker-panel cell typing (the `KIT+ TPSAB1+`-style rule)
+- `image_dim_plot` / `image_feature_plot` — plot cells in tissue space (immune to
+  the `ggplot2` 4.x `ImageDimPlot` blank-render bug)
+- `nearest_neighbor_distance` / `local_neighborhood` — `FNN::get.knn` idioms
+- `build_niche_assay` — neighbourhood-composition niches (`BuildNicheAssay`)
+- `composition_test` — Fisher + BH enrichment across a spatial split
+
+**Key output figures** (in `tutorials/figures_spatial/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `03_image_celltype.png` | Marker cell types in tissue space |
+| `05_image_feature_Slc17a7.png` | Excitatory-neuron marker in space |
+| `06_image_niches.png` | Neighbourhood niches |
+| `07_image_focal.png` | Focal (Vascular) cells highlighted |
+
+**Accuracy vs R:** every deterministic anchor matches **to 8 significant
+figures** — cell counts, all cell-type counts, nearest-neighbour distances, local
+density, and the composition test (log2 ratios, Fisher p, BH padj, χ² p).
+Clustering / UMAP / niche layout are stochastic and agree in structure only, the
+same caveat as the other tutorials.
+
+---
+
 ## R Seurat → Shanuz API Quick Reference
 
 | Task | R (Seurat) | Python (Shanuz) |
@@ -230,6 +274,20 @@ different libraries, the same caveat as the other tutorials.
 | `DimHeatmap(pbmc, dims, cells)` | `dim_heatmap(pbmc, dims, cells)` |
 | `DoHeatmap(pbmc, features)` | `do_heatmap(pbmc, features)` |
 | `RidgePlot(pbmc, features, ncol)` | `ridge_plot(pbmc, features, ncol)` |
+| `ImageDimPlot(obj, group.by)` | `image_dim_plot(obj, group_by)` |
+| `ImageFeaturePlot(obj, features)` | `image_feature_plot(obj, feature)` |
+
+### Spatial
+
+| R (Seurat) | Python (Shanuz) |
+|-----------|-----------------|
+| `LoadXenium(dir)` / `Load10X_Spatial` / `LoadNanostring` | `load_xenium(dir)` / `load_visium(dir)` / `load_cosmx(dir)` |
+| `GetTissueCoordinates(obj)` | `get_tissue_coordinates(obj)` |
+| `FNN::get.knn(coords, k)` / `get.knnx` | `spatial_knn(coords, k, query)` |
+| `FNN::get.knn` (nearest same-type) | `nearest_neighbor_distance(obj, group_by, reference)` |
+| *(hand-rolled neighbourhood counts)* | `local_neighborhood(obj, group_by, reference, k)` |
+| `BuildNicheAssay(obj, fov, group.by, niches.k)` | `build_niche_assay(obj, group_by, k, niches)` |
+| *(hand-rolled Fisher + `p.adjust`)* | `composition_test(obj, group_by, split_by)` |
 
 > **Plot output:** R renders to the graphics device automatically. Shanuz functions return a
 > `matplotlib.Figure` — call `fig.savefig("out.png")` to save or display inline in Jupyter.

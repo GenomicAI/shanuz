@@ -1,0 +1,82 @@
+{
+  "n_cells_raw": 36602,
+  "n_genes": 248,
+  "n_cells_qc": 36419,
+  "celltype_counts": {
+    "Astrocyte": 5513,
+    "Excitatory": 18044,
+    "Immune": 1311,
+    "Inhibitory": 3759,
+    "OPC": 1157,
+    "Oligodendrocyte": 3570,
+    "Other": 49,
+    "Vascular": 3016
+  },
+  "focal_type": "Vascular",
+  "n_focal": 3016,
+  "focal_nn_median": 24.073884121202223,
+  "focal_nn_mean": 30.56122659746952,
+  "focal_local_density_mean": 0.18106763925729447,
+  "region_ymed": 2378.9597045898436,
+  "composition_chisq_p": 1.138165024977906e-163,
+  "composition": {
+    "Other": {
+      "log2_ratio": 1.1804930180385778,
+      "odds_ratio": 2.268911384976526,
+      "p": 0.009352268214859183,
+      "padj": 0.012469690953145577,
+      "enriched_in": "ventral"
+    },
+    "OPC": {
+      "log2_ratio": 1.0374930792118573,
+      "odds_ratio": 2.0996384291891537,
+      "p": 3.183375184045275e-33,
+      "padj": 8.4890004907874e-33,
+      "enriched_in": "ventral"
+    },
+    "Astrocyte": {
+      "log2_ratio": 0.7484821960352916,
+      "odds_ratio": 1.8393143914104784,
+      "p": 1.0640891138688076e-93,
+      "padj": 8.512712910950461e-93,
+      "enriched_in": "ventral"
+    },
+    "Oligodendrocyte": {
+      "log2_ratio": 0.27881808986791845,
+      "odds_ratio": 1.2388717478034195,
+      "p": 1.4608738237923077e-09,
+      "padj": 2.3373981180676926e-09,
+      "enriched_in": "ventral"
+    },
+    "Vascular": {
+      "log2_ratio": 0.05924417796017819,
+      "odds_ratio": 1.0457896248261844,
+      "p": 0.2461245046106735,
+      "padj": 0.28128514812648403,
+      "enriched_in": "ventral"
+    },
+    "Immune": {
+      "log2_ratio": 0.0505468454667251,
+      "odds_ratio": 1.03701313507219,
+      "p": 0.536033186055809,
+      "padj": 0.536033186055809,
+      "enriched_in": "ventral"
+    },
+    "Excitatory": {
+      "log2_ratio": -0.26724781100140743,
+      "odds_ratio": 0.6927198798302358,
+      "p": 2.3198975679557072e-68,
+      "padj": 9.279590271822829e-68,
+      "enriched_in": "dorsal"
+    },
+    "Inhibitory": {
+      "log2_ratio": -0.44808251510379904,
+      "odds_ratio": 0.7074747051079121,
+      "p": 1.7054835118618875e-23,
+      "padj": 3.410967023723775e-23,
+      "enriched_in": "dorsal"
+    }
+  },
+  "n_clusters": 18,
+  "n_niches": 6
+}

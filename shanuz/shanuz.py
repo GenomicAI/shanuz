@@ -104,6 +104,22 @@ class Shanuz:
         return a.features()
 
     # ------------------------------------------------------------------
+    # Spatial images
+    # ------------------------------------------------------------------
+
+    def image_names(self) -> list[str]:
+        """Names of the spatial images/FOVs (mirrors ``Images()``)."""
+        return list(self.images)
+
+    def get_tissue_coordinates(self, image: Optional[str] = None) -> pd.DataFrame:
+        """Centroid coordinates across images (mirrors ``GetTissueCoordinates``).
+
+        Returns a DataFrame with columns ``x, y, cell, image``.
+        """
+        from .spatial.analysis import get_tissue_coordinates as _gtc
+        return _gtc(self, image)
+
+    # ------------------------------------------------------------------
     # Idents
     # ------------------------------------------------------------------
 

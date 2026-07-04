@@ -170,38 +170,47 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ## v0.7.0 — Spatial Transcriptomics
 
-> Data structures already exist (`FOV`, `Centroids`, `Segmentation`, `Molecules`).
-> This milestone adds the loaders and spatial-aware analysis functions.
+> **Largely delivered** on branch `feature/spatial-seurat-parity`. The data
+> structures (`FOV`, `Centroids`, `Segmentation`, `Molecules`) plus these
+> loaders and analysis functions are done and validated end-to-end against R
+> Seurat in [Tutorial 5](tutorials/xenium_spatial_tutorial.md) (deterministic
+> anchors match to 8 significant figures):
+>
+> - **Loaders:** `load_xenium`, `load_visium`, `load_cosmx` (each returns a
+>   `Shanuz` object with coordinates in an `FOV` slot); spatial-aware
+>   `from_anndata` (rebuilds `images` from `obsm['spatial']`)
+> - **Analysis:** `get_tissue_coordinates`, `spatial_knn`,
+>   `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`
+>   (`BuildNicheAssay`), `composition_test`, `add_module_score(search=)`
+> - **Plots:** `image_dim_plot` (`ImageDimPlot`), `image_feature_plot`
+>   (`ImageFeaturePlot`) — sub-cellular Xenium/CosMx centroids
+>
+> Remaining open items:
 
-### Loaders
-| Function | Technology | File format |
-|---|---|---|
-| `load_10x_visium` | 10x Visium | `tissue_positions.csv`, `filtered_feature_bc_matrix/` |
-| `load_xenium` | 10x Xenium | `transcripts.csv.gz`, `cell_feature_matrix/` |
-| `load_cosmx` | NanoString CosMx | `*_exprMat_file.csv`, `*_fov_positions_file.csv` |
-| `load_merscope` | Vizgen MERSCOPE | `cell_by_gene.csv`, `cell_metadata.csv` |
-
-Each loader returns a `Shanuz` object with coordinates stored in an `FOV` slot.
+### `load_merscope`
+- **R:** `LoadVizgen(data.dir)` (Vizgen MERSCOPE)
+- **File format:** `cell_by_gene.csv`, `cell_metadata.csv`
+- **Plan:** mirror `load_cosmx` — read the cell×gene matrix + metadata
+  (`center_x` / `center_y`) into a `Shanuz` object with populated `images`.
 
 ### `FindSpatiallyVariableFeatures`
 - **R:** `FindSpatiallyVariableFeatures(obj, method = "moransi")`
 - **Plan:**
   1. **Moran's I** (primary): spatial autocorrelation statistic using the cell
-     adjacency/distance weight matrix; compute with `esda.Moran` (`pysal` dep) or
-     implement directly: `I = (N/W) * (z @ W @ z) / (z @ z)`
+     adjacency/distance weight matrix (weights from `spatial_knn`); compute with
+     `esda.Moran` (`pysal` dep) or directly: `I = (N/W) * (z @ W @ z) / (z @ z)`
   2. **Markvariogram** (alternative): from the `Trendsceek` method
   3. Store results in `assay.var` (feature metadata), analogous to `FindVariableFeatures`
 - **Python dep:** `libpysal` or pure NumPy implementation
 
-### Spatial plots
+### Tissue-image spatial plots (Visium H&E)
 | Function | R equivalent | Notes |
 |---|---|---|
-| `spatial_dim_plot` | `SpatialDimPlot` | cells on tissue image coloured by cluster/ident |
-| `spatial_feature_plot` | `SpatialFeaturePlot` | gene expression on tissue |
-| `image_dim_plot` | `ImageDimPlot` | for sub-cellular (Xenium/CosMx) data |
-| `image_feature_plot` | `ImageFeaturePlot` | feature expression on segmentation image |
+| `spatial_dim_plot` | `SpatialDimPlot` | clusters/ident over the H&E tissue image |
+| `spatial_feature_plot` | `SpatialFeaturePlot` | gene expression over the tissue image |
 
-Implementation: scatter on tissue PNG background (`matplotlib.imshow` + `scatter`).
+The sub-cellular centroid variants (`image_dim_plot` / `image_feature_plot`) are
+done; these add the Visium tissue-PNG background (`matplotlib.imshow` + `scatter`).
 
 ---
 
@@ -327,6 +336,6 @@ If milestones are too large, these are the highest-value individual items:
 2. **WNN** (`v0.4.0`) — directly extends the existing CITE-seq tutorial
 3. **GitHub Actions CI** (`v0.10.0`) — protects quality before any new feature lands
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation
-5. **Visium loader + `SpatialFeaturePlot`** (`v0.7.0`) — opens a new data modality
+5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
 6. **`AggregateExpression` + DESeq2** (`v0.6.0`) — unlocks multi-sample DE
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets

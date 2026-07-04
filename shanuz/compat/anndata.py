@@ -118,7 +118,12 @@ def as_anndata(seurat, assay: Optional[str] = None):
     )
 
 
-def from_anndata(adata, assay: str = "RNA") -> "Shanuz":
+def from_anndata(
+    adata,
+    assay: str = "RNA",
+    spatial_key: str = "spatial",
+    fov_key: str = "fov",
+) -> "Shanuz":
     """Convert an anndata.AnnData to a Seurat object.
 
     Mapping
@@ -128,9 +133,15 @@ def from_anndata(adata, assay: str = "RNA") -> "Shanuz":
     adata.obs                 → seurat.meta_data
     adata.var                 → assay.meta_data
     adata.obsm["X_pca"]       → seurat.reductions["pca"].cell_embeddings
+    adata.obsm[spatial_key]   → seurat.images  (Centroids/FOV, split by obs[fov_key])
     adata.varm["PCs"]         → seurat.reductions["pca"].feature_loadings
     adata.obsp["connectivities"] → seurat.graphs
     adata.uns                 → seurat.misc
+
+    ``spatial_key`` (default ``"spatial"``) is treated as physical coordinates
+    and reconstructed into ``seurat.images`` — NOT as a dimensional reduction —
+    so ``get_tissue_coordinates`` and the spatial-analysis functions work. If
+    ``obs[fov_key]`` exists it splits the cells into one image per FOV.
     """
     try:
         import anndata as _ann
@@ -173,9 +184,22 @@ def from_anndata(adata, assay: str = "RNA") -> "Shanuz":
     # ---- Metadata ----
     meta_data = adata.obs.copy() if adata.obs is not None else pd.DataFrame(index=cells)
 
+    # ---- Spatial images (obsm[spatial_key] → Centroids/FOV) ----
+    images: dict = {}
+    if spatial_key in adata.obsm:
+        from ..spatial.fov import create_fovs
+        xy = np.asarray(adata.obsm[spatial_key])[:, :2]
+        coords = pd.DataFrame({"x": xy[:, 0], "y": xy[:, 1], "cell": cells})
+        fov_labels = (adata.obs[fov_key].astype(str).to_numpy()
+                      if fov_key in adata.obs.columns else None)
+        images = create_fovs(coords, fov=fov_labels, assay=assay,
+                             default_name=assay.lower())
+
     # ---- Reductions ----
     reductions: dict = {}
     for obsm_key, emb in adata.obsm.items():
+        if obsm_key == spatial_key:
+            continue                         # handled as images, not a reduction
         if obsm_key.startswith("X_"):
             red_name = obsm_key[2:]
         else:
@@ -211,6 +235,7 @@ def from_anndata(adata, assay: str = "RNA") -> "Shanuz":
         active_assay=assay,
         graphs=graphs,
         reductions=reductions,
+        images=images,
         project_name=project_name,
         misc=misc,
         version=_VERSION,
