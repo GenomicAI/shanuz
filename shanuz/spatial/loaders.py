@@ -7,6 +7,7 @@ populated ``seurat.images`` (per-FOV centroids), so the spatial accessors and
 """
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 from typing import Optional, Union
 
@@ -28,6 +29,26 @@ def _read_table(path: Path) -> pd.DataFrame:
     if s.endswith(".parquet"):
         return pd.read_parquet(path)
     return pd.read_csv(path)
+
+
+def _feature_types(mtx_dir: Path) -> Optional[list[str]]:
+    """Read the 3rd column (feature type) of a 10x features.tsv[.gz], if present.
+
+    Xenium/Visium feature tables tag every row with a type — ``Gene Expression``
+    for real genes and ``Negative Control Probe`` / ``Negative Control
+    Codeword`` / ``Blank Codeword`` / ``Deprecated Codeword`` for QC controls.
+    Returns one type per matrix row (file order), or ``None`` if unavailable.
+    """
+    feat = _first_existing(mtx_dir, ["features.tsv.gz", "features.tsv"])
+    if feat is None:
+        return None
+    opn = gzip.open if str(feat).endswith(".gz") else open
+    types: list[str] = []
+    with opn(feat, "rt", encoding="utf-8") as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            types.append(parts[2] if len(parts) > 2 else "Gene Expression")
+    return types
 
 
 def _first_existing(base: Path, names: list[str]) -> Optional[Path]:
@@ -79,6 +100,7 @@ def load_xenium(
     assay: str = "Xenium",
     fov_column: Optional[str] = None,
     project: str = "Xenium",
+    keep_controls: bool = False,
 ):
     """Load a 10x Xenium output bundle into a Shanuz object with images.
 
@@ -86,6 +108,10 @@ def load_xenium(
       * ``cell_feature_matrix/`` — 10x MTX triplet (barcodes/features/matrix)
       * ``cells.parquet`` or ``cells.csv[.gz]`` — with ``cell_id``,
         ``x_centroid``, ``y_centroid`` (and optionally ``fov`` / transcript QC)
+
+    By default only ``Gene Expression`` features are kept in the assay (matching
+    Seurat's ``LoadXenium``, which routes Negative Control / Blank codewords to
+    separate assays); set ``keep_controls=True`` to retain every feature row.
 
     ``fov_column``, if given and present in the cells table, splits the object
     into one image per FOV; otherwise a single image is created.
@@ -99,10 +125,29 @@ def load_xenium(
         )
     counts, feats, cells = read_10x(mtx_dir)
 
-    cells_file = _first_existing(path, ["cells.parquet", "cells.csv.gz", "cells.csv"])
-    if cells_file is None:
+    if not keep_controls:
+        types = _feature_types(mtx_dir)
+        if types is not None and len(types) == len(feats) and "Gene Expression" in types:
+            mask = np.array([t == "Gene Expression" for t in types])
+            counts = counts[mask, :]
+            feats = [f for f, m in zip(feats, mask) if m]
+
+    cell_candidates = [path / n for n in ("cells.parquet", "cells.csv.gz", "cells.csv")
+                       if (path / n).exists()]
+    if not cell_candidates:
         raise FileNotFoundError(f"No cells.parquet/csv found in {path}.")
-    cdf = _read_table(cells_file)
+    cdf = None
+    for cf in cell_candidates:                      # prefer parquet, fall back to csv
+        try:
+            cdf = _read_table(cf)
+            break
+        except ImportError:                         # no parquet engine → try next
+            continue
+    if cdf is None:
+        raise ImportError(
+            "cells.parquet found but no parquet engine is installed. Install "
+            "pyarrow, or provide cells.csv[.gz] alongside it."
+        )
     rename = {"cell_id": "cell", "x_centroid": "x", "y_centroid": "y"}
     cdf = cdf.rename(columns={k: v for k, v in rename.items() if k in cdf.columns})
     if not {"cell", "x", "y"} <= set(cdf.columns):

@@ -250,3 +250,65 @@ def test_load_xenium(tmp_path):
     assert set(obj.feature_names()) == set(genes)
     assert obj.image_names() == ["A", "B"]
     assert len(obj.get_tissue_coordinates()) == 6
+
+
+def test_load_xenium_drops_control_features(tmp_path):
+    # Two real genes + two control-probe rows; controls dropped by default,
+    # kept with keep_controls=True (mirrors Seurat's LoadXenium assay split).
+    rows = [("KIT", "Gene Expression"), ("TPSAB1", "Gene Expression"),
+            ("NegControlProbe_1", "Negative Control Probe"),
+            ("BLANK_1", "Blank Codeword")]
+    cells = [f"cell-{i}" for i in range(4)]
+    mat = sp.csc_matrix(np.array([[1, 0, 2, 1],
+                                  [0, 1, 1, 0],
+                                  [5, 5, 5, 5],       # control noise
+                                  [7, 7, 7, 7]], dtype=float))
+    mtx_dir = tmp_path / "cell_feature_matrix"
+    mtx_dir.mkdir()
+    with gzip.open(mtx_dir / "matrix.mtx.gz", "wb") as fh:
+        scipy.io.mmwrite(fh, mat)
+    with gzip.open(mtx_dir / "features.tsv.gz", "wt") as fh:
+        for name, ftype in rows:
+            fh.write(f"{name}\t{name}\t{ftype}\n")
+    with gzip.open(mtx_dir / "barcodes.tsv.gz", "wt") as fh:
+        fh.write("\n".join(cells) + "\n")
+    pd.DataFrame({"cell_id": cells,
+                  "x_centroid": np.arange(4, dtype=float),
+                  "y_centroid": np.arange(4, dtype=float)}).to_csv(
+        tmp_path / "cells.csv", index=False)
+
+    obj = load_xenium(tmp_path)
+    assert set(obj.feature_names()) == {"KIT", "TPSAB1"}   # controls gone
+
+    obj_all = load_xenium(tmp_path, keep_controls=True)
+    assert set(obj_all.feature_names()) == {n for n, _ in rows}
+
+
+def test_load_xenium_csv_fallback_without_parquet_engine(tmp_path, monkeypatch):
+    # A cells.parquet is preferred, but if no parquet engine is available the
+    # loader must transparently fall back to cells.csv[.gz].
+    genes = ["KIT", "TPSAB1"]
+    cells = ["c0", "c1", "c2"]
+    mat = sp.csc_matrix(np.array([[1, 2, 0], [0, 1, 3]], dtype=float))
+    mtx_dir = tmp_path / "cell_feature_matrix"
+    mtx_dir.mkdir()
+    with gzip.open(mtx_dir / "matrix.mtx.gz", "wb") as fh:
+        scipy.io.mmwrite(fh, mat)
+    with gzip.open(mtx_dir / "features.tsv.gz", "wt") as fh:
+        for g in genes:
+            fh.write(f"{g}\t{g}\tGene Expression\n")
+    with gzip.open(mtx_dir / "barcodes.tsv.gz", "wt") as fh:
+        fh.write("\n".join(cells) + "\n")
+    coords = pd.DataFrame({"cell_id": cells,
+                           "x_centroid": [0.0, 1.0, 2.0],
+                           "y_centroid": [2.0, 1.0, 0.0]})
+    coords.to_csv(tmp_path / "cells.csv.gz", index=False)
+    (tmp_path / "cells.parquet").write_bytes(b"not-a-real-parquet")  # unreadable
+
+    def _boom(*a, **k):
+        raise ImportError("no parquet engine")
+    monkeypatch.setattr(pd, "read_parquet", _boom)
+
+    obj = load_xenium(tmp_path)          # must not raise; uses the csv
+    assert len(obj.cell_names()) == 3
+    assert len(obj.get_tissue_coordinates()) == 3

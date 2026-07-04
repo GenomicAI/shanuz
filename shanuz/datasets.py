@@ -167,6 +167,57 @@ def cbmc_citeseq(
     return rna_mat, rna_genes, adt_mat, list(adt_df.index), common
 
 
+# Xenium mouse brain (coronal, CTX+HP subset) — 10x Genomics public dataset,
+# the same section used in Seurat's spatial vignette. 36,602 cells x 248 genes.
+# Only the lightweight analysis components are fetched (~20 MB), not the multi-GB
+# morphology-image bundle — enough for LoadXenium/load_xenium.
+_XENIUM_MB_BASE = (
+    "https://cf.10xgenomics.com/samples/xenium/1.0.2/"
+    "Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP/"
+    "Xenium_V1_FF_Mouse_Brain_Coronal_Subset_CTX_HP"
+)
+_XENIUM_MB_FILES = {
+    "cell_feature_matrix.tar.gz": "_cell_feature_matrix.tar.gz",
+    "cells.csv.gz": "_cells.csv.gz",
+}
+
+
+def xenium_mouse_brain(
+    data_dir: Optional[str] = None,
+    force_download: bool = False,
+) -> Path:
+    """Download (if needed) the 10x Xenium mouse-brain coronal subset.
+
+    Fetches only the analysis components (``cell_feature_matrix/`` + ``cells``),
+    ~20 MB, into ``data_dir`` (default ``~/.shanuz_data/xenium_mouse_brain``) and
+    returns the folder path — ready to pass to :func:`shanuz.load_xenium`.
+
+    This is the public section featured in Seurat's Xenium spatial vignette, so
+    the same analysis runs in R (``LoadXenium``) and Python (``load_xenium``).
+    """
+    if data_dir is None:
+        data_dir = Path.home() / ".shanuz_data" / "xenium_mouse_brain"
+    else:
+        data_dir = Path(data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    mtx_dir = data_dir / "cell_feature_matrix"
+    need = force_download or not (mtx_dir / "matrix.mtx.gz").exists()
+    if need:
+        tar_dest = data_dir / "cell_feature_matrix.tar.gz"
+        _download_file(_XENIUM_MB_BASE + _XENIUM_MB_FILES["cell_feature_matrix.tar.gz"],
+                       tar_dest, label="Xenium mouse brain matrix (~11 MB)")
+        with tarfile.open(tar_dest, "r:gz") as tf:
+            tf.extractall(data_dir)
+        os.unlink(tar_dest)
+
+    cells_dest = data_dir / "cells.csv.gz"
+    if force_download or not cells_dest.exists():
+        _download_file(_XENIUM_MB_BASE + _XENIUM_MB_FILES["cells.csv.gz"],
+                       cells_dest, label="Xenium mouse brain cells (~2 MB)")
+    return data_dir
+
+
 def _download_file(url: str, dest: Path, label: str) -> None:
     """Download a single file (with a simple progress print)."""
     print(f"Downloading {label} ...")

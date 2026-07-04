@@ -28,9 +28,11 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `LR`, `negbinom`, `roc`)
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `dot_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
+- **Spatial (Xenium / Visium / CosMx)** — `load_xenium`/`load_visium`/`load_cosmx`, `get_tissue_coordinates`, `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`, `composition_test`, `image_dim_plot`, `image_feature_plot`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 - **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
 - **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization
+- **Xenium spatial tutorial** — spatial neighbourhood/niche analysis, verified to 8 s.f. against R Seurat
 
 ---
 
@@ -107,6 +109,7 @@ See **[`tutorials/README.md`](tutorials/README.md)** for the full index.
 | 2 | [PBMC 8k — Advanced Subclustering](tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
 | 4 | [PBMC 3k — SCTransform](tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
+| 5 | [Xenium — Spatial (R vs Python)](tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -120,6 +123,9 @@ python tutorials/cbmc_citeseq_tutorial.py && python tutorials/generate_multimoda
 
 # Tutorial 4 — SCTransform
 python tutorials/pbmc3k_sctransform_tutorial.py && python tutorials/generate_sctransform_plots.py
+
+# Tutorial 5 — Xenium spatial (auto-downloads ~20 MB)
+python tutorials/generate_spatial_plots.py
 ```
 
 ---
