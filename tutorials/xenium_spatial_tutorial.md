@@ -557,13 +557,19 @@ git checkout feature/spatial-seurat-parity
 uv venv && source .venv/bin/activate
 uv pip install -e ".[analysis]"
 
-# Python side (auto-downloads the ~20 MB dataset) — writes figures_spatial/
+# 1. Python side (auto-downloads the ~20 MB dataset) — writes figures_spatial/
 python tutorials/generate_spatial_plots.py
+
+# 2. R reference figures + figures_spatial/r_reference.json
+#    (needs Seurat, FNN, ggplot2, jsonlite; reads the cache from step 1)
+Rscript tutorials/xenium_spatial_verify.R
+
+# 3. Print the R-vs-Python parity table shown above
+python tutorials/compare_xenium_anchors.py
 ```
 
-The R reference figures and `r_reference.json` are produced by
-`xenium_spatial_verify.R` (needs `Seurat`, `FNN`, `ggplot2`, `jsonlite`), and
-`compare_xenium_anchors.py` prints the parity table above.
+All three scripts live in `tutorials/` and read/write
+`tutorials/figures_spatial/`, so the whole comparison is self-contained.
 
 ---
 

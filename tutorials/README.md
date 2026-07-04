@@ -204,8 +204,8 @@ data, exercising the spatial Seurat-parity layer end to end.
 
 ```bash
 python tutorials/generate_spatial_plots.py     # auto-downloads ~20 MB → figures_spatial/
-Rscript ../xenium_spatial_verify.R             # R reference figures + r_reference.json
-python ../compare_xenium_anchors.py            # prints the R-vs-Python parity table
+Rscript tutorials/xenium_spatial_verify.R      # R reference figures + r_reference.json
+python tutorials/compare_xenium_anchors.py     # prints the R-vs-Python parity table
 ```
 
 **What you'll learn:**
