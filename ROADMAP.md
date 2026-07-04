@@ -265,22 +265,22 @@ done; these add the Visium tissue-PNG background (`matplotlib.imshow` + `scatter
 
 ## v0.10.0 — Package Infrastructure
 
-### PyPI publication
-- **Steps:**
-  1. Add `build` and `twine` to `[dev]` extras in `pyproject.toml`
-  2. Set up `__version__` import from `importlib.metadata` (replace the hard-coded string)
-  3. Publish to TestPyPI first: `python -m build && twine upload --repository testpypi dist/*`
-  4. Then PyPI: `twine upload dist/*`
-- **Goal:** `pip install shanuz` works from PyPI
+### PyPI publication — ✅ delivered
+- `pip install shanuz` works: published as [`shanuz` v0.1.1](https://pypi.org/project/shanuz/)
+  (`build` + `twine` added to `[dev]` extras; published to TestPyPI then PyPI;
+  verified with a clean-venv install + import + mini-pipeline smoke test)
+- Still open: replace the hard-coded `__version__` string in `shanuz/__init__.py`
+  with an `importlib.metadata.version("shanuz")` lookup, so the version is
+  defined in exactly one place (`pyproject.toml`)
 
-### GitHub Actions CI
+### GitHub Actions CI — ✅ delivered
 - **File:** `.github/workflows/ci.yml`
-- **Matrix:** Python 3.10, 3.11, 3.12 on ubuntu-latest
-- **Jobs:**
-  1. `lint` — `ruff check shanuz/`
-  2. `test` — `pytest tests/ -v --cov=shanuz --cov-report=xml`
-  3. `build` — `python -m build` (verify wheel builds cleanly)
+- **Matrix:** Python 3.10, 3.11, 3.12 on ubuntu-latest, via `astral-sh/setup-uv`
+- **Jobs:** `ruff check shanuz/` (advisory — pre-existing lint debt not yet
+  cleared, so it doesn't gate the build) and `pytest tests/ -q`
 - **Triggers:** push to `main`, all PRs
+- Still open: a dedicated `build` job (`python -m build`, verifies the wheel
+  itself builds cleanly) and coverage reporting (`--cov=shanuz --cov-report=xml`)
 
 ### Type annotations
 - Add `from __future__ import annotations` to all modules (already done on some)

@@ -1,5 +1,6 @@
 # Shanuz — Python Single-Cell Genomics Toolkit
 
+[![PyPI](https://img.shields.io/pypi/v/shanuz.svg)](https://pypi.org/project/shanuz/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -38,38 +39,40 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 
 ## Installation
 
-Shanuz is not yet published to PyPI. Install directly from the GitHub repository.
+Shanuz is published on [PyPI](https://pypi.org/project/shanuz/) — `pip install shanuz` just works.
+Installing from source (editable install) is only needed if you want to modify shanuz itself.
 
-### With uv (recommended)
+### From PyPI (recommended)
 
 ```bash
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
-# or: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"  # Windows
+pip install shanuz                 # core: object model, preprocessing, PCA, markers
+pip install "shanuz[analysis]"     # + clustering, UMAP, plotting (matplotlib/seaborn)
+pip install "shanuz[anndata]"      # + AnnData interoperability
+pip install "shanuz[all]"          # everything (analysis + anndata + dev/test tooling)
+```
 
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv pip install "shanuz[analysis]"
+```
+
+### From source (for development)
+
+```bash
 git clone https://github.com/GenomicAI/shanuz.git
 cd shanuz
 uv venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-uv pip install -e ".[analysis]"
+uv pip install -e ".[all]"  # editable install + tests/linting
 ```
 
-### With pip
+With `pip` instead of `uv`:
 
 ```bash
 git clone https://github.com/GenomicAI/shanuz.git
 cd shanuz
 pip install -e ".[analysis]"
-```
-
-### Full development installation (includes tests and linting)
-
-```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
-uv venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-uv pip install -e ".[all]"
 ```
 
 ---
