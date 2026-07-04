@@ -271,7 +271,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 129 unit tests pass.
+All 144 unit tests pass.
 
 ---
 
