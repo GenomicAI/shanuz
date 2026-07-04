@@ -257,7 +257,7 @@ See **[`ROADMAP.md`](ROADMAP.md)** for the full development plan. Upcoming miles
 | v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering |
 | v0.5.0 | Additional reductions — t-SNE, ICA, SPCA, GLM-PCA |
 | v0.6.0 | Pseudobulk DE — `AggregateExpression`, DESeq2, MAST, `FindConservedMarkers` |
-| v0.7.0 | Spatial — Visium/Xenium/CosMx loaders, `FindSpatiallyVariableFeatures`, spatial plots |
+| v0.7.0 | Spatial — Xenium/Visium/CosMx loaders, niche/neighbourhood analysis, `image_*` plots ✅ *(largely delivered — see Tutorial 5)*; remaining: MERSCOPE loader, `FindSpatiallyVariableFeatures` (Moran's I), Visium tissue-image plots |
 | v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |
 | v0.9.0 | Specialized — `HTODemux`, Mixscape (CRISPR screens) |
 | v0.10.0 | Infrastructure — PyPI, GitHub Actions CI, type annotations, MkDocs site |
