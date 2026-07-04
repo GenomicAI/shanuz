@@ -54,7 +54,10 @@ from shanuz.plotting import (
     vln_plot, dim_plot, image_dim_plot, image_feature_plot,
 )
 
-FIG = _ROOT / "tutorials" / "figures_spatial"
+# Write figures next to this script (tutorials/figures_spatial/ in the repo), so
+# it also works when the script is copied out and run standalone -- matches the
+# other generate_*.py scripts.
+FIG = Path(__file__).parent / "figures_spatial"
 FIG.mkdir(parents=True, exist_ok=True)
 
 # --- deterministic marker panels (all present in the 248-gene panel) ---------

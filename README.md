@@ -75,6 +75,20 @@ cd shanuz
 pip install -e ".[analysis]"
 ```
 
+### Troubleshooting
+
+**`ModuleNotFoundError: No module named 'numpy._core._multiarray_umath'`** (or a
+similar broken NumPy/SciPy import) means the virtual environment has a corrupt or
+partially-installed NumPy — usually left over from an interrupted install or from
+mixing installers. It is not a shanuz issue. Fix it by reinstalling NumPy, or by
+recreating the environment:
+
+```bash
+uv pip install --reinstall --no-cache numpy      # quick fix
+# or start clean:
+rm -rf .venv && uv venv && uv pip install "shanuz[all]"
+```
+
 ---
 
 ## Quick Start
