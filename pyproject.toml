@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "shanuz"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python single-cell genomics toolkit — a port of Seurat's core data structures and analysis pipeline"
 readme = "README.md"
 license = { text = "MIT" }
@@ -47,6 +47,8 @@ dev = [
     "pytest>=7",
     "pytest-cov",
     "ruff",
+    "build",
+    "twine",
 ]
 all = ["shanuz[analysis,anndata,dev]"]
 
