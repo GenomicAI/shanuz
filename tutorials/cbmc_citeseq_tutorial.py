@@ -8,9 +8,11 @@ both the transcriptome and 13 surface proteins.
 It demonstrates Shanuz's multi-assay support:
   * build the object from RNA and run the standard clustering workflow,
   * attach the antibody-capture counts as a second ("ADT") assay,
-  * CLR-normalise the proteins (margin=2, per-protein across cells), and
+  * CLR-normalise the proteins (margin=2, per-protein across cells),
   * visualise protein levels on the RNA-derived UMAP, comparing each protein
-    to its encoding gene.
+    to its encoding gene, and
+  * jointly cluster both modalities with Weighted Nearest Neighbor (WNN)
+    analysis (learns per-cell RNA-vs-protein weights).
 
 Usage
 -----
@@ -46,6 +48,7 @@ from shanuz.preprocessing import (
 )
 from shanuz.reduction import run_pca
 from shanuz.neighbors import find_neighbors
+from shanuz.multimodal import find_multi_modal_neighbors
 from shanuz.clustering import find_clusters
 from shanuz.umap import run_umap
 from shanuz.markers import find_all_markers
@@ -94,6 +97,41 @@ def run_rna_workflow(obj, dims=range(15), resolution=0.6):
     find_neighbors(obj, dims=dims, k_param=20)
     find_clusters(obj, resolution=resolution, algorithm=1, random_seed=0)
     run_umap(obj, dims=dims, seed=42)
+    return obj
+
+
+def run_wnn(obj, rna_dims=range(15), resolution=0.6):
+    """Weighted Nearest Neighbor multimodal clustering (Hao et al., Cell 2021).
+
+    Where the RNA workflow clusters on transcriptome alone, WNN learns a
+    per-cell weight for each modality — how much to trust RNA vs protein for
+    that particular cell — and clusters/embeds on a *joint* graph. Cells whose
+    lineage is sharper in protein space (e.g. the CD4/CD8 T split) lean on ADT;
+    cells the 13-protein panel can't resolve lean on RNA.
+
+    Mirrors Seurat's ADT `RunPCA` (reduction "apca") →
+    `FindMultiModalNeighbors` → `FindClusters(graph = "wsnn")` →
+    `RunUMAP(nn.name = "weighted.nn")`. Assumes `run_rna_workflow` has already
+    populated the RNA `"pca"` reduction and the CLR-normalised ADT assay.
+    """
+    # Protein modality needs its own reduction. The ADT panel is small (13
+    # proteins), so PCA keeps every informative component.
+    adt_features = obj.assays["ADT"]._all_feature_names
+    scale_data(obj, assay="ADT", features=adt_features)
+    n_apca = min(18, len(adt_features) - 1)
+    run_pca(obj, assay="ADT", reduction_name="apca", reduction_key="apca_",
+            n_pcs=n_apca, features=adt_features)
+
+    # Learn per-cell modality weights and build the joint wknn/wsnn graphs.
+    find_multi_modal_neighbors(
+        obj, reduction_list=["pca", "apca"],
+        dims_list=[rna_dims, range(n_apca)], k_nn=20,
+    )
+
+    # Cluster and embed on the joint graph (not the RNA reduction).
+    find_clusters(obj, resolution=resolution, graph_name="wsnn", random_seed=0)
+    obj.meta_data["wnn_clusters"] = obj.meta_data["seurat_clusters"].astype(str).tolist()
+    run_umap(obj, graph="wsnn", reduction_name="wnn_umap", seed=42)
     return obj
 
 
@@ -230,6 +268,23 @@ def run_full(data_dir=None, verbose=True):
         for clid in sorted(all_markers["cluster"].unique(), key=int):
             top = all_markers[all_markers["cluster"] == clid].nsmallest(3, "p_val")
             print(f"    cluster {clid}: " + ", ".join(top["gene"].tolist()))
+
+    if verbose:
+        section("6. Weighted Nearest Neighbor (WNN) multimodal clustering")
+    run_wnn(obj)
+    if verbose:
+        n_wnn = obj.meta_data["wnn_clusters"].nunique()
+        rna_w = obj.meta_data["RNA.weight"]
+        adt_w = obj.meta_data["ADT.weight"]
+        print(f"  {n_wnn} WNN clusters (RNA-only gave {n_clusters}) on the joint graph")
+        print(f"  mean per-cell modality weight — RNA {rna_w.mean():.2f} | ADT {adt_w.mean():.2f}")
+        # Which annotated cell types lean on protein vs RNA? Group by the
+        # protein cell-type labels stashed in step 4 (find_clusters has since
+        # set the active ident to the new WNN cluster ids).
+        print("\n  Mean ADT weight by protein cell type (higher = protein-driven):")
+        by_ct = adt_w.groupby(obj.meta_data["protein_celltype"]).mean().sort_values(ascending=False)
+        for cell_type, w in by_ct.items():
+            print(f"    {cell_type:<14} ADT {w:.2f}")
 
     if verbose:
         section("Summary")

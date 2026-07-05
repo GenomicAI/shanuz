@@ -94,6 +94,105 @@ def run_pca(
     seurat.reductions[reduction_name] = dr
 
 
+def run_ica(
+    seurat,
+    nics: int = 50,
+    features: Optional[list[str]] = None,
+    assay: Optional[str] = None,
+    reduction_name: str = "ica",
+    reduction_key: str = "ICA_",
+    seed: int = 42,
+    layer: str = "scale.data",
+    max_iter: int = 200,
+) -> None:
+    """Independent Component Analysis on scaled data.
+
+    Mirrors R's ``RunICA(obj, nics = 50)``. Stores a DimReduc (embeddings +
+    loadings) under ``reduction_name``; ``find_neighbors`` / ``run_umap``
+    already accept ``reduction="ica"``.
+    """
+    from sklearn.decomposition import FastICA
+
+    assay_name = assay or seurat.active_assay
+    assay_obj = seurat.assays[assay_name]
+
+    from .assay5 import Assay5
+
+    if features is None:
+        if isinstance(assay_obj, Assay5):
+            features = assay_obj.variable_features
+            if not features:
+                features = assay_obj._all_feature_names
+        else:
+            features = assay_obj.var_features or assay_obj._feature_names
+
+    scaled = _get_scaled_data(assay_obj, features, layer)  # (features × cells)
+    data_t = scaled.T  # (cells × features)
+    if sp.issparse(data_t):
+        data_t = data_t.toarray()
+
+    nics = min(nics, min(data_t.shape))
+
+    ica = FastICA(n_components=nics, random_state=seed, max_iter=max_iter)
+    embeddings = ica.fit_transform(data_t)  # (cells × nics)
+    loadings = ica.components_.T  # (features × nics)
+
+    cells = seurat.cell_names()
+    seurat.reductions[reduction_name] = DimReduc(
+        cell_embeddings=embeddings,
+        feature_loadings=loadings,
+        assay_used=assay_name,
+        key=reduction_key,
+        cell_names=cells,
+        feature_names=list(features),
+    )
+
+
+def run_tsne(
+    seurat,
+    dims: Optional[list[int]] = None,
+    reduction: str = "pca",
+    n_components: int = 2,
+    perplexity: float = 30.0,
+    reduction_name: str = "tsne",
+    reduction_key: str = "tSNE_",
+    seed: int = 42,
+    assay: Optional[str] = None,
+) -> None:
+    """t-SNE embedding from an existing reduction.
+
+    Mirrors R's ``RunTSNE(obj, dims = 1:10)``. Stores a DimReduc under
+    ``reduction_name``.
+    """
+    from sklearn.manifold import TSNE
+
+    assay_name = assay or seurat.active_assay
+
+    if reduction not in seurat.reductions:
+        raise KeyError(f"Reduction '{reduction}' not found. Run run_pca() first.")
+    emb = seurat.reductions[reduction].cell_embeddings
+    if dims is not None:
+        emb = emb[:, list(dims)]
+
+    tsne = TSNE(
+        n_components=n_components,
+        perplexity=perplexity,
+        random_state=seed,
+        init="pca",
+    )
+    coords = tsne.fit_transform(emb)
+
+    cells = seurat.cell_names()
+    dim_names = [f"{reduction_key}{i + 1}" for i in range(n_components)]
+    seurat.reductions[reduction_name] = DimReduc(
+        cell_embeddings=coords,
+        assay_used=assay_name,
+        key=reduction_key,
+        cell_names=cells,
+        feature_names=dim_names,
+    )
+
+
 def _get_scaled_data(assay_obj, features: list[str], layer: str) -> np.ndarray:
     """Extract scaled data for the given features as a (features × cells) array."""
     from .assay5 import Assay5

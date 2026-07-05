@@ -21,7 +21,11 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 > most widely-used, has a pip-installable Python package, and has a well-defined
 > scope. CCA/RPCA follow naturally.
 
-### Harmony integration
+### Harmony integration — ✅ delivered
+- Implemented in `shanuz/integration.py` as `run_harmony(...)`; stores a
+  `DimReduc("harmony")` and is verified to lower per-batch silhouette while
+  preserving cell-type separation (`tests/test_integration.py`). Enable with
+  `pip install shanuz[integration]` (adds the `harmonypy` dep).
 - **R:** `RunHarmony(obj, group.by.vars = "batch")` (via `harmony` package)
 - **Python dep:** `harmonypy` (pip)
 - **Plan:**
@@ -40,7 +44,10 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
      shared PCA space, find mutual nearest neighbours (MNN) via `sklearn.neighbors`
 - **Tests:** integrated embedding clusters by cell type, not by batch
 
-### `IntegrateLayers` (Seurat v5 API)
+### `IntegrateLayers` (Seurat v5 API) — ✅ harmony method delivered
+- Implemented as `integrate_layers(obj, method="harmony", group_by=...)` in
+  `shanuz/integration.py`. The `"cca"` / `"rpca"` methods raise
+  `NotImplementedError` pending the CCA/RPCA anchor work above.
 - **R:** `IntegrateLayers(obj, method = HarmonyIntegration, orig.reduction = "pca")`
 - **Plan:** thin dispatch wrapper over the individual integration functions above;
   accepts `method` kwarg (`"harmony"`, `"cca"`, `"rpca"`)
@@ -85,7 +92,12 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 > **Why:** shanuz already stores RNA + ADT assays; WNN is the natural joint
 > analysis step for CITE-seq data and is well-scoped.
 
-### `FindMultiModalNeighbors`
+### `FindMultiModalNeighbors` — ✅ delivered
+- Implemented as `find_multi_modal_neighbors(...)` in `shanuz/multimodal.py`.
+  Per-cell modality weights use the sanctioned scale-invariant approximation
+  (own- vs cross-modality reconstruction distance); stores `wknn`/`wsnn` graphs
+  and `<assay>.weight` columns. Verified on synthetic complementary-modality
+  data to recover structure RNA alone cannot (`tests/test_multimodal_wnn.py`).
 - **R:** `FindMultiModalNeighbors(obj, reduction.list = list("pca","apca"), dims.list = list(1:30, 1:18))`
 - **Plan:**
   1. For each modality: compute KNN graph and within-modality prediction error
@@ -96,12 +108,11 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   4. Store as `"wknn"` and `"wsnn"` graphs; store per-cell weights in `meta_data`
 - **Tests:** WNN clusters CBMC data closer to protein-defined ground truth than RNA alone
 
-### WNN UMAP + clustering
-- After `find_multi_modal_neighbors`, `find_clusters(reduction="wknn")` and
-  `run_umap(graph="wsnn")` should work automatically since they accept any graph.
-- **Plan:** verify `find_clusters` and `run_umap` accept `graph` kwarg and route
-  correctly; add `reduction="wknn"` path to `run_umap` if not present.
-- **Tutorial:** extend the CBMC CITE-seq tutorial (Tutorial 3) with WNN section.
+### WNN UMAP + clustering — ✅ delivered (tutorial pending)
+- `find_clusters(graph_name="wsnn")` already routed correctly; `run_umap` now
+  accepts a `graph=` kwarg that embeds a precomputed graph via UMAP's
+  `simplicial_set_embedding` (`tests/test_reductions_extra.py`).
+- **Still open:** extend the CBMC CITE-seq tutorial (Tutorial 3) with a WNN section.
 
 ---
 
@@ -109,16 +120,18 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 > Small self-contained additions; each is a single function wrapping a scipy/sklearn call.
 
-### `run_tsne`
+### `run_tsne` — ✅ delivered
+- Implemented in `shanuz/reduction.py` (`run_tsne`), mirrors `run_umap`; stores
+  `DimReduc("tsne")`. Tested in `tests/test_reductions_extra.py`.
 - **R:** `RunTSNE(obj, dims = 1:10)`
 - **Python dep:** `scikit-learn` (`TSNE`) — already a dep
-- **Plan:** mirrors `run_umap`; stores `DimReduc("tsne", embeddings)`
 
-### `run_ica`
+### `run_ica` — ✅ delivered
+- Implemented in `shanuz/reduction.py` (`run_ica`); stores `DimReduc("ica",
+  embeddings + loadings)`; `find_neighbors`/`run_umap` accept `reduction="ica"`.
+  Tested in `tests/test_reductions_extra.py`.
 - **R:** `RunICA(obj, nics = 30)`
 - **Python dep:** `sklearn.decomposition.FastICA`
-- **Plan:** stores `DimReduc("ica", embeddings + loadings)`; `find_neighbors` and
-  `run_umap` already accept `reduction="ica"`
 
 ### `run_spca` (supervised PCA)
 - **R:** `RunSPCA(obj, assay, graph)`
@@ -332,10 +345,10 @@ Optional deps go in a new `[spatial]`, `[integration]`, or `[all]` extra in
 
 If milestones are too large, these are the highest-value individual items:
 
-1. **Harmony** (`v0.2.0`) — single function, well-scoped, huge real-world need
-2. **WNN** (`v0.4.0`) — directly extends the existing CITE-seq tutorial
-3. **GitHub Actions CI** (`v0.10.0`) — protects quality before any new feature lands
-4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation
+1. ~~**Harmony** (`v0.2.0`)~~ — ✅ delivered (`run_harmony` / `integrate_layers`)
+2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
+3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
+4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
 5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
 6. **`AggregateExpression` + DESeq2** (`v0.6.0`) — unlocks multi-sample DE
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets
