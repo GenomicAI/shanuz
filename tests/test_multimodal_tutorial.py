@@ -14,8 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shanuz.shanuz import create_shanuz_object  # noqa: E402
 from shanuz.assay5 import create_assay5_object  # noqa: E402
-from shanuz.preprocessing import normalize_data  # noqa: E402
-from tutorials.cbmc_citeseq_tutorial import annotate_cells  # noqa: E402
+from shanuz.preprocessing import (  # noqa: E402
+    normalize_data, find_variable_features, scale_data,
+)
+from shanuz.reduction import run_pca  # noqa: E402
+from tutorials.cbmc_citeseq_tutorial import annotate_cells, run_wnn  # noqa: E402
 
 
 def _two_assay_object(rna_levels, adt_levels, n=6):
@@ -91,3 +94,58 @@ def test_annotate_cells_cd8_split():
     assert anno["cd4"] == "CD4 T"
     assert anno["cd8"] == "CD8 T"
     assert anno["b"] == "B"
+
+
+# ---------------------------------------------------------------------------
+# WNN section (run_wnn)
+# ---------------------------------------------------------------------------
+
+def _wnn_ready_object(seed=0, per=30):
+    """RNA (workflow run through PCA) + CLR-normalised ADT, ready for run_wnn."""
+    rng = np.random.default_rng(seed)
+    groups = ("A", "B", "C")
+    n = len(groups) * per
+    Grna, Padt = 120, 30
+    rna = rng.gamma(0.3, size=(Grna, n)) + 0.05
+    adt = rng.gamma(0.3, size=(Padt, n)) + 0.05
+    cells = []
+    for ci in range(n):
+        g = groups[ci // per]
+        if g == "A":
+            rna[0:30, ci] += 6.0      # RNA separates A from {B,C}
+        if g == "C":
+            adt[0:10, ci] += 6.0      # ADT separates C from {A,B}
+        cells.append(f"cell{ci}")
+
+    obj = create_shanuz_object(
+        counts=sp.csc_matrix(rng.poisson(rna).astype(float)), assay="RNA",
+        feature_names=[f"g{i}" for i in range(Grna)], cell_names=cells,
+    )
+    normalize_data(obj)
+    find_variable_features(obj, selection_method="vst", nfeatures=100)
+    scale_data(obj)
+    run_pca(obj, n_pcs=15)
+
+    obj.assays["ADT"] = create_assay5_object(
+        counts=sp.csc_matrix(rng.poisson(adt).astype(float)),
+        feature_names=[f"prot{i}" for i in range(Padt)], cell_names=cells, key="adt_",
+    )
+    normalize_data(obj, assay="ADT", normalization_method="CLR", margin=2)
+    return obj, n
+
+
+def test_run_wnn_builds_joint_graphs_umap_and_weights():
+    obj, n = _wnn_ready_object()
+    run_wnn(obj, rna_dims=range(10), resolution=1.0)
+
+    # ADT reduction + joint graphs + joint UMAP produced.
+    assert "apca" in obj.reductions
+    assert "wknn" in obj.graphs and "wsnn" in obj.graphs
+    assert obj.reductions["wnn_umap"].cell_embeddings.shape == (n, 2)
+    assert np.isfinite(obj.reductions["wnn_umap"].cell_embeddings).all()
+
+    # Joint clustering column + per-cell modality weights summing to 1.
+    assert "wnn_clusters" in obj.meta_data.columns
+    w = obj.meta_data[["RNA.weight", "ADT.weight"]].to_numpy()
+    assert np.all(w >= 0) and np.all(w <= 1)
+    assert np.allclose(w.sum(axis=1), 1.0, atol=1e-6)

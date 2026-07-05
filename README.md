@@ -48,7 +48,8 @@ Installing from source (editable install) is only needed if you want to modify s
 pip install shanuz                 # core: object model, preprocessing, PCA, markers
 pip install "shanuz[analysis]"     # + clustering, UMAP, plotting (matplotlib/seaborn)
 pip install "shanuz[anndata]"      # + AnnData interoperability
-pip install "shanuz[all]"          # everything (analysis + anndata + dev/test tooling)
+pip install "shanuz[integration]"  # + Harmony batch correction (harmonypy)
+pip install "shanuz[all]"          # everything (analysis + anndata + integration + dev/test tooling)
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):

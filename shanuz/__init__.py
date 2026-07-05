@@ -16,10 +16,12 @@ from .preprocessing import (
     scale_data,
     percentage_feature_set,
 )
-from .reduction import run_pca
+from .reduction import run_pca, run_ica, run_tsne
 from .neighbors import find_neighbors
+from .multimodal import find_multi_modal_neighbors
 from .clustering import find_clusters
 from .umap import run_umap
+from .integration import run_harmony, integrate_layers
 from .markers import find_markers, find_all_markers
 from .sctransform import sctransform
 from .module_score import add_module_score, cell_cycle_scoring, CC_GENES
@@ -111,9 +113,14 @@ __all__ = [
     "scale_data",
     "percentage_feature_set",
     "run_pca",
+    "run_ica",
+    "run_tsne",
     "find_neighbors",
+    "find_multi_modal_neighbors",
     "find_clusters",
     "run_umap",
+    "run_harmony",
+    "integrate_layers",
     "find_markers",
     "find_all_markers",
     "jack_straw",

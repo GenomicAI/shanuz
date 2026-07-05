@@ -43,6 +43,7 @@ analysis = [
     "scikit-misc>=0.3",
 ]
 anndata = ["anndata>=0.10"]
+integration = ["harmonypy>=0.0.9"]
 dev = [
     "pytest>=7",
     "pytest-cov",
@@ -50,7 +51,7 @@ dev = [
     "build",
     "twine",
 ]
-all = ["shanuz[analysis,anndata,dev]"]
+all = ["shanuz[analysis,anndata,integration,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/GenomicAI/shanuz"

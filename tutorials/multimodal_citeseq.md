@@ -9,11 +9,12 @@ cluster on RNA, attach the protein counts as a second assay, CLR-normalise them,
 and read protein levels on the RNA-derived UMAP.
 
 > **Dataset:** 8k CBMCs, CITE-seq — Stoeckius et al. 2017 (GSE100866)
-> **Python:** Shanuz v0.1.0
+> **Python:** Shanuz v0.1.2
 
-> **Scope note.** Shanuz stores and normalises multiple assays and visualises one
-> against another. It does not implement multimodal *integration* (WNN); RNA
-> clustering + protein overlay is exactly what this vignette demonstrates.
+> **Scope note.** Shanuz stores and normalises multiple assays, visualises one
+> against another, **and** performs multimodal *integration* via Weighted
+> Nearest Neighbor (WNN) analysis (Step 8) — learning a per-cell RNA-vs-protein
+> weight and clustering both modalities jointly.
 
 ```bash
 python tutorials/cbmc_citeseq_tutorial.py     # printed validation
@@ -278,6 +279,83 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 
 ---
 
+## Step 8 · Weighted Nearest Neighbor (WNN) multimodal clustering
+
+Steps 2–7 cluster on **RNA alone** and read protein on top. WNN (Hao et al.,
+*Cell* 2021) goes further: it learns, **per cell**, how much to trust each
+modality and clusters on a *joint* graph. Cells whose lineage is sharper in
+protein space (the CD4/CD8 T split) lean on ADT; cells the 13-protein panel
+can't resolve (platelets, erythroid, pDC) lean on RNA.
+
+The protein modality first gets its own reduction (`"apca"`); then
+`find_multi_modal_neighbors` builds the weighted `wknn`/`wsnn` graphs and writes
+a per-cell weight for each modality. Clustering and UMAP then run **on the joint
+graph** instead of the RNA PCA.
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><td>
+
+```r
+DefaultAssay(cbmc) <- "ADT"
+cbmc <- ScaleData(cbmc)
+cbmc <- RunPCA(cbmc, reduction.name = "apca")
+
+cbmc <- FindMultiModalNeighbors(
+  cbmc, reduction.list = list("pca", "apca"),
+  dims.list = list(1:15, 1:18)
+)
+cbmc <- FindClusters(cbmc, graph.name = "wsnn", resolution = 0.6)
+cbmc <- RunUMAP(cbmc, nn.name = "weighted.nn",
+                reduction.name = "wnn.umap")
+
+# per-cell modality weights land in metadata:
+#   cbmc$RNA.weight , cbmc$ADT.weight
+```
+
+</td><td>
+
+```python
+from shanuz.reduction import run_pca
+from shanuz.preprocessing import scale_data
+from shanuz.multimodal import find_multi_modal_neighbors
+
+# protein modality needs its own reduction
+adt_features = obj.assays["ADT"]._all_feature_names
+scale_data(obj, assay="ADT", features=adt_features)
+run_pca(obj, assay="ADT", reduction_name="apca",
+        reduction_key="apca_", n_pcs=12, features=adt_features)
+
+find_multi_modal_neighbors(
+    obj, reduction_list=["pca", "apca"],
+    dims_list=[range(15), range(12)], k_nn=20,
+)
+find_clusters(obj, graph_name="wsnn", resolution=0.6, random_seed=0)
+run_umap(obj, graph="wsnn", reduction_name="wnn_umap", seed=42)
+
+# per-cell modality weights land in meta_data:
+#   obj.meta_data["RNA.weight"] , obj.meta_data["ADT.weight"]
+```
+
+</td></tr>
+</table>
+
+Because the ADT panel has only 13 proteins, `apca` keeps every informative
+component (`n_pcs ≤ 12`). Inspecting the learned weights confirms the biology —
+grouping `ADT.weight` by the Step-7 labels, the T/NK/B/monocyte lineages (which
+the antibody panel targets) score highest, while panel-blind populations lean on
+RNA:
+
+```python
+obj.meta_data.groupby("protein_celltype")["ADT.weight"].mean().sort_values(ascending=False)
+```
+
+> The whole flow is wrapped as `run_wnn(obj)` in
+> [`cbmc_citeseq_tutorial.py`](cbmc_citeseq_tutorial.py); `run_full()` prints the
+> WNN cluster count and the mean modality weights per cell type.
+
+---
+
 ## API Translation (multimodal additions)
 
 | Task | R (Seurat) | Python (Shanuz) |
@@ -286,6 +364,9 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 | Add a 2nd assay | `cbmc[["ADT"]] <- CreateAssayObject(counts)` | `obj.assays["ADT"] = create_assay5_object(counts, key="adt_")` |
 | CLR-normalise protein | `NormalizeData(..., method="CLR", margin=2)` | `normalize_data(..., normalization_method="CLR", margin=2)` |
 | Switch modality | `DefaultAssay(cbmc) <- "ADT"` / `adt_`/`rna_` keys | `feature_plot(..., assay="ADT")` |
+| WNN neighbours | `FindMultiModalNeighbors(reduction.list, dims.list)` | `find_multi_modal_neighbors(obj, reduction_list, dims_list)` |
+| Cluster on joint graph | `FindClusters(graph.name = "wsnn")` | `find_clusters(obj, graph_name="wsnn")` |
+| UMAP on joint graph | `RunUMAP(nn.name = "weighted.nn")` | `run_umap(obj, graph="wsnn")` |
 
 ---
 
@@ -296,5 +377,10 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 > **Simultaneous epitope and transcriptome measurement in single cells.**
 > *Nature Methods* 14, 865–868. https://doi.org/10.1038/nmeth.4380
 
+> Hao Y, Hao S, Andersen-Nissen E, et al. (2021).
+> **Integrated analysis of multimodal single-cell data.**
+> *Cell* 184, 3573–3587. https://doi.org/10.1016/j.cell.2021.04.048  *(WNN)*
+
 > Seurat multimodal vignette:
 > https://satijalab.org/seurat/articles/multimodal_vignette
+> Seurat WNN vignette: https://satijalab.org/seurat/articles/weighted_nearest_neighbor_analysis
