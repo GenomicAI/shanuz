@@ -121,15 +121,15 @@ print(sobj.meta_data.head())
 
 Three end-to-end tutorials — from basic guided clustering to multimodal CITE-seq —
 each pairing R Seurat code side-by-side with the Python Shanuz equivalent.
-See **[`tutorials/README.md`](tutorials/README.md)** for the full index.
+See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
 |---|----------|---------|-----------|
-| 1 | [PBMC 3k — Guided Clustering](tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
-| 2 | [PBMC 8k — Advanced Subclustering](tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
-| 3 | [CBMC CITE-seq — Multimodal](tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
-| 4 | [PBMC 3k — SCTransform](tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
-| 5 | [Xenium — Spatial (R vs Python)](tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
+| 1 | [PBMC 3k — Guided Clustering](https://github.com/GenomicAI/shanuz/blob/main/tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
+| 2 | [PBMC 8k — Advanced Subclustering](https://github.com/GenomicAI/shanuz/blob/main/tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
+| 3 | [CBMC CITE-seq — Multimodal](https://github.com/GenomicAI/shanuz/blob/main/tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
+| 4 | [PBMC 3k — SCTransform](https://github.com/GenomicAI/shanuz/blob/main/tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
+| 5 | [Xenium — Spatial (R vs Python)](https://github.com/GenomicAI/shanuz/blob/main/tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -268,7 +268,7 @@ Shanuz
 
 ## Roadmap
 
-See **[`ROADMAP.md`](ROADMAP.md)** for the full development plan. Milestones:
+See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)** for the full development plan. Milestones:
 
 | Milestone | Focus |
 |-----------|-------|
@@ -350,7 +350,7 @@ https://www.10xgenomics.com/resources/datasets/3-k-pb-mcs-from-a-healthy-donor-1
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](https://github.com/GenomicAI/shanuz/blob/main/LICENSE) for details.
 
 This software is an independent reimplementation for educational and research purposes.
 It is not affiliated with, endorsed by, or maintained by the Satija Lab or 10x Genomics.
