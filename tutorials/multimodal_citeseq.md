@@ -9,7 +9,7 @@ cluster on RNA, attach the protein counts as a second assay, CLR-normalise them,
 and read protein levels on the RNA-derived UMAP.
 
 > **Dataset:** 8k CBMCs, CITE-seq — Stoeckius et al. 2017 (GSE100866)
-> **Python:** Shanuz v0.1.2
+> **Python:** Shanuz v0.2.0
 
 > **Scope note.** Shanuz stores and normalises multiple assays, visualises one
 > against another, **and** performs multimodal *integration* via Weighted
@@ -283,9 +283,13 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 
 Steps 2–7 cluster on **RNA alone** and read protein on top. WNN (Hao et al.,
 *Cell* 2021) goes further: it learns, **per cell**, how much to trust each
-modality and clusters on a *joint* graph. Cells whose lineage is sharper in
-protein space (the CD4/CD8 T split) lean on ADT; cells the 13-protein panel
-can't resolve (platelets, erythroid, pDC) lean on RNA.
+modality and clusters on a *joint* graph, so a cell whose lineage is crisp in
+protein space (the CD4/CD8 T split) can be weighted toward ADT while one the
+13-protein panel doesn't cover (platelets, erythroid, pDC) is weighted toward
+RNA. On this dataset the learned weights sit close to 0.5 — both modalities
+carry usable signal for most cells — with only modest per-cell tilts; the value
+of WNN here is a *joint* embedding and clustering rather than a dramatic
+reweighting.
 
 The protein modality first gets its own reduction (`"apca"`); then
 `find_multi_modal_neighbors` builds the weighted `wknn`/`wsnn` graphs and writes
@@ -341,10 +345,10 @@ run_umap(obj, graph="wsnn", reduction_name="wnn_umap", seed=42)
 </table>
 
 Because the ADT panel has only 13 proteins, `apca` keeps every informative
-component (`n_pcs ≤ 12`). Inspecting the learned weights confirms the biology —
-grouping `ADT.weight` by the Step-7 labels, the T/NK/B/monocyte lineages (which
-the antibody panel targets) score highest, while panel-blind populations lean on
-RNA:
+component (`n_pcs ≤ 12`). You can inspect the learned weights by grouping
+`ADT.weight` by the Step-7 labels — on this dataset they cluster tightly around
+0.5 (roughly 0.51–0.52 for the antibody-targeted lineages), a gentle tilt rather
+than a clean split, reflecting that both modalities inform most cells:
 
 ```python
 obj.meta_data.groupby("protein_celltype")["ADT.weight"].mean().sort_values(ascending=False)
