@@ -9,7 +9,7 @@ cluster on RNA, attach the protein counts as a second assay, CLR-normalise them,
 and read protein levels on the RNA-derived UMAP.
 
 > **Dataset:** 8k CBMCs, CITE-seq — Stoeckius et al. 2017 (GSE100866)
-> **Python:** Shanuz v0.1.2
+> **Python:** Shanuz v0.2.0
 
 > **Scope note.** Shanuz stores and normalises multiple assays, visualises one
 > against another, **and** performs multimodal *integration* via Weighted
