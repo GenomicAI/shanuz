@@ -119,8 +119,9 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Three end-to-end tutorials — from basic guided clustering to multimodal CITE-seq —
-each pairing R Seurat code side-by-side with the Python Shanuz equivalent.
+Five end-to-end tutorials — from basic guided clustering through multimodal
+CITE-seq to Xenium spatial — each pairing R Seurat code side-by-side with the
+Python Shanuz equivalent.
 See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
