@@ -21,6 +21,11 @@ python tutorials/cbmc_citeseq_tutorial.py     # printed validation
 python tutorials/generate_multimodal_plots.py # writes figures_multimodal/
 ```
 
+> **About the figures.** This is a Python port, so **every figure below is
+> rendered by Shanuz** (`generate_multimodal_plots.py`); the R snippets show the
+> equivalent Seurat API. Figures span the full width and are *not* a
+> left-R / right-Python comparison.
+
 ---
 
 ## Step 1 · Load RNA + Protein, align barcodes
@@ -234,8 +239,10 @@ feature_scatter(obj, "CD4",  "CD8", assay="ADT")
 ```
 
 </td></tr>
-<tr><td><img src="figures_multimodal/05_adt_ridgeplots.png" width="420"/></td>
-<td><img src="figures_multimodal/06_adt_scatter_CD4_CD8.png" width="380"/><br>
+<tr><td colspan="2"><em>Shanuz — ADT ridge plots (<code>ridge_plot</code>)</em><br>
+<img src="figures_multimodal/05_adt_ridgeplots.png" width="560"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — protein bivariate scatters (<code>feature_scatter</code>)</em><br>
+<img src="figures_multimodal/06_adt_scatter_CD4_CD8.png" width="380"/>
 <img src="figures_multimodal/07_adt_scatter_CD19_CD3.png" width="380"/></td></tr>
 </table>
 

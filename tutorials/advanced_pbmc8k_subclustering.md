@@ -8,13 +8,18 @@ lymphoid compartment is isolated and re-analysed from scratch to separate naive
 CD4, memory CD4, CD8, and NK populations that the global clustering merges.
 
 > **Dataset:** 8k PBMCs from a Healthy Donor — 10x Genomics (GRCh38, v2)
-> **Python:** Shanuz v0.1.0
+> **Python:** Shanuz v0.2.0
 > **Methodology:** Satija et al. 2015 · Butler et al. 2018 · Hao et al. 2021
 
-> **Scope note.** Shanuz reproduces the **RNA graph-based clustering** workflow
-> these papers established. It does not (yet) implement anchor-based integration,
-> SCTransform, or multimodal WNN — so this tutorial stays within single-assay
-> RNA clustering and subclustering, which is exactly where subclustering shines.
+> **Scope note.** This tutorial stays within the single-assay **RNA
+> graph-based clustering** workflow these papers established — which is exactly
+> where subclustering shines. SCTransform and multimodal WNN are covered in the
+> other tutorials; anchor-based (CCA/RPCA) integration is not yet ported.
+
+> **About the figures.** Shanuz is a Python port, so **every figure below is
+> rendered by Shanuz** (`generate_advanced_plots.py`); the R snippets show the
+> equivalent Seurat API. Figures span the full width and are *not* a
+> left-R / right-Python comparison.
 
 Run everything with:
 
@@ -198,8 +203,10 @@ dim_plot(pbmc, reduction="umap", label=True)
 ```
 
 </td></tr>
-<tr><td><img src="figures_advanced/05_lineage_featureplots.png" width="420"/></td>
-<td><img src="figures_advanced/04_umap_global_celltypes.png" width="420"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — lineage-marker FeaturePlots (<code>feature_plot</code>)</em><br>
+<img src="figures_advanced/05_lineage_featureplots.png" width="720"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — broad cell types on the global UMAP (<code>dim_plot</code>)</em><br>
+<img src="figures_advanced/04_umap_global_celltypes.png" width="560"/></td></tr>
 </table>
 
 Top markers per cluster (DoHeatmap → `do_heatmap`):
@@ -298,10 +305,14 @@ dim_plot(tnk, reduction="umap", label=True)
 ```
 
 </td></tr>
-<tr><td><img src="figures_advanced/09_tnk_subset_featureplots.png" width="420"/></td>
-<td><img src="figures_advanced/08_umap_tnk_subsets.png" width="420"/></td></tr>
-<tr><td><img src="figures_advanced/10_tnk_subset_violins.png" width="420"/></td>
-<td><img src="figures_advanced/11_tnk_markers_heatmap.png" width="420"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — T/NK subset marker FeaturePlots (<code>feature_plot</code>)</em><br>
+<img src="figures_advanced/09_tnk_subset_featureplots.png" width="760"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — annotated T/NK subsets on the compartment UMAP (<code>dim_plot</code>)</em><br>
+<img src="figures_advanced/08_umap_tnk_subsets.png" width="560"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — subset marker violins (<code>vln_plot</code>)</em><br>
+<img src="figures_advanced/10_tnk_subset_violins.png" width="600"/></td></tr>
+<tr><td colspan="2"><em>Shanuz — top subcluster markers heatmap (<code>do_heatmap</code>)</em><br>
+<img src="figures_advanced/11_tnk_markers_heatmap.png" width="640"/></td></tr>
 </table>
 
 ### What the subclustering reveals

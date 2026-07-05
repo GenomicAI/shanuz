@@ -908,8 +908,9 @@ fig = ridge_plot(
 </td>
 </tr>
 <tr>
-<td><em>R Seurat RidgePlot (ggridges)</em></td>
-<td><img src="figures/12_ridge_plot.png" width="420"/></td>
+<td colspan="2"><em>Shanuz — RidgePlot equivalent (<code>ridge_plot</code>). The Seurat
+pbmc3k vignette publishes no RidgePlot figure, so only the Shanuz output is shown.</em><br>
+<img src="figures/12_ridge_plot.png" width="560"/></td>
 </tr>
 </table>
 
