@@ -21,10 +21,12 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Preprocessing** — `normalize_data`, `find_variable_features` (VST), `scale_data`, `percentage_feature_set`
 - **SCTransform** — `sctransform` (regularized negative-binomial Pearson residuals)
 - **Signature scoring** — `add_module_score`, `cell_cycle_scoring` (S/G2M + Phase)
-- **Dimensionality reduction** — `run_pca` (via scikit-learn)
+- **Dimensionality reduction** — `run_pca`, `run_ica`, `run_tsne` (via scikit-learn)
+- **Batch correction / integration** — `run_harmony`, `integrate_layers` (via harmonypy)
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
+- **Multimodal WNN** — `find_multi_modal_neighbors` (per-cell RNA/protein weights, joint `wknn`/`wsnn` graphs)
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
-- **UMAP** — `run_umap` (via umap-learn)
+- **UMAP** — `run_umap` (via umap-learn; embeds a reduction or a precomputed graph)
 - **PC significance** — `jack_straw`, `score_jackstraw` (JackStraw permutation test)
 - **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `LR`, `negbinom`, `roc`)
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `dot_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
@@ -32,7 +34,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Spatial (Xenium / Visium / CosMx)** — `load_xenium`/`load_visium`/`load_cosmx`, `get_tissue_coordinates`, `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`, `composition_test`, `image_dim_plot`, `image_feature_plot`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 - **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
-- **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization
+- **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization and WNN joint clustering
 - **Xenium spatial tutorial** — spatial neighbourhood/niche analysis, verified to 8 s.f. against R Seurat
 
 ---
@@ -266,14 +268,14 @@ Shanuz
 
 ## Roadmap
 
-See **[`ROADMAP.md`](ROADMAP.md)** for the full development plan. Upcoming milestones:
+See **[`ROADMAP.md`](ROADMAP.md)** for the full development plan. Milestones:
 
 | Milestone | Focus |
 |-----------|-------|
-| v0.2.0 | Batch correction — Harmony, CCA/RPCA, `IntegrateLayers` |
+| v0.2.0 | Batch correction — Harmony + `IntegrateLayers` ✅ *(delivered)*; remaining: CCA/RPCA anchors |
 | v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery` |
-| v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering |
-| v0.5.0 | Additional reductions — t-SNE, ICA, SPCA, GLM-PCA |
+| v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
+| v0.5.0 | Additional reductions — t-SNE, ICA ✅ *(delivered)*; remaining: SPCA, GLM-PCA |
 | v0.6.0 | Pseudobulk DE — `AggregateExpression`, DESeq2, MAST, `FindConservedMarkers` |
 | v0.7.0 | Spatial — Xenium/Visium/CosMx loaders, niche/neighbourhood analysis, `image_*` plots ✅ *(largely delivered — see Tutorial 5)*; remaining: MERSCOPE loader, `FindSpatiallyVariableFeatures` (Moran's I), Visium tissue-image plots |
 | v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |
