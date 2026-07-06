@@ -16,16 +16,20 @@ CD4, memory CD4, CD8, and NK populations that the global clustering merges.
 > where subclustering shines. SCTransform and multimodal WNN are covered in the
 > other tutorials; anchor-based (CCA/RPCA) integration is not yet ported.
 
-> **About the figures.** Shanuz is a Python port, so **every figure below is
-> rendered by Shanuz** (`generate_advanced_plots.py`); the R snippets show the
-> equivalent Seurat API. Figures span the full width and are *not* a
-> left-R / right-Python comparison.
+> **About the figures.** Each step shows a genuine **side-by-side comparison**:
+> the **left** image is real **R Seurat** output (`pbmc8k_subclustering_verify.R`,
+> titled *"R Seurat – …"*) and the **right** image is **Shanuz**
+> (`generate_advanced_plots.py`). Both run the identical pipeline and the same
+> two annotation heuristics on the same data; clustering is stochastic and the
+> two UMAP libraries (`uwot` vs `umap-learn`) place clusters differently, so
+> compare the *structure*, not exact positions or cluster numbers.
 
 Run everything with:
 
 ```bash
 python tutorials/pbmc8k_subclustering_tutorial.py   # printed validation
-python tutorials/generate_advanced_plots.py         # writes figures_advanced/
+python tutorials/generate_advanced_plots.py         # writes figures_advanced/  (Shanuz figures)
+Rscript tutorials/pbmc8k_subclustering_verify.R     # writes figures_advanced/r_*  (R Seurat figures)
 ```
 
 ---
@@ -94,7 +98,10 @@ pbmc = pbmc.subset(cells=list(md.index[keep]))
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_advanced/01_qc_violin.png" width="640"/></td></tr>
+<tr>
+<td><img src="figures_advanced/r_01_qc_violin.png" width="420"/></td>
+<td><img src="figures_advanced/01_qc_violin.png" width="420"/></td>
+</tr>
 </table>
 
 ---
@@ -128,7 +135,10 @@ elbow_plot(pbmc, ndims=30)
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_advanced/02_elbow_plot.png" width="480"/></td></tr>
+<tr>
+<td><img src="figures_advanced/r_02_elbow_plot.png" width="420"/></td>
+<td><img src="figures_advanced/02_elbow_plot.png" width="420"/></td>
+</tr>
 </table>
 
 ---
@@ -161,7 +171,10 @@ dim_plot(pbmc, reduction="umap", group_by="seurat_clusters", label=True)
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_advanced/03_umap_global_clusters.png" width="560"/></td></tr>
+<tr>
+<td><img src="figures_advanced/r_03_umap_global_clusters.png" width="420"/></td>
+<td><img src="figures_advanced/03_umap_global_clusters.png" width="420"/></td>
+</tr>
 </table>
 
 ---
@@ -203,15 +216,25 @@ dim_plot(pbmc, reduction="umap", label=True)
 ```
 
 </td></tr>
-<tr><td colspan="2"><em>Shanuz — lineage-marker FeaturePlots (<code>feature_plot</code>)</em><br>
-<img src="figures_advanced/05_lineage_featureplots.png" width="720"/></td></tr>
-<tr><td colspan="2"><em>Shanuz — broad cell types on the global UMAP (<code>dim_plot</code>)</em><br>
-<img src="figures_advanced/04_umap_global_celltypes.png" width="560"/></td></tr>
+<tr>
+<td><img src="figures_advanced/r_05_lineage_featureplots.png" width="420"/></td>
+<td><img src="figures_advanced/05_lineage_featureplots.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="figures_advanced/r_04_umap_global_celltypes.png" width="420"/></td>
+<td><img src="figures_advanced/04_umap_global_celltypes.png" width="420"/></td>
+</tr>
 </table>
 
 Top markers per cluster (DoHeatmap → `do_heatmap`):
 
-<img src="figures_advanced/06_global_markers_heatmap.png" width="720"/>
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td><img src="figures_advanced/r_06_global_markers_heatmap.png" width="420"/></td>
+<td><img src="figures_advanced/06_global_markers_heatmap.png" width="420"/></td>
+</tr>
+</table>
 
 ---
 
@@ -258,7 +281,10 @@ dim_plot(tnk, reduction="umap", group_by="seurat_clusters", label=True)
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_advanced/07_umap_tnk_subclusters.png" width="560"/></td></tr>
+<tr>
+<td><img src="figures_advanced/r_07_umap_tnk_subclusters.png" width="420"/></td>
+<td><img src="figures_advanced/07_umap_tnk_subclusters.png" width="420"/></td>
+</tr>
 </table>
 
 > The whole pipeline is wrapped in `run_pipeline()` /  `run_full()` in
@@ -305,14 +331,22 @@ dim_plot(tnk, reduction="umap", label=True)
 ```
 
 </td></tr>
-<tr><td colspan="2"><em>Shanuz — T/NK subset marker FeaturePlots (<code>feature_plot</code>)</em><br>
-<img src="figures_advanced/09_tnk_subset_featureplots.png" width="760"/></td></tr>
-<tr><td colspan="2"><em>Shanuz — annotated T/NK subsets on the compartment UMAP (<code>dim_plot</code>)</em><br>
-<img src="figures_advanced/08_umap_tnk_subsets.png" width="560"/></td></tr>
-<tr><td colspan="2"><em>Shanuz — subset marker violins (<code>vln_plot</code>)</em><br>
-<img src="figures_advanced/10_tnk_subset_violins.png" width="600"/></td></tr>
-<tr><td colspan="2"><em>Shanuz — top subcluster markers heatmap (<code>do_heatmap</code>)</em><br>
-<img src="figures_advanced/11_tnk_markers_heatmap.png" width="640"/></td></tr>
+<tr>
+<td><img src="figures_advanced/r_09_tnk_subset_featureplots.png" width="420"/></td>
+<td><img src="figures_advanced/09_tnk_subset_featureplots.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="figures_advanced/r_08_umap_tnk_subsets.png" width="420"/></td>
+<td><img src="figures_advanced/08_umap_tnk_subsets.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="figures_advanced/r_10_tnk_subset_violins.png" width="420"/></td>
+<td><img src="figures_advanced/10_tnk_subset_violins.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="figures_advanced/r_11_tnk_markers_heatmap.png" width="420"/></td>
+<td><img src="figures_advanced/11_tnk_markers_heatmap.png" width="420"/></td>
+</tr>
 </table>
 
 ### What the subclustering reveals

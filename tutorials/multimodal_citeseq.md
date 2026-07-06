@@ -18,13 +18,18 @@ and read protein levels on the RNA-derived UMAP.
 
 ```bash
 python tutorials/cbmc_citeseq_tutorial.py     # printed validation
-python tutorials/generate_multimodal_plots.py # writes figures_multimodal/
+python tutorials/generate_multimodal_plots.py # writes figures_multimodal/  (Shanuz figures)
+Rscript tutorials/cbmc_citeseq_verify.R       # writes figures_multimodal/r_*  (R Seurat figures)
 ```
 
-> **About the figures.** This is a Python port, so **every figure below is
-> rendered by Shanuz** (`generate_multimodal_plots.py`); the R snippets show the
-> equivalent Seurat API. Figures span the full width and are *not* a
-> left-R / right-Python comparison.
+> **About the figures.** Each step shows a genuine **side-by-side comparison**:
+> the **left** image is real **R Seurat** output (`cbmc_citeseq_verify.R`, titled
+> *"R Seurat – …"*) and the **right** image is **Shanuz**
+> (`generate_multimodal_plots.py`). Both run the identical RNA workflow and the
+> same protein-gated annotation on the same data. Clustering is stochastic and
+> the two CLR implementations differ in absolute scale (the R annotation
+> thresholds are calibrated to Seurat's CLR), so compare the *structure*, not
+> exact positions or cluster numbers.
 
 ---
 
@@ -102,7 +107,10 @@ run_umap(obj, dims=range(15), seed=42)
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_multimodal/01_rna_umap_clusters.png" width="560"/></td></tr>
+<tr>
+<td><img src="figures_multimodal/r_01_rna_umap_clusters.png" width="420"/></td>
+<td><img src="figures_multimodal/01_rna_umap_clusters.png" width="420"/></td>
+</tr>
 </table>
 
 ---
@@ -174,7 +182,10 @@ feature_plot(obj, ["CD3","CD4","CD8","CD19",
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_multimodal/03_adt_featureplots.png" width="760"/></td></tr>
+<tr>
+<td><img src="figures_multimodal/r_03_adt_featureplots.png" width="420"/></td>
+<td><img src="figures_multimodal/03_adt_featureplots.png" width="420"/></td>
+</tr>
 </table>
 
 The surface proteins cleanly mark their lineages: CD3/CD4 the T-cell mass,
@@ -207,7 +218,10 @@ feature_plot(obj, ["CD19"], assay="RNA", reduction="umap")
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_multimodal/04_protein_vs_rna.png" width="460"/></td></tr>
+<tr>
+<td><img src="figures_multimodal/r_04_protein_vs_rna.png" width="380"/></td>
+<td><img src="figures_multimodal/04_protein_vs_rna.png" width="380"/></td>
+</tr>
 </table>
 
 ---
@@ -239,11 +253,18 @@ feature_scatter(obj, "CD4",  "CD8", assay="ADT")
 ```
 
 </td></tr>
-<tr><td colspan="2"><em>Shanuz — ADT ridge plots (<code>ridge_plot</code>)</em><br>
-<img src="figures_multimodal/05_adt_ridgeplots.png" width="560"/></td></tr>
-<tr><td colspan="2"><em>Shanuz — protein bivariate scatters (<code>feature_scatter</code>)</em><br>
-<img src="figures_multimodal/06_adt_scatter_CD4_CD8.png" width="380"/>
-<img src="figures_multimodal/07_adt_scatter_CD19_CD3.png" width="380"/></td></tr>
+<tr>
+<td><img src="figures_multimodal/r_05_adt_ridgeplots.png" width="420"/></td>
+<td><img src="figures_multimodal/05_adt_ridgeplots.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="figures_multimodal/r_06_adt_scatter_CD4_CD8.png" width="420"/></td>
+<td><img src="figures_multimodal/06_adt_scatter_CD4_CD8.png" width="420"/></td>
+</tr>
+<tr>
+<td><img src="figures_multimodal/r_07_adt_scatter_CD19_CD3.png" width="420"/></td>
+<td><img src="figures_multimodal/07_adt_scatter_CD19_CD3.png" width="420"/></td>
+</tr>
 </table>
 
 The CD4-vs-CD8 and CD19-vs-CD3 protein scatters separate the major lineages on
@@ -281,7 +302,10 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 ```
 
 </td></tr>
-<tr><td colspan="2"><img src="figures_multimodal/02_rna_umap_celltypes.png" width="620"/></td></tr>
+<tr>
+<td><img src="figures_multimodal/r_02_rna_umap_celltypes.png" width="420"/></td>
+<td><img src="figures_multimodal/02_rna_umap_celltypes.png" width="420"/></td>
+</tr>
 </table>
 
 ---

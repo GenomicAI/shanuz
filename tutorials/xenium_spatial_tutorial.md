@@ -138,10 +138,15 @@ obj  = obj.subset(cells=keep)
 
 </td>
 </tr>
+<tr>
+<td><img src="figures_spatial/r_01_qc_violin.png" width="420"/></td>
+<td><img src="figures_spatial/01_qc_violin.png" width="420"/></td>
+</tr>
 </table>
 
-> `subset()` filters the assay, metadata **and** the spatial centroids together,
-> so every downstream spatial function stays aligned.
+> Post-filter QC per cell type (`nCount_Xenium` / `nFeature_Xenium`); the cell
+> types come from Step 3. `subset()` filters the assay, metadata **and** the
+> spatial centroids together, so every downstream spatial function stays aligned.
 
 ---
 
@@ -254,11 +259,18 @@ run_umap(obj, dims=range(20), reduction_name="umap", seed=42)
 <td><img src="figures_spatial/r_02_umap_celltype.png" width="420"/></td>
 <td><img src="figures_spatial/02_umap_celltype.png" width="420"/></td>
 </tr>
+<tr>
+<td><img src="figures_spatial/r_04_image_clusters.png" width="420"/></td>
+<td><img src="figures_spatial/04_image_clusters.png" width="420"/></td>
+</tr>
 </table>
 
-> Louvain clustering is stochastic and the two UMAP libraries (`uwot` vs
-> `umap-learn`) place clusters differently — R found 20 clusters, Shanuz 18 — but
-> the same cell-type structure separates cleanly in both (see the
+> Top row: the UMAP coloured by cell type. Bottom row: the raw unsupervised
+> clusters drawn back in tissue space (`ImageDimPlot` by cluster) — the cortical
+> layers and hippocampal structure fall out on their own. Louvain clustering is
+> stochastic and the two UMAP libraries (`uwot` vs `umap-learn`) place clusters
+> differently — R found 20 clusters, Shanuz 18 — but the same spatial structure
+> separates cleanly in both (see the
 > [PBMC 3k note](pbmc3k_tutorial.md#step-12--umap)).
 
 ---
