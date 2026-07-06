@@ -31,7 +31,7 @@ from shanuz.clustering import find_clusters
 from shanuz.umap import run_umap
 from shanuz.markers import find_all_markers
 from shanuz.plotting import (
-    vln_plot, feature_plot, dim_plot, elbow_plot, feature_scatter,
+    vln_plot, feature_plot, dim_plot, elbow_plot,
     variable_feature_plot, viz_dim_loadings, dim_heatmap, do_heatmap, ridge_plot,
 )
 
@@ -100,20 +100,10 @@ def main(data_dir=None):
     _save(vln_plot(pbmc_raw, ["nFeature_RNA", "nCount_RNA", "percent.mt"], ncol=3,
                    figsize=(12, 4), pt_size=1.0), "01_qc_violin.png")
 
-    # 2. QC scatter
-    _save(feature_scatter(pbmc_raw, "nCount_RNA", "percent.mt",
-                          group_by=None, figsize=(5.5, 4.5)), "02a_qc_scatter_mt.png")
-    _save(feature_scatter(pbmc_raw, "nCount_RNA", "nFeature_RNA",
-                          group_by=None, figsize=(5.5, 4.5)), "02b_qc_scatter_feat.png")
-
-    # Combined QC scatter (side by side)
+    # 2. QC scatter — combined, side by side (matches the vignette's qc2-2 panel)
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
-    import matplotlib
-    fig_a = feature_scatter(pbmc_raw, "nCount_RNA", "percent.mt", figsize=(5, 4))
-    fig_b = feature_scatter(pbmc_raw, "nCount_RNA", "nFeature_RNA", figsize=(5, 4))
-    plt.close(fig_a); plt.close(fig_b)
-    # Re-draw directly into subplots
+    # Draw both scatters directly into subplots
     from shanuz.plotting import _get_expression, _get_groups, _palette
     for ax_idx, (f1, f2) in enumerate([("nCount_RNA", "percent.mt"),
                                         ("nCount_RNA", "nFeature_RNA")]):
