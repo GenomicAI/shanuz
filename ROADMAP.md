@@ -169,12 +169,16 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 - **R:** `FindMarkers(obj, test.use = "DESeq2")` (via `DESeq2` R package)
 - **Python dep:** `pydeseq2` (pip, optional `[deseq2]` extra)
 
-### MAST
+### MAST — ✅ delivered
+- Implemented as the `test_use="mast"` branch of `find_markers` (`_mast_pvalue` in
+  `shanuz/markers.py`): a pure-Python two-part hurdle LRT — a logistic model of
+  detection (`expr > 0`) plus a Gaussian model of magnitude among detected cells,
+  each `~ group (+ latent)`. The combined statistic is the sum of the two
+  components' LR statistics on the sum of their df (components with no signal
+  drop out). No R dep — `statsmodels` is already present. Pass the cellular
+  detection rate via `latent_vars` to match Seurat's CDR covariate
+  (`tests/test_mast_de.py`).
 - **R:** `FindMarkers(obj, test.use = "MAST")`
-- **Python dep:** `rpy2` (call R's MAST) or pure-Python hurdle model
-- **Plan:** implement two-part hurdle model (logistic for detection + Gaussian for
-  magnitude given detection) using `statsmodels`; no R dep required
-- **Note:** `statsmodels` is already a dep (used by LR/negbinom tests)
 
 ### `FindConservedMarkers` — ✅ delivered
 - Implemented as `find_conserved_markers(...)` in `shanuz/markers.py`. Runs
@@ -364,5 +368,5 @@ If milestones are too large, these are the highest-value individual items:
 5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
-   MAST/bimod remain to round out multi-sample DE
+   MAST (`test_use="mast"`) delivered too; only the bimod test remains in v0.6.0
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets

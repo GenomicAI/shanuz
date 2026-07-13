@@ -96,6 +96,71 @@ def _negbinom_pvalue(counts: np.ndarray, group: np.ndarray, latent: Optional[np.
         return 1.0
 
 
+def _mast_pvalue(expr: np.ndarray, group: np.ndarray, latent: Optional[np.ndarray]) -> float:
+    """MAST two-part hurdle likelihood-ratio test (Finak 2015; Seurat's 'MAST').
+
+    Fits a *discrete* logistic model of detection (``expr > 0``) and a
+    *continuous* Gaussian model of the log-expression among detected cells, each
+    as ``~ group (+ latent)``. Because the hurdle likelihood factorises into its
+    detection and magnitude parts, the combined LR statistic is the sum of the
+    two components' statistics tested on the sum of their degrees of freedom.
+    Components that carry no information (constant detection, or magnitude seen in
+    only one group) contribute 0 df and are dropped.
+    """
+    import statsmodels.api as sm
+    from scipy.stats import chi2
+
+    n = len(expr)
+    detect = (expr > 0).astype(float)
+
+    def _design(mask: np.ndarray, include_group: bool) -> np.ndarray:
+        cols = [np.ones(int(mask.sum()))]
+        if include_group:
+            cols.append(group[mask])
+        if latent is not None and latent.size:
+            cols.append(latent[mask])
+        return np.column_stack(cols)
+
+    stat = 0.0
+    df = 0
+
+    # ---- discrete component: logistic LRT on the group term ------------------
+    if 0.0 < detect.sum() < n:  # detection varies → group term is estimable
+        allmask = np.ones(n, dtype=bool)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                full = sm.GLM(detect, _design(allmask, True),
+                              family=sm.families.Binomial()).fit()
+                red = sm.GLM(detect, _design(allmask, False),
+                             family=sm.families.Binomial()).fit()
+            d = red.deviance - full.deviance
+            if np.isfinite(d) and d > 0:
+                stat += d
+                df += 1
+        except Exception:
+            pass
+
+    # ---- continuous component: Gaussian LRT among detected cells -------------
+    pos = expr > 0
+    if pos.sum() >= 3 and np.unique(group[pos]).size > 1 and np.ptp(expr[pos]) > 0:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                full = sm.OLS(expr[pos], _design(pos, True)).fit()
+                red = sm.OLS(expr[pos], _design(pos, False)).fit()
+            d = 2.0 * (full.llf - red.llf)
+            if np.isfinite(d) and d > 0:
+                stat += d
+                df += 1
+        except Exception:
+            pass
+
+    if df == 0:
+        return 1.0
+    return float(chi2.sf(stat, df=df))
+
+
 def find_markers(
     seurat,
     ident_1: Union[str, list[str]],
@@ -122,7 +187,8 @@ def find_markers(
     ident_2         : cluster label(s) for group 2 (None = all others)
     test_use        : statistical test — 'wilcox' (default), 't', 'LR'
                       (logistic-regression LRT), 'negbinom' (negative-binomial
-                      GLM LRT on counts), 'deseq2' (pseudobulk DESeq2 — sums
+                      GLM LRT on counts), 'mast' (MAST two-part hurdle LRT on
+                      log-normalized data), 'deseq2' (pseudobulk DESeq2 — sums
                       counts per sample then tests sample-level, requires
                       ``sample_col``; needs ``pip install shanuz[deseq2]``), or
                       'roc' (AUC classifier power).
@@ -131,7 +197,9 @@ def find_markers(
     logfc_threshold : minimum log2 fold-change filter
     features        : restrict to these genes (default: all)
     latent_vars     : metadata columns to regress out as covariates in the
-                      'LR' and 'negbinom' models (Seurat's latent.vars).
+                      'LR', 'negbinom', and 'mast' models (Seurat's latent.vars).
+                      For 'mast', pass the cellular detection rate here to match
+                      Seurat's default CDR covariate.
     sample_col      : metadata column identifying pseudobulk replicates (donor /
                       sample); required for ``test_use='deseq2'``, ignored
                       otherwise.
@@ -220,7 +288,7 @@ def find_markers(
 
     # Per-cell covariates for the regression-based tests (LR / negbinom).
     latent = None
-    if latent_vars and test_use in ("LR", "negbinom"):
+    if latent_vars and test_use in ("LR", "negbinom", "mast"):
         lat1 = seurat.meta_data.loc[cells_1, latent_vars].to_numpy(dtype=float)
         lat2 = seurat.meta_data.loc[cells_2, latent_vars].to_numpy(dtype=float)
         latent = np.vstack([lat1, lat2])
@@ -302,6 +370,12 @@ def find_markers(
         for i, fi in enumerate(test_indices):
             expr = np.concatenate([mat1[fi, :], mat2[fi, :]])
             p_vals[i] = _lr_pvalue(expr, group, latent)
+    elif test_use == "mast":
+        n1, n2 = mat1.shape[1], mat2.shape[1]
+        group = np.concatenate([np.ones(n1), np.zeros(n2)])
+        for i, fi in enumerate(test_indices):
+            expr = np.concatenate([mat1[fi, :], mat2[fi, :]])
+            p_vals[i] = _mast_pvalue(expr, group, latent)
     elif test_use == "negbinom":
         counts_mat, _ = _get_expression_matrix(assay_obj, "counts")
         if sp.issparse(counts_mat):
@@ -318,7 +392,7 @@ def find_markers(
     else:
         raise ValueError(
             f"Unsupported test_use: {test_use!r}. "
-            "Use 'wilcox', 't', 'LR', 'negbinom', 'deseq2', or 'roc'."
+            "Use 'wilcox', 't', 'LR', 'negbinom', 'mast', 'deseq2', or 'roc'."
         )
 
     # Bonferroni correction (Seurat default: multiply by total gene count)
