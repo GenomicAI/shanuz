@@ -161,6 +161,47 @@ def _mast_pvalue(expr: np.ndarray, group: np.ndarray, latent: Optional[np.ndarra
     return float(chi2.sf(stat, df=df))
 
 
+def _bimod_likelihood(x: np.ndarray, xmin: float = 0.0) -> float:
+    """Log-likelihood of ``x`` under the McDavid 2013 bimodal model.
+
+    A point mass at/below ``xmin`` (the un-detected fraction, ``1 - α``) plus a
+    Gaussian on the detected values. Mirrors Seurat's ``bimodLikData``.
+    """
+    from scipy.stats import norm
+
+    n = len(x)
+    if n == 0:
+        return 0.0
+    x_pos = x[x > xmin]
+    n_pos = len(x_pos)
+    n_zero = n - n_pos
+    alpha = min(max(n_pos / n, 1e-5), 1 - 1e-5)  # detection rate, clamped
+    lik_a = n_zero * np.log(1 - alpha)
+    if n_pos == 0:
+        return float(lik_a)
+    sd = np.std(x_pos, ddof=1) if n_pos >= 2 else 1.0
+    if sd == 0:
+        sd = 1.0  # degenerate all-equal detected values (Seurat guards n<2 only)
+    lik_b = n_pos * np.log(alpha) + float(np.sum(norm.logpdf(x_pos, loc=x_pos.mean(), scale=sd)))
+    return float(lik_a + lik_b)
+
+
+def _bimod_pvalue(x1: np.ndarray, x2: np.ndarray, xmin: float = 0.0) -> float:
+    """McDavid 2013 bimodal likelihood-ratio test (Seurat's 'bimod').
+
+    ``2·(logLik(x1) + logLik(x2) − logLik(x1∪x2))`` under the bimodal model is
+    χ² with 3 df (the (α, μ, σ) triple that the pooled model constrains).
+    """
+    from scipy.stats import chi2
+
+    lrt = 2.0 * (
+        _bimod_likelihood(x1, xmin)
+        + _bimod_likelihood(x2, xmin)
+        - _bimod_likelihood(np.concatenate([x1, x2]), xmin)
+    )
+    return float(chi2.sf(max(lrt, 0.0), df=3))
+
+
 def find_markers(
     seurat,
     ident_1: Union[str, list[str]],
@@ -185,13 +226,14 @@ def find_markers(
     ----------
     ident_1         : cluster label(s) for group 1
     ident_2         : cluster label(s) for group 2 (None = all others)
-    test_use        : statistical test — 'wilcox' (default), 't', 'LR'
-                      (logistic-regression LRT), 'negbinom' (negative-binomial
-                      GLM LRT on counts), 'mast' (MAST two-part hurdle LRT on
-                      log-normalized data), 'deseq2' (pseudobulk DESeq2 — sums
-                      counts per sample then tests sample-level, requires
-                      ``sample_col``; needs ``pip install shanuz[deseq2]``), or
-                      'roc' (AUC classifier power).
+    test_use        : statistical test — 'wilcox' (default), 't', 'bimod'
+                      (McDavid 2013 bimodal LRT), 'LR' (logistic-regression LRT),
+                      'negbinom' (negative-binomial GLM LRT on counts), 'mast'
+                      (MAST two-part hurdle LRT on log-normalized data), 'deseq2'
+                      (pseudobulk DESeq2 — sums counts per sample then tests
+                      sample-level, requires ``sample_col``; needs
+                      ``pip install shanuz[deseq2]``), or 'roc' (AUC classifier
+                      power).
     only_pos        : only return positive markers
     min_pct         : minimum fraction cells expressing gene in either group
     logfc_threshold : minimum log2 fold-change filter
@@ -364,6 +406,9 @@ def find_markers(
             x2 = mat2[fi, :]
             _, p = ttest_ind(x1, x2, equal_var=False)
             p_vals[i] = p if not np.isnan(p) else 1.0
+    elif test_use == "bimod":
+        for i, fi in enumerate(test_indices):
+            p_vals[i] = _bimod_pvalue(mat1[fi, :], mat2[fi, :])
     elif test_use == "LR":
         n1, n2 = mat1.shape[1], mat2.shape[1]
         group = np.concatenate([np.ones(n1), np.zeros(n2)])
@@ -392,7 +437,7 @@ def find_markers(
     else:
         raise ValueError(
             f"Unsupported test_use: {test_use!r}. "
-            "Use 'wilcox', 't', 'LR', 'negbinom', 'mast', 'deseq2', or 'roc'."
+            "Use 'wilcox', 't', 'bimod', 'LR', 'negbinom', 'mast', 'deseq2', or 'roc'."
         )
 
     # Bonferroni correction (Seurat default: multiply by total gene count)
