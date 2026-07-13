@@ -28,7 +28,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
 - **UMAP** — `run_umap` (via umap-learn; embeds a reduction or a precomputed graph)
 - **PC significance** — `jack_straw`, `score_jackstraw` (JackStraw permutation test)
-- **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `LR`, `negbinom`, `mast` hurdle, `deseq2` pseudobulk, `roc`), `find_conserved_markers` (cross-condition, Fisher-combined)
+- **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `bimod`, `LR`, `negbinom`, `mast` hurdle, `deseq2` pseudobulk, `roc`), `find_conserved_markers` (cross-condition, Fisher-combined)
 - **Pseudobulk** — `aggregate_expression` (sum counts per group → matrix or one-cell-per-group object), pseudobulk DESeq2 via `find_markers(test_use="deseq2", sample_col=...)`
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `dot_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
@@ -291,7 +291,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery` |
 | v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
 | v0.5.0 | Additional reductions — t-SNE, ICA ✅ *(delivered)*; remaining: SPCA, GLM-PCA |
-| v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`) ✅ *(delivered)*; remaining: bimod |
+| v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |
 | v0.7.0 | Spatial — Xenium/Visium/CosMx loaders, niche/neighbourhood analysis, `image_*` plots ✅ *(largely delivered — see Tutorial 5)*; remaining: MERSCOPE loader, `FindSpatiallyVariableFeatures` (Moran's I), Visium tissue-image plots |
 | v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |
 | v0.9.0 | Specialized — `HTODemux`, Mixscape (CRISPR screens) |

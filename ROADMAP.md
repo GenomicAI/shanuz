@@ -146,7 +146,7 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ---
 
-## v0.6.0 — Pseudobulk DE & Advanced Marker Methods
+## v0.6.0 — Pseudobulk DE & Advanced Marker Methods — ✅ complete
 
 ### `AggregateExpression` (pseudobulk) — ✅ delivered
 - Implemented as `aggregate_expression(...)` in `shanuz/aggregate.py`. Sums raw
@@ -190,10 +190,14 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   (`tests/test_pseudobulk_conserved.py`).
 - **R:** `FindConservedMarkers(obj, ident.1, grouping.var)`
 
-### `bimod` test (likelihood-ratio on bimodal model)
+### `bimod` test (likelihood-ratio on bimodal model) — ✅ delivered
+- Implemented as the `test_use="bimod"` branch of `find_markers` (`_bimod_pvalue`
+  / `_bimod_likelihood` in `shanuz/markers.py`), a faithful port of Seurat's
+  `DifferentialLRT`/`bimodLikData`: each group's expression is modelled as a
+  point mass at zero (Bernoulli detection rate) plus a Gaussian on the detected
+  values, and `2·(logLik₁ + logLik₂ − logLik_pooled)` is tested as χ²(df=3). Pure
+  Python, no new dep (`tests/test_bimod_de.py`).
 - **R:** `FindMarkers(obj, test.use = "bimod")`
-- **Plan:** McDavid 2013 bimodal likelihood-ratio test; fits a mixture of a
-  point mass at zero and a Gaussian; add `"bimod"` branch in `find_markers`
 
 ---
 
@@ -368,5 +372,5 @@ If milestones are too large, these are the highest-value individual items:
 5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
-   MAST (`test_use="mast"`) delivered too; only the bimod test remains in v0.6.0
+   MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets
