@@ -381,6 +381,115 @@ def find_all_markers(
     return combined.sort_values(["cluster", "p_val"])
 
 
+def find_conserved_markers(
+    seurat,
+    ident_1: Union[str, list[str]],
+    grouping_var: str,
+    ident_2: Optional[Union[str, list[str]]] = None,
+    assay: Optional[str] = None,
+    layer: Optional[str] = None,
+    test_use: str = "wilcox",
+    only_pos: bool = False,
+    min_pct: float = 0.1,
+    logfc_threshold: float = 0.25,
+    features: Optional[list[str]] = None,
+) -> pd.DataFrame:
+    """Find markers conserved across the levels of a grouping variable.
+
+    Mirrors R's ``FindConservedMarkers(obj, ident.1, grouping.var = "stim")``:
+    runs :func:`find_markers` for ``ident_1`` vs ``ident_2`` independently within
+    each level of ``grouping_var``, keeps only genes detected as markers in
+    *every* level, and combines their per-level p-values with Fisher's method
+    (:func:`scipy.stats.combine_pvalues`).
+
+    Parameters
+    ----------
+    ident_1      : cluster label(s) for group 1.
+    grouping_var : metadata column whose levels define the independent
+                   comparisons (e.g. condition, batch, donor).
+    ident_2      : cluster label(s) for group 2 (None = all other cells).
+    (remaining args are forwarded to :func:`find_markers`.)
+
+    Returns
+    -------
+    DataFrame indexed by gene with, for each level ``g``, the columns
+    ``{g}_p_val, {g}_avg_log2FC, {g}_pct.1, {g}_pct.2, {g}_p_val_adj`` plus
+    ``max_pval`` (worst per-level p-value) and ``combined_p_val`` (Fisher-combined
+    across levels), sorted by ``combined_p_val``. Only genes that are markers in
+    all levels are returned.
+    """
+    from scipy.stats import combine_pvalues
+
+    if grouping_var not in seurat.meta_data.columns:
+        raise KeyError(
+            f"grouping_var {grouping_var!r} not found in meta_data "
+            f"(columns: {list(seurat.meta_data.columns)})."
+        )
+
+    cells = seurat.cell_names()
+    group_of = seurat.meta_data.loc[cells, grouping_var].astype(str)
+    levels = sorted(group_of.unique())
+
+    per_level: dict[str, pd.DataFrame] = {}
+    for level in levels:
+        level_cells = [c for c, g in zip(cells, group_of) if g == level]
+        sub = seurat.subset(cells=level_cells)
+        try:
+            df = find_markers(
+                sub,
+                ident_1=ident_1,
+                ident_2=ident_2,
+                assay=assay,
+                layer=layer,
+                test_use=test_use,
+                only_pos=only_pos,
+                min_pct=min_pct,
+                logfc_threshold=logfc_threshold,
+                features=features,
+            )
+        except ValueError as e:
+            warnings.warn(
+                f"Skipping {grouping_var}={level!r}: {e}", RuntimeWarning, stacklevel=2
+            )
+            continue
+        if len(df) > 0:
+            per_level[level] = df
+
+    if not per_level:
+        raise ValueError(
+            f"No level of {grouping_var!r} yielded markers for the requested comparison."
+        )
+
+    # Genes must be markers in every retained level.
+    common = set.intersection(*(set(df.index) for df in per_level.values()))
+
+    used = list(per_level)
+    cols: dict[str, pd.Series] = {}
+    for level in used:
+        df = per_level[level].loc[list(common)]
+        for c in df.columns:
+            cols[f"{level}_{c}"] = df[c]
+    result = pd.DataFrame(cols, index=list(common))
+
+    if test_use == "roc":
+        # ROC has no p-value; conservation is summarised by the min power.
+        power_cols = [f"{level}_power" for level in used]
+        result["min_power"] = result[power_cols].min(axis=1)
+        return result.sort_values("min_power", ascending=False)
+
+    pval_cols = [f"{level}_p_val" for level in used]
+    result["max_pval"] = result[pval_cols].max(axis=1)
+    if len(used) == 1:
+        result["combined_p_val"] = result[pval_cols[0]]
+    else:
+        result["combined_p_val"] = [
+            combine_pvalues(result.loc[g, pval_cols].to_numpy(dtype=float),
+                            method="fisher").pvalue
+            for g in result.index
+        ]
+    return result.sort_values("combined_p_val")
+
+
 # ------------------------------------------------------------------
 # Helper
 # ------------------------------------------------------------------

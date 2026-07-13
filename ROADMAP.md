@@ -148,12 +148,15 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ## v0.6.0 — Pseudobulk DE & Advanced Marker Methods
 
-### `AggregateExpression` (pseudobulk)
+### `AggregateExpression` (pseudobulk) — ✅ delivered
+- Implemented as `aggregate_expression(...)` in `shanuz/aggregate.py`. Sums raw
+  counts per group via a single sparse `counts @ indicator` matmul; `group_by`
+  accepts one or more metadata columns (joined with `"_"`, as Seurat does) or
+  `"ident"`. Returns a features×groups `pd.DataFrame` (a `dict` for multiple
+  assays), or a `Shanuz` object with one "cell" per group when
+  `return_object=True` (`tests/test_pseudobulk_conserved.py`).
 - **R:** `AggregateExpression(obj, group.by = c("celltype","donor"))`
-- **Plan:**
-  1. Sum raw counts per (`celltype`, `donor`) combination → pseudobulk count matrix
-  2. Return a new `Shanuz` object (one "cell" per group) or a plain `pd.DataFrame`
-  3. Intended input for `DESeq2`-style testing (see below)
+- Intended input for `DESeq2`-style testing (see below).
 
 ### DESeq2-style pseudobulk DE
 - **R:** `FindMarkers(obj, test.use = "DESeq2")` (via `DESeq2` R package)
@@ -168,11 +171,15 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   magnitude given detection) using `statsmodels`; no R dep required
 - **Note:** `statsmodels` is already a dep (used by LR/negbinom tests)
 
-### `FindConservedMarkers`
+### `FindConservedMarkers` — ✅ delivered
+- Implemented as `find_conserved_markers(...)` in `shanuz/markers.py`. Runs
+  `find_markers` independently within each level of `grouping_var`, keeps genes
+  that are markers in *every* level, and combines their per-level p-values with
+  Fisher's method (`scipy.stats.combine_pvalues`). Output has per-level prefixed
+  stats plus `max_pval` and `combined_p_val` (sorted by the latter); levels
+  lacking a comparison group are skipped with a warning
+  (`tests/test_pseudobulk_conserved.py`).
 - **R:** `FindConservedMarkers(obj, ident.1, grouping.var)`
-- **Plan:** run `find_markers` independently per group, then combine p-values
-  (Fisher's method: `scipy.stats.combine_pvalues`) and report genes significant
-  in all groups; returns combined + per-group stats columns
 
 ### `bimod` test (likelihood-ratio on bimodal model)
 - **R:** `FindMarkers(obj, test.use = "bimod")`
@@ -350,5 +357,6 @@ If milestones are too large, these are the highest-value individual items:
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
 5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
-6. **`AggregateExpression` + DESeq2** (`v0.6.0`) — unlocks multi-sample DE
+6. ~~**`AggregateExpression`**~~ ✅ + **DESeq2** (`v0.6.0`) — `aggregate_expression`
+   and `find_conserved_markers` delivered; DESeq2/MAST/bimod unlock multi-sample DE
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets

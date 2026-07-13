@@ -22,7 +22,8 @@ from .multimodal import find_multi_modal_neighbors
 from .clustering import find_clusters
 from .umap import run_umap
 from .integration import run_harmony, integrate_layers
-from .markers import find_markers, find_all_markers
+from .markers import find_markers, find_all_markers, find_conserved_markers
+from .aggregate import aggregate_expression
 from .sctransform import sctransform
 from .module_score import add_module_score, cell_cycle_scoring, CC_GENES
 from .spatial import (
@@ -123,6 +124,8 @@ __all__ = [
     "integrate_layers",
     "find_markers",
     "find_all_markers",
+    "find_conserved_markers",
+    "aggregate_expression",
     "jack_straw",
     "score_jackstraw",
     "sctransform",
