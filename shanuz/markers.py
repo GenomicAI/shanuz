@@ -108,6 +108,7 @@ def find_markers(
     logfc_threshold: float = 0.25,
     features: Optional[list[str]] = None,
     latent_vars: Optional[list[str]] = None,
+    sample_col: Optional[str] = None,
     max_cells_per_ident: Optional[int] = None,
     random_seed: int = 1,
 ) -> pd.DataFrame:
@@ -121,13 +122,19 @@ def find_markers(
     ident_2         : cluster label(s) for group 2 (None = all others)
     test_use        : statistical test — 'wilcox' (default), 't', 'LR'
                       (logistic-regression LRT), 'negbinom' (negative-binomial
-                      GLM LRT on counts), or 'roc' (AUC classifier power).
+                      GLM LRT on counts), 'deseq2' (pseudobulk DESeq2 — sums
+                      counts per sample then tests sample-level, requires
+                      ``sample_col``; needs ``pip install shanuz[deseq2]``), or
+                      'roc' (AUC classifier power).
     only_pos        : only return positive markers
     min_pct         : minimum fraction cells expressing gene in either group
     logfc_threshold : minimum log2 fold-change filter
     features        : restrict to these genes (default: all)
     latent_vars     : metadata columns to regress out as covariates in the
                       'LR' and 'negbinom' models (Seurat's latent.vars).
+    sample_col      : metadata column identifying pseudobulk replicates (donor /
+                      sample); required for ``test_use='deseq2'``, ignored
+                      otherwise.
     max_cells_per_ident : downsample each group to this many cells
 
     Returns
@@ -252,6 +259,13 @@ def find_markers(
             columns=["p_val", "avg_log2FC", "pct.1", "pct.2", "p_val_adj"]
         )
 
+    # ---- pseudobulk DESeq2: sample-level test, not per-cell -------------------
+    if test_use == "deseq2":
+        return _deseq2_pseudobulk(
+            seurat, assay_obj, cells_1, cells_2, sample_col,
+            feature_names, test_indices, pct1, pct2, only_pos,
+        )
+
     # ---- p-value-based tests -------------------------------------------------
     p_vals = np.ones(len(test_indices))
 
@@ -304,7 +318,7 @@ def find_markers(
     else:
         raise ValueError(
             f"Unsupported test_use: {test_use!r}. "
-            "Use 'wilcox', 't', 'LR', 'negbinom', or 'roc'."
+            "Use 'wilcox', 't', 'LR', 'negbinom', 'deseq2', or 'roc'."
         )
 
     # Bonferroni correction (Seurat default: multiply by total gene count)
@@ -336,6 +350,7 @@ def find_all_markers(
     only_pos: bool = False,
     min_pct: float = 0.1,
     logfc_threshold: float = 0.25,
+    sample_col: Optional[str] = None,
     max_cells_per_ident: Optional[int] = None,
     random_seed: int = 1,
 ) -> pd.DataFrame:
@@ -360,6 +375,7 @@ def find_all_markers(
                 only_pos=only_pos,
                 min_pct=min_pct,
                 logfc_threshold=logfc_threshold,
+                sample_col=sample_col,
                 max_cells_per_ident=max_cells_per_ident,
                 random_seed=random_seed,
             )
@@ -488,6 +504,100 @@ def find_conserved_markers(
             for g in result.index
         ]
     return result.sort_values("combined_p_val")
+
+
+def _deseq2_pseudobulk(
+    seurat,
+    assay_obj,
+    cells_1: list[str],
+    cells_2: list[str],
+    sample_col: Optional[str],
+    feature_names: list[str],
+    test_indices: np.ndarray,
+    pct1: np.ndarray,
+    pct2: np.ndarray,
+    only_pos: bool,
+) -> pd.DataFrame:
+    """Pseudobulk DESeq2 test (Seurat's ``test.use = "DESeq2"``).
+
+    Sums raw counts to one pseudobulk profile per (group, ``sample_col``) — the
+    same aggregation as :func:`shanuz.aggregate.aggregate_expression` — then fits
+    a DESeq2 model with design ``~condition`` and contrasts group 1 vs group 2.
+    A positive ``avg_log2FC`` (DESeq2's ``log2FoldChange``) means up in group 1.
+    """
+    try:
+        from pydeseq2.dds import DeseqDataSet
+        from pydeseq2.ds import DeseqStats
+    except ImportError as e:  # pragma: no cover - exercised only without the dep
+        raise ImportError(
+            "test_use='deseq2' requires pydeseq2. Install with "
+            "`pip install shanuz[deseq2]`."
+        ) from e
+
+    if sample_col is None:
+        raise ValueError(
+            "test_use='deseq2' is a pseudobulk test and requires sample_col — the "
+            "replicate/donor column to aggregate cells into per-sample profiles."
+        )
+    if sample_col not in seurat.meta_data.columns:
+        raise KeyError(f"sample_col {sample_col!r} not found in meta_data.")
+
+    counts_mat, _ = _get_expression_matrix(assay_obj, "counts")
+    counts_sub = counts_mat[test_indices, :]  # tested genes × all cells
+    cell_pos = {c: i for i, c in enumerate(seurat.cell_names())}
+    samples = seurat.meta_data[sample_col].astype(str)
+    gene_names = [feature_names[i] for i in test_indices]
+
+    def _pseudobulk(group_cells: list[str], cond: str) -> dict[str, np.ndarray]:
+        by_sample: dict[str, list[int]] = {}
+        for c in group_cells:
+            by_sample.setdefault(samples[c], []).append(cell_pos[c])
+        cols: dict[str, np.ndarray] = {}
+        for samp, idxs in by_sample.items():
+            summed = counts_sub[:, idxs].sum(axis=1)
+            cols[f"{cond}::{samp}"] = np.asarray(summed).ravel()
+        return cols
+
+    pb = {**_pseudobulk(cells_1, "group1"), **_pseudobulk(cells_2, "group2")}
+    sample_names = list(pb)
+    condition = ["group1" if s.startswith("group1::") else "group2" for s in sample_names]
+
+    n1, n2 = condition.count("group1"), condition.count("group2")
+    if n1 < 2 or n2 < 2:
+        warnings.warn(
+            f"DESeq2 pseudobulk has {n1} vs {n2} replicate(s) in {sample_col!r}; "
+            "dispersion estimates are unreliable without ≥2 replicates per group.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    # pydeseq2 wants samples × genes, integer counts.
+    counts_df = pd.DataFrame(
+        np.column_stack([pb[s] for s in sample_names]).T.astype(int),
+        index=sample_names,
+        columns=gene_names,
+    )
+    metadata = pd.DataFrame({"condition": condition}, index=sample_names)
+
+    dds = DeseqDataSet(counts=counts_df, metadata=metadata, design="~condition", quiet=True)
+    dds.deseq2()
+    stat = DeseqStats(dds, contrast=["condition", "group1", "group2"], quiet=True)
+    stat.summary()
+    res = stat.results_df.reindex(gene_names)
+
+    out = pd.DataFrame(
+        {
+            "p_val": res["pvalue"].fillna(1.0).to_numpy(),
+            "avg_log2FC": res["log2FoldChange"].fillna(0.0).to_numpy(),
+            "pct.1": pct1[test_indices],
+            "pct.2": pct2[test_indices],
+            "p_val_adj": res["padj"].fillna(1.0).to_numpy(),
+        },
+        index=gene_names,
+    )
+    if only_pos:
+        out = out[out["avg_log2FC"] > 0]
+    return out.sort_values("p_val")
 
 
 # ------------------------------------------------------------------
