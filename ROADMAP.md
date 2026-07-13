@@ -158,11 +158,16 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 - **R:** `AggregateExpression(obj, group.by = c("celltype","donor"))`
 - Intended input for `DESeq2`-style testing (see below).
 
-### DESeq2-style pseudobulk DE
+### DESeq2-style pseudobulk DE — ✅ delivered
+- Implemented as the `test_use="deseq2"` branch of `find_markers` (`_deseq2_pseudobulk`
+  in `shanuz/markers.py`). Sums counts to one pseudobulk profile per (group ×
+  `sample_col`) — the `AggregateExpression` operation — then fits
+  `pydeseq2.DeseqDataSet(design="~condition")` and contrasts group 1 vs group 2.
+  Returns Seurat-shaped columns (`p_val`/`avg_log2FC`/`pct.1`/`pct.2`/`p_val_adj`);
+  warns below 2 replicates per group. Enable with `pip install shanuz[deseq2]`
+  (`tests/test_deseq2_pseudobulk.py`).
 - **R:** `FindMarkers(obj, test.use = "DESeq2")` (via `DESeq2` R package)
-- **Python dep:** `pydeseq2` (pip)
-- **Plan:** add `"deseq2"` branch in `find_markers` dispatch; aggregates counts
-  with `AggregateExpression` then runs `pydeseq2.DeseqDataSet`
+- **Python dep:** `pydeseq2` (pip, optional `[deseq2]` extra)
 
 ### MAST
 - **R:** `FindMarkers(obj, test.use = "MAST")`
@@ -357,6 +362,7 @@ If milestones are too large, these are the highest-value individual items:
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
 5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
-6. ~~**`AggregateExpression`**~~ ✅ + **DESeq2** (`v0.6.0`) — `aggregate_expression`
-   and `find_conserved_markers` delivered; DESeq2/MAST/bimod unlock multi-sample DE
+6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
+   `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
+   MAST/bimod remain to round out multi-sample DE
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets

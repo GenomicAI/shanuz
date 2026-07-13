@@ -254,6 +254,7 @@ same caveat as the other tutorials.
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
 | Pseudobulk | `AggregateExpression(pbmc, group.by)` | `aggregate_expression(pbmc, group_by)` |
+| Pseudobulk DESeq2 | `FindMarkers(pbmc, test.use="DESeq2")` | `find_markers(pbmc, ident_1, test_use="deseq2", sample_col=...)` |
 | Rename idents | `RenameIdents(pbmc, new.ids)` | `pbmc.rename_idents(mapping_dict)` |
 | Subset cells | `subset(pbmc, subset = condition)` | `pbmc.subset(cells=keep_list)` |
 | Add assay | `pbmc[["ADT"]] <- CreateAssayObject(counts)` | `obj.assays["ADT"] = create_assay5_object(counts, key="adt_")` |
@@ -282,6 +283,18 @@ pb = aggregate_expression(obj, group_by=["cell_type", "donor"])
 cons = find_conserved_markers(obj, ident_1="B", grouping_var="condition",
                               only_pos=True)
 cons.head()   # per-condition stats + max_pval + combined_p_val, sorted by combined_p_val
+```
+
+Pseudobulk DESeq2 (`find_markers(test_use="deseq2")`) tests **between conditions**
+rather than between clusters: set `obj.idents` to the two conditions, aggregate to
+one profile per replicate (`sample_col`), and run DESeq2 on those samples. Needs
+`pip install shanuz[deseq2]`:
+
+```python
+obj.idents = obj.meta_data["condition"]              # e.g. "stim" vs "ctrl"
+de = find_markers(obj, ident_1="stim", ident_2="ctrl",
+                  test_use="deseq2", sample_col="donor")
+de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct.1 / pct.2 / p_val_adj
 ```
 
 ### Plotting
