@@ -255,6 +255,7 @@ same caveat as the other tutorials.
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
 | Pseudobulk | `AggregateExpression(pbmc, group.by)` | `aggregate_expression(pbmc, group_by)` |
 | Pseudobulk DESeq2 | `FindMarkers(pbmc, test.use="DESeq2")` | `find_markers(pbmc, ident_1, test_use="deseq2", sample_col=...)` |
+| MAST hurdle DE | `FindMarkers(pbmc, test.use="MAST")` | `find_markers(pbmc, ident_1, test_use="mast")` |
 | Rename idents | `RenameIdents(pbmc, new.ids)` | `pbmc.rename_idents(mapping_dict)` |
 | Subset cells | `subset(pbmc, subset = condition)` | `pbmc.subset(cells=keep_list)` |
 | Add assay | `pbmc[["ADT"]] <- CreateAssayObject(counts)` | `obj.assays["ADT"] = create_assay5_object(counts, key="adt_")` |
