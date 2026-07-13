@@ -252,6 +252,8 @@ same caveat as the other tutorials.
 | UMAP | `RunUMAP(pbmc, dims)` | `run_umap(pbmc, dims)` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
+| Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
+| Pseudobulk | `AggregateExpression(pbmc, group.by)` | `aggregate_expression(pbmc, group_by)` |
 | Rename idents | `RenameIdents(pbmc, new.ids)` | `pbmc.rename_idents(mapping_dict)` |
 | Subset cells | `subset(pbmc, subset = condition)` | `pbmc.subset(cells=keep_list)` |
 | Add assay | `pbmc[["ADT"]] <- CreateAssayObject(counts)` | `obj.assays["ADT"] = create_assay5_object(counts, key="adt_")` |
@@ -259,6 +261,28 @@ same caveat as the other tutorials.
 | Access metadata | `pbmc@meta.data` | `pbmc.meta_data` |
 | Access assay | `pbmc[["RNA"]]` | `pbmc.assays["RNA"]` |
 | Active idents | `Idents(pbmc)` | `pbmc.idents` |
+
+### Pseudobulk & conserved markers
+
+Two multi-sample DE helpers (mirroring Seurat's `AggregateExpression` and
+`FindConservedMarkers`):
+
+```python
+from shanuz import aggregate_expression, find_conserved_markers
+
+# Pseudobulk: sum raw counts per (cell type × donor) → features × groups DataFrame.
+# Pass return_object=True to get a Shanuz object with one "cell" per group instead
+# (the standard input for pyDESeq2-style sample-level testing).
+pb = aggregate_expression(obj, group_by=["cell_type", "donor"])
+
+# Conserved markers: genes up in cluster "B" in *every* condition. Runs FindMarkers
+# per level of grouping_var, keeps genes significant in all, and combines their
+# p-values with Fisher's method (the `combined_p_val` column; `max_pval` is the
+# worst single-condition p-value).
+cons = find_conserved_markers(obj, ident_1="B", grouping_var="condition",
+                              only_pos=True)
+cons.head()   # per-condition stats + max_pval + combined_p_val, sorted by combined_p_val
+```
 
 ### Plotting
 

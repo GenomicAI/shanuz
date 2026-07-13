@@ -28,7 +28,8 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
 - **UMAP** — `run_umap` (via umap-learn; embeds a reduction or a precomputed graph)
 - **PC significance** — `jack_straw`, `score_jackstraw` (JackStraw permutation test)
-- **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `LR`, `negbinom`, `roc`)
+- **Differential expression** — `find_markers`, `find_all_markers` (`wilcox` tie-corrected, `t`, `LR`, `negbinom`, `roc`), `find_conserved_markers` (cross-condition, Fisher-combined)
+- **Pseudobulk** — `aggregate_expression` (sum counts per group → matrix or one-cell-per-group object)
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `dot_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
 - **Spatial (Xenium / Visium / CosMx)** — `load_xenium`/`load_visium`/`load_cosmx`, `get_tissue_coordinates`, `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`, `composition_test`, `image_dim_plot`, `image_feature_plot`
@@ -199,10 +200,18 @@ run_umap(pbmc, dims=range(10))
 ### Differential expression
 
 ```python
-from shanuz.markers import find_markers, find_all_markers
+from shanuz import (
+    find_markers, find_all_markers, find_conserved_markers, aggregate_expression,
+)
 
 markers = find_markers(pbmc, ident_1=1)
 all_markers = find_all_markers(pbmc, only_pos=True, logfc_threshold=0.25)
+
+# Markers up in cluster 1 across every condition (Fisher-combined p per gene).
+conserved = find_conserved_markers(pbmc, ident_1=1, grouping_var="condition")
+
+# Pseudobulk counts summed per (cell type × donor) — input for sample-level DE.
+pseudobulk = aggregate_expression(pbmc, group_by=["cell_type", "donor"])
 ```
 
 ### Plotting
@@ -277,7 +286,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery` |
 | v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
 | v0.5.0 | Additional reductions — t-SNE, ICA ✅ *(delivered)*; remaining: SPCA, GLM-PCA |
-| v0.6.0 | Pseudobulk DE — `AggregateExpression`, DESeq2, MAST, `FindConservedMarkers` |
+| v0.6.0 | Pseudobulk DE — `AggregateExpression`, `FindConservedMarkers` ✅ *(delivered)*; remaining: DESeq2, MAST, bimod |
 | v0.7.0 | Spatial — Xenium/Visium/CosMx loaders, niche/neighbourhood analysis, `image_*` plots ✅ *(largely delivered — see Tutorial 5)*; remaining: MERSCOPE loader, `FindSpatiallyVariableFeatures` (Moran's I), Visium tissue-image plots |
 | v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |
 | v0.9.0 | Specialized — `HTODemux`, Mixscape (CRISPR screens) |
