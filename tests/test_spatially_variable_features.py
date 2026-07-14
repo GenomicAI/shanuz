@@ -137,8 +137,8 @@ def test_unknown_features_raise(spatial_obj):
 
 
 def test_unsupported_method_raises(spatial_obj):
-    with pytest.raises(NotImplementedError, match="markvariogram"):
-        find_spatially_variable_features(spatial_obj, method="markvariogram")
+    with pytest.raises(NotImplementedError, match="not implemented"):
+        find_spatially_variable_features(spatial_obj, method="sepal")
 
 
 def test_object_without_coordinates_raises():

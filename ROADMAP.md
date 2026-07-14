@@ -203,25 +203,26 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ## v0.7.0 — Spatial Transcriptomics
 
-> **Largely delivered** on branch `feature/spatial-seurat-parity`. The data
-> structures (`FOV`, `Centroids`, `Segmentation`, `Molecules`) plus these
-> loaders and analysis functions are done and validated end-to-end against R
-> Seurat in [Tutorial 5](tutorials/xenium_spatial_tutorial.md) (deterministic
-> anchors match to 8 significant figures):
+> **Delivered.** The data structures (`FOV`, `Centroids`, `Segmentation`,
+> `Molecules`) plus these loaders and analysis functions are done and validated
+> end-to-end against R Seurat in
+> [Tutorial 5](tutorials/xenium_spatial_tutorial.md) (deterministic anchors match
+> to 8 significant figures):
 >
 > - **Loaders:** `load_xenium`, `load_visium`, `load_cosmx` (each returns a
 >   `Shanuz` object with coordinates in an `FOV` slot); spatial-aware
 >   `from_anndata` (rebuilds `images` from `obsm['spatial']`)
 > - **Analysis:** `get_tissue_coordinates`, `spatial_knn`,
 >   `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`
->   (`BuildNicheAssay`), `composition_test`, `add_module_score(search=)`
+>   (`BuildNicheAssay`), `composition_test`, `add_module_score(search=)`,
+>   `find_spatially_variable_features` (`FindSpatiallyVariableFeatures`) with both
+>   the **moransi** and **markvariogram** methods
 > - **Plots:** `image_dim_plot` (`ImageDimPlot`), `image_feature_plot`
 >   (`ImageFeaturePlot`) — sub-cellular Xenium/CosMx centroids; `spatial_dim_plot`
 >   (`SpatialDimPlot`), `spatial_feature_plot` (`SpatialFeaturePlot`) — Visium
 >   spots over the H&E tissue image
 >
-> The only item still open in this milestone is the **markvariogram** method for
-> `find_spatially_variable_features` (see below).
+> This milestone is complete.
 
 ### `load_merscope` — ✅ delivered
 - Implemented in `shanuz/spatial/loaders.py` as `load_merscope(...)`, mirroring
@@ -235,24 +236,49 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 - **R:** `LoadVizgen(data.dir)` (Vizgen MERSCOPE)
 - **File format:** `cell_by_gene.csv`, `cell_metadata.csv`
 
-### `FindSpatiallyVariableFeatures` — ✅ delivered (Moran's I)
+### `FindSpatiallyVariableFeatures` — ✅ delivered (both methods)
 - Implemented as `find_spatially_variable_features(...)` in
-  `shanuz/spatial/variable_features.py`. Builds a row-standardised sparse KNN
-  weight matrix from `spatial_knn`, then computes
-  `I = (N/S0)·(zᵀWz)/(zᵀz)` vectorised across all genes in one sparse matmul.
-  Significance uses the closed-form `E[I] = −1/(N−1)` and normality-assumption
-  variance (computed once, since it depends only on W) → z-score → two-sided p,
-  plus BH adjustment. Writes `moransi` / `moransi_pval` / `moransi_padj` /
-  `moransi_rank` into the assay's feature metadata (as `find_variable_features`
-  does) and returns the ranked table. Pure NumPy/SciPy — no `libpysal` needed.
-  Validated against a brute-force double sum (`tests/test_spatially_variable_features.py`).
+  `shanuz/spatial/variable_features.py`, dispatching on `method=`. Pure
+  NumPy/SciPy — no `libpysal` and no `spatstat` equivalent needed.
+
+**`method="moransi"`** (default) builds a row-standardised sparse KNN weight
+matrix from `spatial_knn`, then computes `I = (N/S0)·(zᵀWz)/(zᵀz)` vectorised
+across all genes in one sparse matmul. Significance uses the closed-form
+`E[I] = −1/(N−1)` and normality-assumption variance (computed once, since it
+depends only on W) → z-score → two-sided p, plus BH adjustment. Writes
+`moransi` / `moransi_pval` / `moransi_padj` / `moransi_rank` into the assay's
+feature metadata (as `find_variable_features` does). Validated against a
+brute-force double sum.
+
+**`method="markvariogram"`** computes the normalised mark variogram
+`γ(r) = E[½·(m_i − m_j)² | d_ij ≈ r] / Var(m)` — the expression difference
+between cells about `r` apart, relative to the gene's own variance. `γ ≈ 1`
+means two cells `r` apart differ as much as two picked at random (no structure);
+`γ < 1` means they still resemble each other. Writes `markvariogram` /
+`markvariogram_rank`; rank 1 = lowest γ. No p-value — the variogram has no
+closed-form null, and R does not offer one either. Also validated against a
+brute-force loop over every cell pair (`tests/test_markvariogram.py`).
+
+- **Two deliberate departures from R,** both documented in the docstring:
+  - **`r_metric` is in nearest-neighbour spacings, not raw coordinate units.** R
+    passes `r.metric` straight through to `spatstat`, so the same script answers
+    differently on a slide in pixels and in microns, and the default of 5 is only
+    meaningful if you know your coordinate scale. Here `r_metric=5` means "five
+    cells apart" on any slide.
+  - **γ is a kernel-weighted (Nadaraya-Watson) ratio estimator**, not
+    `spatstat`'s translation-corrected one, so absolute γ values are close to but
+    not identical with R's. The gene *ranking* — what the function is for —
+    carries over.
+- **Performance:** the pairwise differences are never materialised (that array
+  would be genes × pairs). Because the kernel matrix K is symmetric with a zero
+  diagonal, `Σ_{i<j} K_ij·(m_i − m_j)² = Σ_i s_i·m_i² − mᵀKm` with `s = K·1`,
+  which is two sparse products regardless of how many pairs land in the band. A
+  `cKDTree` range query means only pairs near `r` are ever built.
 - **Caveat documented in the docstring:** when a few strongly spatial genes
   dominate library size, log-normalisation leaks their structure into flat genes
-  and inflates their I — a property of compositional normalisation, not of the
-  statistic.
-- **Still open:** the **markvariogram** method (Trendsceek) — `method=` currently
-  accepts only `"moransi"`.
-- **R:** `FindSpatiallyVariableFeatures(obj, method = "moransi")`
+  and inflates their score — a property of compositional normalisation, not of
+  either statistic.
+- **R:** `FindSpatiallyVariableFeatures(obj, method = "moransi" | "markvariogram")`
 
 ### Visium tissue image (`VisiumV2`) — ✅ delivered (data layer)
 - `shanuz/spatial/visium.py` adds `VisiumV2` (an `FOV` subclass mirroring Seurat
@@ -424,7 +450,7 @@ If milestones are too large, these are the highest-value individual items:
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
-5. ~~**`FindSpatiallyVariableFeatures` (Moran's I)** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, Moran's I, the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; only the markvariogram method remains
+5. ~~**`FindSpatiallyVariableFeatures`** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, both spatially-variable-feature methods (Moran's I and markvariogram), the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; **v0.7.0 is complete**
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**

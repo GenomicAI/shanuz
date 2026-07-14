@@ -330,6 +330,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | *(hand-rolled neighbourhood counts)* | `local_neighborhood(obj, group_by, reference, k)` |
 | `BuildNicheAssay(obj, fov, group.by, niches.k)` | `build_niche_assay(obj, group_by, k, niches)` |
 | `FindSpatiallyVariableFeatures(obj, method="moransi")` | `find_spatially_variable_features(obj, k=10)` — Moran's I |
+| `FindSpatiallyVariableFeatures(obj, method="markvariogram", r.metric=5)` | `find_spatially_variable_features(obj, method="markvariogram", r_metric=5)` — `r_metric` is in cell spacings, not pixels |
 | *(hand-rolled Fisher + `p.adjust`)* | `composition_test(obj, group_by, split_by)` |
 | `GetImage(obj[["slice1"]])` | `obj.images["spatial"].get_image()` — the Visium H&E image |
 | `ScaleFactors(obj[["slice1"]])` | `obj.images["spatial"].scale_factors` |
@@ -388,3 +389,42 @@ smaller PNG.
 Neither function needs an image to work. Plot an object loaded with `image=False`
 and you get a plain scatter of the same spots — useful for Xenium/CosMx, or for a
 Visium bundle whose PNG is missing.
+
+#### Finding spatially variable genes
+
+`find_spatially_variable_features` (`FindSpatiallyVariableFeatures`) ranks genes by
+how strongly their expression is organised in space. Both of R's methods are here:
+
+```python
+from shanuz import find_spatially_variable_features
+
+# Moran's I — is this gene autocorrelated at all? Comes with a p-value.
+svf = find_spatially_variable_features(obj, k=10)
+svf.head()          # moransi, moransi_pval, moransi_padj, moransi_rank
+
+# Mark variogram — how much of the gene's variance has decayed by distance r?
+mv = find_spatially_variable_features(obj, method="markvariogram", r_metric=5)
+mv.head()           # markvariogram, markvariogram_rank
+
+fig = spatial_feature_plot(obj, mv.index[0])   # the most spatially variable gene
+```
+
+Both return a table sorted so that **rank 1 is the most spatially variable**, and
+both also write their columns into the assay's feature metadata, the way
+`find_variable_features` does. On a large panel, pass `features=` to score only the
+variable genes — the mark variogram is the heavier of the two.
+
+The two statistics ask different questions. Moran's I gives one number for the
+whole slide and a p-value with it. The mark variogram is read *at a distance*:
+`markvariogram` is the average squared expression difference between cells about
+`r_metric` apart, divided by the gene's own variance. So **≈ 1 means no spatial
+structure** (two cells that far apart differ as much as any two cells picked at
+random) and **below 1 means they still resemble each other**. There is no p-value —
+the variogram has no closed-form null, and R does not offer one either.
+
+> **`r_metric` is not in R's units.** R passes `r.metric` straight through to
+> `spatstat` in raw coordinate units, so the same script answers differently on a
+> slide measured in pixels and one in microns. Here `r_metric` is measured in
+> nearest-neighbour spacings, so the default of 5 means *"five cells apart"* on any
+> slide. Widen `bandwidth=` (also in spacings) if the tissue is sparse and too few
+> cell pairs land near `r_metric` to average over.
