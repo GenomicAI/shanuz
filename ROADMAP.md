@@ -232,15 +232,24 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 - **R:** `LoadVizgen(data.dir)` (Vizgen MERSCOPE)
 - **File format:** `cell_by_gene.csv`, `cell_metadata.csv`
 
-### `FindSpatiallyVariableFeatures`
+### `FindSpatiallyVariableFeatures` — ✅ delivered (Moran's I)
+- Implemented as `find_spatially_variable_features(...)` in
+  `shanuz/spatial/variable_features.py`. Builds a row-standardised sparse KNN
+  weight matrix from `spatial_knn`, then computes
+  `I = (N/S0)·(zᵀWz)/(zᵀz)` vectorised across all genes in one sparse matmul.
+  Significance uses the closed-form `E[I] = −1/(N−1)` and normality-assumption
+  variance (computed once, since it depends only on W) → z-score → two-sided p,
+  plus BH adjustment. Writes `moransi` / `moransi_pval` / `moransi_padj` /
+  `moransi_rank` into the assay's feature metadata (as `find_variable_features`
+  does) and returns the ranked table. Pure NumPy/SciPy — no `libpysal` needed.
+  Validated against a brute-force double sum (`tests/test_spatially_variable_features.py`).
+- **Caveat documented in the docstring:** when a few strongly spatial genes
+  dominate library size, log-normalisation leaks their structure into flat genes
+  and inflates their I — a property of compositional normalisation, not of the
+  statistic.
+- **Still open:** the **markvariogram** method (Trendsceek) — `method=` currently
+  accepts only `"moransi"`.
 - **R:** `FindSpatiallyVariableFeatures(obj, method = "moransi")`
-- **Plan:**
-  1. **Moran's I** (primary): spatial autocorrelation statistic using the cell
-     adjacency/distance weight matrix (weights from `spatial_knn`); compute with
-     `esda.Moran` (`pysal` dep) or directly: `I = (N/W) * (z @ W @ z) / (z @ z)`
-  2. **Markvariogram** (alternative): from the `Trendsceek` method
-  3. Store results in `assay.var` (feature metadata), analogous to `FindVariableFeatures`
-- **Python dep:** `libpysal` or pure NumPy implementation
 
 ### Tissue-image spatial plots (Visium H&E)
 | Function | R equivalent | Notes |
@@ -375,7 +384,7 @@ If milestones are too large, these are the highest-value individual items:
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
-5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (all four loaders — incl. `load_merscope` — plus niche/neighbourhood analysis already delivered)
+5. ~~**`FindSpatiallyVariableFeatures` (Moran's I)**~~ ✅ + **`SpatialFeaturePlot`** (`v0.7.0`) — all four loaders, niche/neighbourhood analysis and Moran's I delivered; only the Visium tissue-image plots remain
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**

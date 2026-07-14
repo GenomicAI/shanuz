@@ -327,6 +327,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | `FNN::get.knn` (nearest same-type) | `nearest_neighbor_distance(obj, group_by, reference)` |
 | *(hand-rolled neighbourhood counts)* | `local_neighborhood(obj, group_by, reference, k)` |
 | `BuildNicheAssay(obj, fov, group.by, niches.k)` | `build_niche_assay(obj, group_by, k, niches)` |
+| `FindSpatiallyVariableFeatures(obj, method="moransi")` | `find_spatially_variable_features(obj, k=10)` — Moran's I |
 | *(hand-rolled Fisher + `p.adjust`)* | `composition_test(obj, group_by, split_by)` |
 
 > **Plot output:** R renders to the graphics device automatically. Shanuz functions return a
