@@ -1,6 +1,12 @@
 from .base import SpatialImage
 from .centroids import Centroids, create_centroids
 from .fov import FOV, create_fov, create_fovs
+from .visium import (
+    ScaleFactors,
+    VisiumV2,
+    read_scale_factors,
+    read_tissue_image,
+)
 from .molecules import Molecules, create_molecules
 from .segmentation import Segmentation, create_segmentation
 from .analysis import (
@@ -24,6 +30,10 @@ __all__ = [
     "FOV",
     "create_fov",
     "create_fovs",
+    "VisiumV2",
+    "ScaleFactors",
+    "read_scale_factors",
+    "read_tissue_image",
     # analysis
     "get_tissue_coordinates",
     "spatial_knn",
