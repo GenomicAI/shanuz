@@ -67,6 +67,8 @@ from .plotting import (
     dot_plot,
     image_dim_plot,
     image_feature_plot,
+    spatial_dim_plot,
+    spatial_feature_plot,
 )
 
 __version__ = "0.2.0"
@@ -157,5 +159,7 @@ __all__ = [
     "dot_plot",
     "image_dim_plot",
     "image_feature_plot",
+    "spatial_dim_plot",
+    "spatial_feature_plot",
     "__version__",
 ]

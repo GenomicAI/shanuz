@@ -216,9 +216,12 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 >   `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`
 >   (`BuildNicheAssay`), `composition_test`, `add_module_score(search=)`
 > - **Plots:** `image_dim_plot` (`ImageDimPlot`), `image_feature_plot`
->   (`ImageFeaturePlot`) — sub-cellular Xenium/CosMx centroids
+>   (`ImageFeaturePlot`) — sub-cellular Xenium/CosMx centroids; `spatial_dim_plot`
+>   (`SpatialDimPlot`), `spatial_feature_plot` (`SpatialFeaturePlot`) — Visium
+>   spots over the H&E tissue image
 >
-> Remaining open items:
+> The only item still open in this milestone is the **markvariogram** method for
+> `find_spatially_variable_features` (see below).
 
 ### `load_merscope` — ✅ delivered
 - Implemented in `shanuz/spatial/loaders.py` as `load_merscope(...)`, mirroring
@@ -270,16 +273,32 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   neither installed the loader warns and skips the image rather than failing.
 - **R:** `Load10X_Spatial(data.dir)`, `GetImage(obj[["slice1"]])`, `ScaleFactors()`
 
-### Tissue-image spatial plots (Visium H&E) — still open
+### Tissue-image spatial plots (Visium H&E) — ✅ delivered
 | Function | R equivalent | Notes |
 |---|---|---|
 | `spatial_dim_plot` | `SpatialDimPlot` | clusters/ident over the H&E tissue image |
 | `spatial_feature_plot` | `SpatialFeaturePlot` | gene expression over the tissue image |
 
-The sub-cellular centroid variants (`image_dim_plot` / `image_feature_plot`) are
-done, and `VisiumV2` now supplies the image + scale factors these need; what
-remains is the drawing itself (`matplotlib.imshow` background + scaled `scatter`,
-with a graceful fallback to a plain scatter when no image is stored).
+- Both in `shanuz/plotting.py`. Each panel `imshow`s the photo held by the
+  `VisiumV2` image, then overlays the spots on top of it
+  (`tests/test_spatial_plots.py`).
+- **Spots are drawn at their true diameter**, not as scatter points: they are an
+  `EllipseCollection` in `units="xy"`, so a spot's size is expressed in *data*
+  units and stays registered against the tissue when the axes are zoomed or the
+  resolution changes. A `scatter(s=…)` size is in points² and would drift.
+  `pt_size_factor=` (default 1.6, as in Seurat) scales relative to the real spot.
+- **The image anchors the coordinate space.** Coordinates come from
+  `VisiumV2.scale_coordinates()` (fullres → image pixels) and the diameter from
+  `.spot_radius()`; `imshow` then supplies the frame. `crop=` (default `True`)
+  zooms to the spots rather than the whole slide, `image_alpha=` fades the
+  tissue, and `resolution=` overrides which PNG is drawn.
+- **Two independent fallbacks, because the bundle has two independent holes.** No
+  PNG (a plain `FOV`, or `load_visium(image=False)`) → a bare scatter of the same
+  spots, y-axis still pointing down so it looks the same. No
+  `scalefactors_json.json` → the photo still draws, but with no
+  `spot_diameter_fullres` there is nothing to size the spots *to*, so they degrade
+  to fixed-size scatter points.
+- **R:** `SpatialDimPlot(obj)`, `SpatialFeaturePlot(obj, features = "Gad1")`
 
 ---
 
@@ -405,7 +424,7 @@ If milestones are too large, these are the highest-value individual items:
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
-5. ~~**`FindSpatiallyVariableFeatures` (Moran's I)**~~ ✅ + **`SpatialFeaturePlot`** (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, Moran's I and the `VisiumV2` tissue-image data layer delivered; only `spatial_dim_plot` / `spatial_feature_plot` remain
+5. ~~**`FindSpatiallyVariableFeatures` (Moran's I)** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, Moran's I, the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; only the markvariogram method remains
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
