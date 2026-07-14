@@ -321,6 +321,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | R (Seurat) | Python (Shanuz) |
 |-----------|-----------------|
 | `LoadXenium(dir)` / `Load10X_Spatial` / `LoadNanostring` | `load_xenium(dir)` / `load_visium(dir)` / `load_cosmx(dir)` |
+| `LoadVizgen(dir)` (MERSCOPE) | `load_merscope(dir)` — drops `Blank-*` controls by default |
 | `GetTissueCoordinates(obj)` | `get_tissue_coordinates(obj)` |
 | `FNN::get.knn(coords, k)` / `get.knnx` | `spatial_knn(coords, k, query)` |
 | `FNN::get.knn` (nearest same-type) | `nearest_neighbor_distance(obj, group_by, reference)` |

@@ -59,6 +59,19 @@ def _first_existing(base: Path, names: list[str]) -> Optional[Path]:
     return None
 
 
+def _cell_id_column(df: pd.DataFrame) -> str:
+    """Name of the cell-identifier column.
+
+    MERSCOPE tables key on an unnamed leading index column in some exports and on
+    an explicit ``cell``/``EntityID`` column in others; fall back to the first
+    column, which is the cell id in every Vizgen layout.
+    """
+    for c in ("cell", "cell_id", "cell_ID", "EntityID"):
+        if c in df.columns:
+            return c
+    return str(df.columns[0])
+
+
 def _build_spatial_object(
     counts: sp.spmatrix,
     feature_names: list[str],
@@ -245,4 +258,64 @@ def load_cosmx(
     return _build_spatial_object(counts, gene_cols, list(cell_ids), coords,
                                  assay, project,
                                  fov=fov_column if fov_column in coords else None,
+                                 meta_data=mdf.set_index("cell"))
+
+
+# ---------------------------------------------------------------------------
+# MERSCOPE / Vizgen
+# ---------------------------------------------------------------------------
+
+def load_merscope(
+    path: Union[str, Path],
+    expr_file: Optional[str] = None,
+    meta_file: Optional[str] = None,
+    assay: str = "Vizgen",
+    fov_column: str = "fov",
+    project: str = "MERSCOPE",
+    keep_controls: bool = False,
+):
+    """Load a Vizgen MERSCOPE output into a Shanuz object with images.
+
+    Mirrors Seurat's ``LoadVizgen``. Expects, in ``path``:
+      * ``cell_by_gene.csv`` — cell × gene counts (leading column = cell id)
+      * ``cell_metadata.csv`` — with ``center_x`` / ``center_y`` (and usually
+        ``fov``, ``volume``)
+
+    Blank/control barcodes (``Blank-*`` columns) are dropped by default, matching
+    ``LoadVizgen``; set ``keep_controls=True`` to retain them.
+
+    ``fov_column``, if present in the metadata, splits the object into one image
+    per FOV; otherwise a single image is created.
+    """
+    path = Path(path)
+    expr = Path(expr_file) if expr_file else _first_existing(
+        path, ["cell_by_gene.csv", "cell_by_gene.csv.gz"])
+    meta = Path(meta_file) if meta_file else _first_existing(
+        path, ["cell_metadata.csv", "cell_metadata.csv.gz"])
+    if expr is None or meta is None:
+        raise FileNotFoundError(
+            f"Could not locate cell_by_gene.csv / cell_metadata.csv in {path}."
+        )
+
+    edf = pd.read_csv(expr)
+    mdf = pd.read_csv(meta)
+
+    ecid = _cell_id_column(edf)
+    gene_cols = [c for c in edf.columns if c != ecid]
+    if not keep_controls:
+        gene_cols = [g for g in gene_cols if not str(g).lower().startswith("blank")]
+    if not gene_cols:
+        raise ValueError(f"No gene columns found in {expr}.")
+    cell_ids = edf[ecid].astype(str).to_numpy()
+    counts = sp.csc_matrix(edf[gene_cols].to_numpy(dtype=float).T)   # genes × cells
+
+    mdf = mdf.copy()
+    mdf["cell"] = mdf[_cell_id_column(mdf)].astype(str)
+    mcoord = mdf.rename(columns={"center_x": "x", "center_y": "y"})
+    if not {"x", "y"} <= set(mcoord.columns):
+        raise ValueError("cell_metadata must contain center_x / center_y columns.")
+    fov = fov_column if fov_column in mcoord.columns else None
+    coords = mcoord[["cell", "x", "y"] + ([fov] if fov else [])]
+    return _build_spatial_object(counts, gene_cols, list(cell_ids), coords,
+                                 assay, project, fov=fov,
                                  meta_data=mdf.set_index("cell"))

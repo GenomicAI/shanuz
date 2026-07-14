@@ -10,7 +10,7 @@ from .analysis import (
     nearest_neighbor_distance,
     spatial_knn,
 )
-from .loaders import load_cosmx, load_visium, load_xenium
+from .loaders import load_cosmx, load_merscope, load_visium, load_xenium
 
 __all__ = [
     "SpatialImage",
@@ -33,4 +33,5 @@ __all__ = [
     "load_xenium",
     "load_visium",
     "load_cosmx",
+    "load_merscope",
 ]

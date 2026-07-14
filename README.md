@@ -32,7 +32,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Pseudobulk** — `aggregate_expression` (sum counts per group → matrix or one-cell-per-group object), pseudobulk DESeq2 via `find_markers(test_use="deseq2", sample_col=...)`
 - **Plotting** — `dim_plot`, `feature_plot`, `vln_plot`, `dot_plot`, `elbow_plot`, `do_heatmap`, `dim_heatmap`, `feature_scatter`, `variable_feature_plot`, `ridge_plot` (matplotlib/seaborn)
 - **AnnData interoperability** — `as_anndata`, `from_anndata`
-- **Spatial (Xenium / Visium / CosMx)** — `load_xenium`/`load_visium`/`load_cosmx`, `get_tissue_coordinates`, `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`, `composition_test`, `image_dim_plot`, `image_feature_plot`
+- **Spatial (Xenium / Visium / CosMx / MERSCOPE)** — `load_xenium`/`load_visium`/`load_cosmx`/`load_merscope`, `get_tissue_coordinates`, `nearest_neighbor_distance`, `local_neighborhood`, `build_niche_assay`, `composition_test`, `image_dim_plot`, `image_feature_plot`
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 - **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
 - **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization and WNN joint clustering
@@ -292,7 +292,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
 | v0.5.0 | Additional reductions — t-SNE, ICA ✅ *(delivered)*; remaining: SPCA, GLM-PCA |
 | v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |
-| v0.7.0 | Spatial — Xenium/Visium/CosMx loaders, niche/neighbourhood analysis, `image_*` plots ✅ *(largely delivered — see Tutorial 5)*; remaining: MERSCOPE loader, `FindSpatiallyVariableFeatures` (Moran's I), Visium tissue-image plots |
+| v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `image_*` plots ✅ *(largely delivered — see Tutorial 5)*; remaining: `FindSpatiallyVariableFeatures` (Moran's I), Visium tissue-image plots |
 | v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |
 | v0.9.0 | Specialized — `HTODemux`, Mixscape (CRISPR screens) |
 | v0.10.0 | Infrastructure — PyPI, GitHub Actions CI, type annotations, MkDocs site |

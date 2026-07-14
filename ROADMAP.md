@@ -220,11 +220,17 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 >
 > Remaining open items:
 
-### `load_merscope`
+### `load_merscope` — ✅ delivered
+- Implemented in `shanuz/spatial/loaders.py` as `load_merscope(...)`, mirroring
+  `load_cosmx`: reads `cell_by_gene.csv` + `cell_metadata.csv` (`center_x` /
+  `center_y`) into a `Shanuz` object with populated `images` (one per `fov`).
+  Drops `Blank-*` control barcodes by default (as `LoadVizgen` does; override
+  with `keep_controls=True`) and tolerates both the named and unnamed cell-id
+  column layouts Vizgen emits. Verified to flow through the whole spatial stack
+  (`spatial_knn` → `nearest_neighbor_distance` → `build_niche_assay`)
+  (`tests/test_merscope_loader.py`).
 - **R:** `LoadVizgen(data.dir)` (Vizgen MERSCOPE)
 - **File format:** `cell_by_gene.csv`, `cell_metadata.csv`
-- **Plan:** mirror `load_cosmx` — read the cell×gene matrix + metadata
-  (`center_x` / `center_y`) into a `Shanuz` object with populated `images`.
 
 ### `FindSpatiallyVariableFeatures`
 - **R:** `FindSpatiallyVariableFeatures(obj, method = "moransi")`
@@ -369,7 +375,7 @@ If milestones are too large, these are the highest-value individual items:
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
-5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (loaders + niche/neighbourhood analysis already delivered)
+5. **`FindSpatiallyVariableFeatures` (Moran's I) + `SpatialFeaturePlot`** (`v0.7.0`) — the remaining spatial gaps (all four loaders — incl. `load_merscope` — plus niche/neighbourhood analysis already delivered)
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
