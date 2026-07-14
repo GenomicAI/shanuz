@@ -21,7 +21,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Preprocessing** — `normalize_data`, `find_variable_features` (VST), `scale_data`, `percentage_feature_set`
 - **SCTransform** — `sctransform` (regularized negative-binomial Pearson residuals)
 - **Signature scoring** — `add_module_score`, `cell_cycle_scoring` (S/G2M + Phase)
-- **Dimensionality reduction** — `run_pca`, `run_ica`, `run_tsne` (via scikit-learn)
+- **Dimensionality reduction** — `run_pca`, `run_spca` (supervised, off a cell graph), `run_ica`, `run_tsne`, `glm_pca` (Poisson, straight on counts)
 - **Batch correction / integration** — `run_harmony`, `integrate_layers` (via harmonypy)
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
 - **Multimodal WNN** — `find_multi_modal_neighbors` (per-cell RNA/protein weights, joint `wknn`/`wsnn` graphs)
@@ -291,7 +291,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.2.0 | Batch correction — Harmony + `IntegrateLayers` ✅ *(delivered)*; remaining: CCA/RPCA anchors |
 | v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery` |
 | v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
-| v0.5.0 | Additional reductions — t-SNE, ICA ✅ *(delivered)*; remaining: SPCA, GLM-PCA |
+| v0.5.0 | Additional reductions — t-SNE, ICA, `run_spca`, `glm_pca` (Poisson) ✅ *(complete)* |
 | v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |
 | v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(delivered — see Tutorial 5)* |
 | v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |

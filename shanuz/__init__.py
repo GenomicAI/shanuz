@@ -16,7 +16,8 @@ from .preprocessing import (
     scale_data,
     percentage_feature_set,
 )
-from .reduction import run_pca, run_ica, run_tsne
+from .reduction import run_pca, run_ica, run_spca, run_tsne
+from .glmpca import glm_pca
 from .neighbors import find_neighbors
 from .multimodal import find_multi_modal_neighbors
 from .clustering import find_clusters
@@ -125,7 +126,9 @@ __all__ = [
     "percentage_feature_set",
     "run_pca",
     "run_ica",
+    "run_spca",
     "run_tsne",
+    "glm_pca",
     "find_neighbors",
     "find_multi_modal_neighbors",
     "find_clusters",

@@ -116,9 +116,11 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ---
 
-## v0.5.0 — Additional Dimensionality Reductions
+## v0.5.0 — Additional Dimensionality Reductions — ✅ complete
 
-> Small self-contained additions; each is a single function wrapping a scipy/sklearn call.
+> t-SNE and ICA are single functions wrapping a scikit-learn call. sPCA and
+> GLM-PCA are not — both are implemented directly against NumPy/SciPy, and
+> neither added a dependency.
 
 ### `run_tsne` — ✅ delivered
 - Implemented in `shanuz/reduction.py` (`run_tsne`), mirrors `run_umap`; stores
@@ -133,16 +135,62 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 - **R:** `RunICA(obj, nics = 30)`
 - **Python dep:** `sklearn.decomposition.FastICA`
 
-### `run_spca` (supervised PCA)
+### `run_spca` (supervised PCA) — ✅ delivered
+- Implemented in `shanuz/reduction.py` as `run_spca(obj, graph="wsnn")`
+  (`tests/test_spca_glmpca.py`).
+- **The plan previously written here described the wrong algorithm** — a gene-graph
+  Laplacian smoothing a gene × gene matrix. Seurat's `RunSPCA` takes a **cell × cell**
+  graph (the documented call is `RunSPCA(reference, assay = "SCT", graph = "wsnn")`)
+  and eigendecomposes `XᵀGX`, which is features × features. Corrected here.
+- **What it does:** ordinary PCA maximises `vᵀXᵀXv` and knows nothing about which
+  cells you consider neighbours. sPCA swaps the identity for a graph you already
+  trust and maximises `vᵀXᵀGXv` — the gene axes that best reproduce that graph.
+  Pass `G = I` and PCA falls back out exactly, which is how the implementation is
+  tested (loadings match `run_pca` to a cosine > 0.999).
+- **Why it matters:** the output is a *linear map from genes to components*, so a
+  query dataset can be pushed into a reference's graph-defined space with one
+  matrix multiply. That is why Azimuth maps onto sPCA rather than PCA, and it is
+  the reduction v0.3.0's reference mapping will want.
+- **One departure from R:** Seurat runs `irlba` (an SVD) on `XᵀGX`, ranking
+  components by `|λ|`; we take the largest eigenvalues themselves, since `vᵀXᵀGXv`
+  is the quantity being maximised and a graph can push eigenvalues negative. With
+  non-negative edge weights the leading eigenvalues are positive, so the two
+  orderings differ only in the tail.
 - **R:** `RunSPCA(obj, assay, graph)`
-- **Plan:** weighted PCA where gene loadings are regularised toward graph-defined
-  gene modules; uses `scipy.linalg.svd` on `W @ X` where `W` is the gene-graph
-  Laplacian smoothing matrix
 
-### `glm_pca` (GLM-PCA)
-- **R:** `RunGLMPCA` (via SeuratWrappers + glmpca)
-- **Python dep:** `glmpca-py` (pip) or implement Poisson log-bilinear model directly
-- **Plan:** wrap `glmpca.glmpca(Y, L=k)` → `DimReduc("glmpca", ...)`
+### `glm_pca` (GLM-PCA) — ✅ delivered (Poisson)
+- Implemented in `shanuz/glmpca.py` as `glm_pca(obj, n_components=10)`, following
+  Townes et al. (2019). Pure NumPy/SciPy — **no `glmpca-py` dependency**, in
+  keeping with how MAST and bimod were done (`tests/test_spca_glmpca.py`).
+- **What it does:** log-normalise-then-PCA assumes the transformed counts are
+  Gaussian with constant variance. They are not, and the pseudocount needed to
+  survive `log(0)` distorts exactly the low-expression genes where the zeros live.
+  GLM-PCA drops the transform and fits a low-rank model on the count scale:
+  `Y[g,c] ~ Poisson(μ)`, `log μ = a[g] + o[c] + Σ_l U[g,l]·V[c,l]`, with the log
+  library size as a *fixed* offset `o` so sequencing depth is a known quantity
+  rather than a factor to be rediscovered. Factors land in `cell_embeddings`,
+  loadings in `feature_loadings`, so `find_neighbors(reduction="glmpca")` and
+  `run_umap` work downstream unchanged.
+- **Fitting:** Fisher scoring, alternating over intercept → loadings → factors.
+  Each block gets a diagonal Newton step (score ÷ Fisher information); under a log
+  link and Poisson noise both are one matrix product. Any step that fails to lower
+  the deviance is rejected and retried at half the step size, so the deviance falls
+  monotonically by construction; the trace is kept in `misc["deviance"]`.
+- **Initialisation is load-bearing, not a detail.** `U = V = 0` is an *exact saddle*
+  of the log-likelihood — each block's score is a product with the other, so both
+  vanish there. Starting near zero (the obvious choice, and `glmpca`'s own default)
+  leaves the fit inching away from the saddle, and any relative-improvement stopping
+  rule then declares convergence on a model that has fitted nothing. It fails
+  *convincingly*: one step is enough to orient the factors, so clusters separate
+  cleanly in a plot while the deviance sits at its null value. So the factors are
+  seeded from the SVD of the intercept-only model's residuals instead, as Townes
+  recommends. `test_glmpca_actually_fits_rather_than_stalling` guards it.
+- **Still open:** `family="nb"` (negative binomial) raises `NotImplementedError`.
+  Poisson understates the overdispersion in most scRNA-seq; NB needs a dispersion
+  parameter estimated alongside the factors.
+- **Scale:** the fit is dense in genes × cells. Pass a few thousand variable
+  features, as you would to `run_pca`.
+- **R:** `RunGLMPCA(obj, L = 10)` (via SeuratWrappers + glmpca)
 
 ---
 
@@ -430,7 +478,7 @@ Each milestone's new `pip` deps:
 | v0.2.0 | `harmonypy` |
 | v0.3.0 | *(none — uses sklearn already present)* |
 | v0.4.0 | *(none)* |
-| v0.5.0 | `glmpca-py` (optional) |
+| v0.5.0 | *(none — sPCA and GLM-PCA are pure NumPy/SciPy; `glmpca-py` proved unnecessary)* |
 | v0.6.0 | `pydeseq2` (optional) |
 | v0.7.0 | *(none — Moran's I is pure NumPy/SciPy; the Visium PNG uses matplotlib, already in `[analysis]`)* |
 | v0.8.0 | `zarr` (optional) |
@@ -449,9 +497,11 @@ If milestones are too large, these are the highest-value individual items:
 1. ~~**Harmony** (`v0.2.0`)~~ — ✅ delivered (`run_harmony` / `integrate_layers`)
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
-4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
+4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first). `run_spca` is now in place, which is the reduction Azimuth maps onto.
 5. ~~**`FindSpatiallyVariableFeatures`** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, both spatially-variable-feature methods (Moran's I and markvariogram), the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; **v0.7.0 is complete**
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets
+8. ~~**`run_spca` + `glm_pca`**~~ ✅ (`v0.5.0`) — **v0.5.0 is complete**; the only
+   gap left in it is GLM-PCA's negative-binomial family
