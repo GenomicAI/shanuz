@@ -369,6 +369,11 @@ def _register_all() -> None:
     @radius.register(SpatialImage)
     def _rad_si(x): return x.radius()
 
+    # --- get_image ---
+    # None for every image type except VisiumV2, which carries the H&E photo.
+    @get_image.register(SpatialImage)
+    def _img_si(x): return x.get_image()
+
     # --- theta ---
     @theta.register(Centroids)
     def _thet_c(x): return x.theta()

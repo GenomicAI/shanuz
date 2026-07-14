@@ -251,14 +251,35 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   accepts only `"moransi"`.
 - **R:** `FindSpatiallyVariableFeatures(obj, method = "moransi")`
 
-### Tissue-image spatial plots (Visium H&E)
+### Visium tissue image (`VisiumV2`) — ✅ delivered (data layer)
+- `shanuz/spatial/visium.py` adds `VisiumV2` (an `FOV` subclass mirroring Seurat
+  v5's) carrying the H&E image, the `ScaleFactors` from `scalefactors_json.json`,
+  and which resolution is stored. `load_visium(..., image=True)` (the default) now
+  reads `spatial/tissue_{hires,lowres}_image.png` + `spatial/scalefactors_json.json`
+  and returns `VisiumV2` images; bundles with neither still load as a plain `FOV`,
+  so this is backwards compatible. Also adds `filter_by_tissue=` (drops
+  `in_tissue == 0` spots from the matrix as well as the coordinates), and registers
+  the previously unimplemented `get_image` generic on `SpatialImage`
+  (`tests/test_visium_image.py`).
+- **Coordinate convention:** spot coordinates stay in **full-resolution pixels**
+  (the space `tissue_positions.csv` uses), so `spatial_knn` /
+  `nearest_neighbor_distance` / Moran's I keep seeing real, image-independent
+  distances. `VisiumV2.scale_coordinates()` and `.spot_radius()` convert to the
+  stored image's pixel space on demand — one multiply, at draw time.
+- **Deps:** none added. The PNG is read with matplotlib (or Pillow) lazily; with
+  neither installed the loader warns and skips the image rather than failing.
+- **R:** `Load10X_Spatial(data.dir)`, `GetImage(obj[["slice1"]])`, `ScaleFactors()`
+
+### Tissue-image spatial plots (Visium H&E) — still open
 | Function | R equivalent | Notes |
 |---|---|---|
 | `spatial_dim_plot` | `SpatialDimPlot` | clusters/ident over the H&E tissue image |
 | `spatial_feature_plot` | `SpatialFeaturePlot` | gene expression over the tissue image |
 
 The sub-cellular centroid variants (`image_dim_plot` / `image_feature_plot`) are
-done; these add the Visium tissue-PNG background (`matplotlib.imshow` + `scatter`).
+done, and `VisiumV2` now supplies the image + scale factors these need; what
+remains is the drawing itself (`matplotlib.imshow` background + scaled `scatter`,
+with a graceful fallback to a plain scatter when no image is stored).
 
 ---
 
@@ -366,7 +387,7 @@ Each milestone's new `pip` deps:
 | v0.4.0 | *(none)* |
 | v0.5.0 | `glmpca-py` (optional) |
 | v0.6.0 | `pydeseq2` (optional) |
-| v0.7.0 | `libpysal` (optional, for Moran's I) |
+| v0.7.0 | *(none — Moran's I is pure NumPy/SciPy; the Visium PNG uses matplotlib, already in `[analysis]`)* |
 | v0.8.0 | `zarr` (optional) |
 | v0.9.0 | *(none — sklearn already present)* |
 | v0.10.0 | `build`, `twine`, `mkdocs`, `mkdocstrings`, `ruff`, `mypy` (all dev-only) |
@@ -384,7 +405,7 @@ If milestones are too large, these are the highest-value individual items:
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first)
-5. ~~**`FindSpatiallyVariableFeatures` (Moran's I)**~~ ✅ + **`SpatialFeaturePlot`** (`v0.7.0`) — all four loaders, niche/neighbourhood analysis and Moran's I delivered; only the Visium tissue-image plots remain
+5. ~~**`FindSpatiallyVariableFeatures` (Moran's I)**~~ ✅ + **`SpatialFeaturePlot`** (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, Moran's I and the `VisiumV2` tissue-image data layer delivered; only `spatial_dim_plot` / `spatial_feature_plot` remain
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**

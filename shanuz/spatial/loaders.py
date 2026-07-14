@@ -182,6 +182,9 @@ def load_visium(
     path: Union[str, Path],
     assay: str = "Spatial",
     project: str = "Visium",
+    image: bool = True,
+    image_resolution: str = "hires",
+    filter_by_tissue: bool = False,
 ):
     """Load a 10x Visium output into a Shanuz object with spot coordinates.
 
@@ -189,7 +192,27 @@ def load_visium(
       * ``filtered_feature_bc_matrix/`` — 10x MTX triplet
       * ``spatial/tissue_positions.csv`` (or ``tissue_positions_list.csv``) with
         barcode, in_tissue, array row/col and pixel row/col columns
+
+    Optionally (``image=True``, the default) also reads
+    ``spatial/tissue_{hires,lowres}_image.png`` and ``spatial/scalefactors_json.json``,
+    producing a :class:`~shanuz.spatial.visium.VisiumV2` image that carries the H&E
+    tissue photo — what ``spatial_dim_plot`` / ``spatial_feature_plot`` draw on. A
+    bundle with no PNG still loads; you just get a plain FOV, as before.
+
+    Parameters
+    ----------
+    image            : read the tissue image + scale factors (default True).
+    image_resolution : 'hires' (default) or 'lowres'; falls back to whichever is present.
+    filter_by_tissue : keep only spots with ``in_tissue == 1``.
+
+    Notes
+    -----
+    Spot coordinates stay in **full-resolution pixels**, matching
+    ``tissue_positions.csv``. The scale factors convert them to image pixels —
+    see :meth:`VisiumV2.scale_coordinates`.
     """
+    from .visium import VisiumV2, read_scale_factors, read_tissue_image
+
     path = Path(path)
     mtx_dir = _first_existing(path, ["filtered_feature_bc_matrix", "raw_feature_bc_matrix"])
     if mtx_dir is None:
@@ -208,9 +231,32 @@ def load_visium(
     pos = pos.rename(columns={"barcode": "cell", "pxl_col_in_fullres": "x",
                               "pxl_row_in_fullres": "y"})
     pos["cell"] = pos["cell"].astype(str)
+    cells = [str(c) for c in cells]
+
+    if filter_by_tissue and "in_tissue" in pos.columns:
+        pos = pos[pos["in_tissue"].astype(int) == 1]
+        keep = set(pos["cell"])
+        idx = [i for i, c in enumerate(cells) if c in keep]
+        counts = counts[:, idx]              # drop off-tissue spots from the matrix too
+        cells = [cells[i] for i in idx]
+
     coords = pos[["cell", "x", "y"]]
-    return _build_spatial_object(counts, feats, [str(c) for c in cells], coords,
-                                 assay, project)
+    obj = _build_spatial_object(counts, feats, cells, coords, assay, project)
+
+    if not image:
+        return obj
+
+    sf_file = path / "spatial" / "scalefactors_json.json"
+    sf = read_scale_factors(sf_file) if sf_file.exists() else None
+    read = read_tissue_image(path / "spatial", resolution=image_resolution)
+    if read is None and sf is None:
+        return obj                      # nothing image-ish on disk; plain FOV is right
+    img, res = read if read is not None else (None, image_resolution)
+    obj.images = {
+        name: VisiumV2.from_fov(fov, image=img, scale_factors=sf, image_resolution=res)
+        for name, fov in obj.images.items()
+    }
+    return obj
 
 
 # ---------------------------------------------------------------------------

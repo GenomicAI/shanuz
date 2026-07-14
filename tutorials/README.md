@@ -329,6 +329,34 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | `BuildNicheAssay(obj, fov, group.by, niches.k)` | `build_niche_assay(obj, group_by, k, niches)` |
 | `FindSpatiallyVariableFeatures(obj, method="moransi")` | `find_spatially_variable_features(obj, k=10)` — Moran's I |
 | *(hand-rolled Fisher + `p.adjust`)* | `composition_test(obj, group_by, split_by)` |
+| `GetImage(obj[["slice1"]])` | `obj.images["spatial"].get_image()` — the Visium H&E image |
+| `ScaleFactors(obj[["slice1"]])` | `obj.images["spatial"].scale_factors` |
 
 > **Plot output:** R renders to the graphics device automatically. Shanuz functions return a
 > `matplotlib.Figure` — call `fig.savefig("out.png")` to save or display inline in Jupyter.
+
+#### Visium tissue images
+
+`load_visium` reads the H&E tissue image and `scalefactors_json.json` by default,
+giving each image slot a `VisiumV2` (Seurat v5's class) instead of a bare `FOV`:
+
+```python
+from shanuz import load_visium
+
+obj = load_visium("visium_out/")            # image=True by default
+fov = obj.images["spatial"]
+
+fov.get_image().shape                       # (H, W, 3) — tissue_hires_image.png
+fov.scale_factors.spot                      # spot diameter, full-resolution pixels
+fov.radius()                                # spot radius, full-resolution pixels
+
+# Spot coordinates stay in FULL-RESOLUTION pixels, so spatial_knn /
+# nearest_neighbor_distance / Moran's I keep measuring real distances.
+# Convert to the stored image's pixel space only when you draw:
+xy = fov.scale_coordinates()                # x, y scaled onto the PNG
+r  = fov.spot_radius()                      # matching spot radius, in image pixels
+```
+
+Pass `image_resolution="lowres"` for the smaller PNG, `image=False` to skip it
+entirely, or `filter_by_tissue=True` to keep only spots with `in_tissue == 1`. A
+bundle with no PNG still loads — you get a plain `FOV`, exactly as before.
