@@ -1136,6 +1136,240 @@ def image_feature_plot(
 
 
 # ---------------------------------------------------------------------------
+# Visium tissue-image plots — SpatialDimPlot / SpatialFeaturePlot
+# ---------------------------------------------------------------------------
+
+def _resolve_fovs(obj, image: Optional[Union[str, list]] = None) -> dict:
+    """The requested image slots, in order, as a ``{name: fov}`` dict."""
+    images = getattr(obj, "images", None) or {}
+    if not images:
+        raise ValueError("Object has no spatial images to plot.")
+    if image is None:
+        names = list(images)
+    elif isinstance(image, str):
+        names = [image]
+    else:
+        names = list(image)
+    missing = [n for n in names if n not in images]
+    if missing:
+        raise KeyError(
+            f"No such image(s): {missing}. Available: {list(images)}."
+        )
+    return {n: images[n] for n in names}
+
+
+def _spatial_panel(fov, resolution: Optional[str]):
+    """Draw-space coordinates, spot radius and background image for one FOV.
+
+    A ``VisiumV2`` carrying a tissue photo reports its coordinates in
+    full-resolution pixels, so they are scaled into the image's own pixel space
+    here. Any other FOV has no image; its coordinates are used as they stand.
+    """
+    img = fov.get_image()
+    if img is None:
+        return fov.get_tissue_coordinates(), fov.radius(), None
+    return fov.scale_coordinates(resolution=resolution), fov.spot_radius(resolution), img
+
+
+def _spot_collection(ax, coords, radius: Optional[float], pt_size_factor: float):
+    """Spots as true-to-scale circles, or None when the spot size is unknown."""
+    if radius is None or not np.isfinite(radius) or radius <= 0:
+        return None
+    from matplotlib.collections import EllipseCollection
+
+    d = 2.0 * float(radius) * pt_size_factor
+    offsets = np.column_stack([
+        coords["x"].to_numpy(dtype=float),
+        coords["y"].to_numpy(dtype=float),
+    ])
+    return EllipseCollection(
+        widths=d, heights=d, angles=0.0, units="xy",
+        offsets=offsets, offset_transform=ax.transData, linewidths=0.0,
+    )
+
+
+def _spatial_limits(ax, coords, radius: Optional[float], img, crop: bool) -> None:
+    """Frame the panel, always with y increasing downward (image convention)."""
+    if img is not None and not crop:
+        h, w = img.shape[:2]
+        ax.set_xlim(-0.5, w - 0.5)
+        ax.set_ylim(h - 0.5, -0.5)
+        return
+    x = coords["x"].to_numpy(dtype=float)
+    y = coords["y"].to_numpy(dtype=float)
+    pad = (radius or 0.0) + 0.02 * max(float(np.ptp(x)), float(np.ptp(y)), 1.0)
+    ax.set_xlim(x.min() - pad, x.max() + pad)
+    ax.set_ylim(y.max() + pad, y.min() - pad)
+
+
+def spatial_dim_plot(
+    obj,
+    group_by: Optional[str] = None,
+    image: Optional[Union[str, list]] = None,
+    cols: Optional[dict] = None,
+    pt_size_factor: float = 1.6,
+    size: float = 12.0,
+    alpha: float = 1.0,
+    image_alpha: float = 1.0,
+    resolution: Optional[str] = None,
+    crop: bool = True,
+    ncol: Optional[int] = None,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Plot spots on the tissue image, coloured by a grouping variable.
+
+    Matplotlib equivalent of Seurat's ``SpatialDimPlot``. Each panel draws the
+    H&E photo held by a :class:`~shanuz.spatial.visium.VisiumV2` image and
+    overlays the spots at their true diameter. An image slot with no photo (a
+    plain ``FOV``, or a Visium bundle loaded with ``image=False``) degrades to a
+    bare scatter of the same spots — the plot still works, it just has no
+    tissue underneath.
+
+    Parameters
+    ----------
+    group_by : metadata column (default: active idents) for spot colour.
+    image    : image name(s) to draw (default: all).
+    cols     : optional ``{group: colour}`` mapping.
+    pt_size_factor : scales the spots relative to their real diameter, as in
+        Seurat. Ignored when the image has no ``scalefactors_json.json``, in
+        which case ``size`` (a plain scatter point size) applies instead.
+    image_alpha : opacity of the tissue photo — drop it to make spots pop.
+    resolution : ``"hires"`` / ``"lowres"``; defaults to whatever was loaded.
+    crop     : zoom to the spots rather than showing the whole slide.
+    """
+    plt = _mpl()
+    fovs = _resolve_fovs(obj, image)
+
+    labels = _get_groups(obj, group_by)
+    lab_by_cell = dict(zip(obj.cell_names(), [str(v) for v in labels]))
+
+    panels = {}
+    for name, fov in fovs.items():
+        coords, radius, img = _spatial_panel(fov, resolution)
+        coords = coords.assign(group=[lab_by_cell.get(c) for c in coords.index])
+        coords = coords[coords["group"].notna()]
+        if not coords.empty:
+            panels[name] = (coords, radius, img)
+    if not panels:
+        raise ValueError("No spots left to plot: the images share no cells with the object.")
+
+    uniq = sorted({g for coords, _, _ in panels.values() for g in coords["group"]})
+    if cols is None:
+        cols = dict(zip(uniq, _palette(len(uniq))))
+
+    nrow, ncol = _subplot_grid(len(panels), ncol)
+    if figsize is None:
+        figsize = (5 * ncol, 4.5 * nrow)
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, squeeze=False)
+    axes_flat = axes.ravel()
+
+    for ax, (name, (coords, radius, img)) in zip(axes_flat, panels.items()):
+        if img is not None:
+            ax.imshow(img, alpha=image_alpha)
+        face = [cols.get(g, "grey") for g in coords["group"]]
+        coll = _spot_collection(ax, coords, radius, pt_size_factor)
+        if coll is None:
+            ax.scatter(coords["x"], coords["y"], s=size, c=face,
+                       alpha=alpha, linewidths=0)
+        else:
+            coll.set_facecolor(face)
+            coll.set_alpha(alpha)
+            ax.add_collection(coll)
+        _spatial_limits(ax, coords, radius, img, crop)
+        ax.set_title(str(name), fontsize=9, fontweight="bold")
+        ax.set_aspect("equal")
+        ax.axis("off")
+    for ax in axes_flat[len(panels):]:
+        ax.axis("off")
+
+    handles = [plt.Line2D([], [], marker="o", linestyle="", markersize=6,
+                          markerfacecolor=cols.get(g, "grey"), markeredgewidth=0)
+               for g in uniq]
+    fig.legend(handles, uniq, title=group_by or "ident", loc="center right",
+               fontsize=8, title_fontsize=8, frameon=False)
+    fig.tight_layout(rect=(0, 0, 0.88, 1))
+    return fig
+
+
+def spatial_feature_plot(
+    obj,
+    feature: str,
+    image: Optional[Union[str, list]] = None,
+    cmap: str = "viridis",
+    pt_size_factor: float = 1.6,
+    size: float = 12.0,
+    alpha: float = 1.0,
+    image_alpha: float = 1.0,
+    assay: Optional[str] = None,
+    layer: Optional[str] = None,
+    resolution: Optional[str] = None,
+    crop: bool = True,
+    ncol: Optional[int] = None,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Plot spots on the tissue image, coloured by a feature's expression.
+
+    Matplotlib equivalent of Seurat's ``SpatialFeaturePlot``. Behaves exactly
+    like :func:`spatial_dim_plot` — same tissue background, same true-to-scale
+    spots, same fallback when no image is stored — but colours the spots by a
+    continuous value on a shared scale across panels.
+    """
+    plt = _mpl()
+    fovs = _resolve_fovs(obj, image)
+
+    expr = _get_expression(obj, feature, assay, layer)
+    expr_by_cell = dict(zip(obj.cell_names(), expr))
+
+    panels = {}
+    for name, fov in fovs.items():
+        coords, radius, img = _spatial_panel(fov, resolution)
+        coords = coords.assign(val=[expr_by_cell.get(c, np.nan) for c in coords.index])
+        coords = coords[coords["val"].notna()]
+        if not coords.empty:
+            panels[name] = (coords, radius, img)
+    if not panels:
+        raise ValueError("No spots left to plot: the images share no cells with the object.")
+
+    vals = np.concatenate([c["val"].to_numpy(dtype=float) for c, _, _ in panels.values()])
+    vmax = float(np.nanmax(vals)) if vals.size else 1.0
+    if not np.isfinite(vmax) or vmax <= 0:
+        vmax = 1.0
+
+    nrow, ncol = _subplot_grid(len(panels), ncol)
+    if figsize is None:
+        figsize = (5 * ncol, 4.5 * nrow)
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, squeeze=False)
+    axes_flat = axes.ravel()
+
+    mappable = None
+    for ax, (name, (coords, radius, img)) in zip(axes_flat, panels.items()):
+        if img is not None:
+            ax.imshow(img, alpha=image_alpha)
+        v = coords["val"].to_numpy(dtype=float)
+        coll = _spot_collection(ax, coords, radius, pt_size_factor)
+        if coll is None:
+            mappable = ax.scatter(coords["x"], coords["y"], s=size, c=v, cmap=cmap,
+                                  vmin=0, vmax=vmax, alpha=alpha, linewidths=0)
+        else:
+            coll.set_array(v)
+            coll.set_cmap(cmap)
+            coll.set_clim(0, vmax)
+            coll.set_alpha(alpha)
+            ax.add_collection(coll)
+            mappable = coll
+        _spatial_limits(ax, coords, radius, img, crop)
+        ax.set_title(str(name), fontsize=9, fontweight="bold")
+        ax.set_aspect("equal")
+        ax.axis("off")
+    for ax in axes_flat[len(panels):]:
+        ax.axis("off")
+
+    if mappable is not None:
+        fig.colorbar(mappable, ax=axes_flat.tolist(), shrink=0.5, label=feature)
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -1153,4 +1387,6 @@ __all__ = [
     "dot_plot",
     "image_dim_plot",
     "image_feature_plot",
+    "spatial_dim_plot",
+    "spatial_feature_plot",
 ]

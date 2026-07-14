@@ -315,6 +315,8 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | `RidgePlot(pbmc, features, ncol)` | `ridge_plot(pbmc, features, ncol)` |
 | `ImageDimPlot(obj, group.by)` | `image_dim_plot(obj, group_by)` |
 | `ImageFeaturePlot(obj, features)` | `image_feature_plot(obj, feature)` |
+| `SpatialDimPlot(obj, group.by)` | `spatial_dim_plot(obj, group_by)` — spots over the H&E image |
+| `SpatialFeaturePlot(obj, features)` | `spatial_feature_plot(obj, feature)` |
 
 ### Spatial
 
@@ -331,6 +333,8 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | *(hand-rolled Fisher + `p.adjust`)* | `composition_test(obj, group_by, split_by)` |
 | `GetImage(obj[["slice1"]])` | `obj.images["spatial"].get_image()` — the Visium H&E image |
 | `ScaleFactors(obj[["slice1"]])` | `obj.images["spatial"].scale_factors` |
+| `SpatialDimPlot(obj)` | `spatial_dim_plot(obj)` |
+| `SpatialFeaturePlot(obj, features)` | `spatial_feature_plot(obj, feature)` |
 
 > **Plot output:** R renders to the graphics device automatically. Shanuz functions return a
 > `matplotlib.Figure` — call `fig.savefig("out.png")` to save or display inline in Jupyter.
@@ -360,3 +364,27 @@ r  = fov.spot_radius()                      # matching spot radius, in image pix
 Pass `image_resolution="lowres"` for the smaller PNG, `image=False` to skip it
 entirely, or `filter_by_tissue=True` to keep only spots with `in_tissue == 1`. A
 bundle with no PNG still loads — you get a plain `FOV`, exactly as before.
+
+#### Plotting spots on the tissue
+
+`spatial_dim_plot` / `spatial_feature_plot` (`SpatialDimPlot` / `SpatialFeaturePlot`)
+draw the H&E photo and overlay the spots on top of it — the scaling above happens
+for you:
+
+```python
+from shanuz import spatial_dim_plot, spatial_feature_plot
+
+fig = spatial_dim_plot(obj, group_by="seurat_clusters")
+fig = spatial_feature_plot(obj, "Gad1", image_alpha=0.4)   # fade the tissue
+fig.savefig("visium.png", dpi=150, bbox_inches="tight")
+```
+
+Spots are drawn at their **true diameter** (from `spot_diameter_fullres`), not as
+fixed-size points, so they stay registered against the tissue at any zoom.
+`pt_size_factor=` (default 1.6, as in Seurat) scales them; `crop=False` shows the
+whole slide instead of zooming to the spots; `resolution="lowres"` draws the
+smaller PNG.
+
+Neither function needs an image to work. Plot an object loaded with `image=False`
+and you get a plain scatter of the same spots — useful for Xenium/CosMx, or for a
+Visium bundle whose PNG is missing.
