@@ -247,6 +247,8 @@ same caveat as the other tutorials.
 | HVGs | `FindVariableFeatures(pbmc, selection.method, nfeatures)` | `find_variable_features(pbmc, selection_method, nfeatures)` |
 | Scale | `ScaleData(pbmc, features)` | `scale_data(pbmc, features)` |
 | PCA | `RunPCA(pbmc, features, npcs)` | `run_pca(pbmc, features, n_pcs)` |
+| Supervised PCA | `RunSPCA(pbmc, graph="wsnn")` | `run_spca(pbmc, graph="wsnn")` |
+| GLM-PCA | `RunGLMPCA(pbmc, L=10)` | `glm_pca(pbmc, n_components=10)` — Poisson only; `family="nb"` not yet implemented |
 | Neighbors | `FindNeighbors(pbmc, dims)` | `find_neighbors(pbmc, dims, k_param)` |
 | Cluster | `FindClusters(pbmc, resolution)` | `find_clusters(pbmc, resolution, algorithm)` |
 | UMAP | `RunUMAP(pbmc, dims)` | `run_umap(pbmc, dims)` |
@@ -264,6 +266,49 @@ same caveat as the other tutorials.
 | Access metadata | `pbmc@meta.data` | `pbmc.meta_data` |
 | Access assay | `pbmc[["RNA"]]` | `pbmc.assays["RNA"]` |
 | Active idents | `Idents(pbmc)` | `pbmc.idents` |
+
+### Beyond PCA — supervised PCA and GLM-PCA
+
+Two reductions that answer questions PCA cannot. Both store a `DimReduc` exactly
+as `run_pca` does, so `find_neighbors`, `find_clusters` and `run_umap` take them
+with a `reduction=` argument and nothing else changes.
+
+```python
+from shanuz import run_spca, glm_pca, find_neighbors, run_umap
+
+# Supervised PCA: the gene axes that best explain a graph you already trust.
+find_multi_modal_neighbors(cbmc, reduction_list=["pca", "apca"])   # builds "wsnn"
+run_spca(cbmc, graph="wsnn", npcs=50)
+run_umap(cbmc, reduction="spca", dims=range(30))
+
+# GLM-PCA: a Poisson fit straight on the raw counts — no log, no pseudocount.
+glm_pca(pbmc, n_components=10)
+find_neighbors(pbmc, reduction="glmpca", dims=range(10))
+print(pbmc.reductions["glmpca"].misc["converged"])
+```
+
+**`run_spca`** maximises `vᵀXᵀGXv` where PCA maximises `vᵀXᵀXv` — the same problem
+with the identity swapped for a cell-cell graph `G`. So it finds the gene
+directions that reproduce a neighbourhood structure you have already decided is
+the right one (typically the WNN graph, which knows about protein as well as RNA).
+Hand it `G = I` and you get PCA back exactly. Its value is that the result is a
+plain linear map from genes to components, so a query dataset can be projected
+into a reference's space with one matrix multiply — which is why Azimuth maps onto
+sPCA and not PCA.
+
+**`glm_pca`** models counts as counts. The standard pipeline log-normalises and
+then runs PCA, which quietly assumes constant-variance Gaussian data; a gene
+averaging 0.1 UMIs and one averaging 100 do not have remotely comparable noise,
+and the pseudocount you add to survive `log(0)` distorts exactly the
+low-expression genes where most of the zeros are. GLM-PCA drops the transform and
+fits `log μ = a[g] + o[c] + U·Vᵀ` with a Poisson likelihood, holding the log
+library size as a fixed offset so sequencing depth is a known quantity rather than
+something the factors have to spend themselves discovering.
+
+> Two things to know. `glm_pca` is **Poisson only** — `family="nb"` raises. And it
+> fits densely in genes × cells, so pass a few thousand variable features, as you
+> would to `run_pca`. Check `misc["converged"]`; if it is `False`, or
+> `misc["deviance"]` is still falling steeply at the end, raise `max_iter`.
 
 ### Pseudobulk & conserved markers
 
