@@ -43,6 +43,7 @@ from .spatial import (
     nearest_neighbor_distance,
     spatial_knn,
     load_cosmx,
+    load_merscope,
     load_visium,
     load_xenium,
 )
@@ -106,6 +107,7 @@ __all__ = [
     "load_xenium",
     "load_visium",
     "load_cosmx",
+    "load_merscope",
     "as_graph",
     "log_shanuz_command",
     # Analysis pipeline (mirrors Seurat's top-level functions)
