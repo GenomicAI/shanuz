@@ -11,6 +11,7 @@ from .analysis import (
     spatial_knn,
 )
 from .loaders import load_cosmx, load_merscope, load_visium, load_xenium
+from .variable_features import find_spatially_variable_features
 
 __all__ = [
     "SpatialImage",
@@ -29,6 +30,7 @@ __all__ = [
     "nearest_neighbor_distance",
     "local_neighborhood",
     "build_niche_assay",
+    "find_spatially_variable_features",
     # loaders
     "load_xenium",
     "load_visium",

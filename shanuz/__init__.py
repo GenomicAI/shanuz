@@ -38,6 +38,7 @@ from .spatial import (
     create_molecules,
     create_segmentation,
     build_niche_assay,
+    find_spatially_variable_features,
     get_tissue_coordinates,
     local_neighborhood,
     nearest_neighbor_distance,
@@ -102,6 +103,7 @@ __all__ = [
     "nearest_neighbor_distance",
     "local_neighborhood",
     "build_niche_assay",
+    "find_spatially_variable_features",
     "composition_test",
     # Spatial loaders
     "load_xenium",
