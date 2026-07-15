@@ -252,6 +252,9 @@ same caveat as the other tutorials.
 | Neighbors | `FindNeighbors(pbmc, dims)` | `find_neighbors(pbmc, dims, k_param)` |
 | Cluster | `FindClusters(pbmc, resolution)` | `find_clusters(pbmc, resolution, algorithm)` |
 | UMAP | `RunUMAP(pbmc, dims)` | `run_umap(pbmc, dims)` |
+| Harmony integration | `RunHarmony(pbmc, "batch")` | `run_harmony(pbmc, "batch")` / `integrate_layers(pbmc, method="harmony", group_by="batch")` |
+| CCA/RPCA anchors | `FindIntegrationAnchors(list, reduction="cca")` → `IntegrateData(anchors)` | `find_integration_anchors(objs, reduction="cca")` → `integrate_data(anchors)` |
+| CCA/RPCA layers | `IntegrateLayers(obj, method=CCAIntegration)` | `integrate_layers(obj, method="cca", group_by="batch")` (or `"rpca"`) |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -323,6 +326,59 @@ more forgivingly. The fitted `θ` lands in `misc["theta"]`.
 > steeply at the end, raise `max_iter`. (With `family="nb"` and `θ` being
 > estimated, the deviance is re-scaled as `θ` moves, so it is only strictly
 > monotone when you pin `θ` with `optimize_theta=False`.)
+
+### Integrating datasets — Harmony, CCA, RPCA
+
+Two batches of the same tissue rarely line up: a shared cell type sits in a
+different place in each dataset's PCA, so cells cluster by batch before they
+cluster by biology. Shanuz offers two remedies.
+
+**Harmony** (`run_harmony`) corrects an embedding you already have — it takes the
+joint PCA and iteratively pulls the batches together while keeping cell types
+apart. It is fast and needs only a `group_by` column.
+
+**Anchor integration** (Seurat's CCA/RPCA) works from scratch, without assuming
+the datasets even share a coordinate system. It builds a *shared* space for a
+pair of datasets — by canonical correlation (`reduction="cca"`, the SVD of the
+cross-covariance) or reciprocal PCA (`reduction="rpca"`) — then keeps only the
+*mutual* nearest neighbours across datasets as **anchors**: cell *i* here and
+cell *j* there, each among the other's closest matches, are almost certainly the
+same state seen twice. Anchors are scored for neighbourhood consistency, filtered
+against the raw expression, and then used to pull every query dataset onto the
+reference.
+
+```python
+from shanuz import (
+    find_integration_anchors, integrate_data, integrate_layers,
+    run_harmony, scale_data, run_pca, find_clusters, run_umap,
+)
+
+# --- Harmony: correct an existing joint PCA in place -------------------------
+run_harmony(pbmc, group_by="batch")             # stores reductions["harmony"]
+run_umap(pbmc, reduction="harmony", dims=range(30))
+
+# --- CCA/RPCA anchors: a list of per-batch objects → a corrected assay -------
+anchors = find_integration_anchors([ref, query], reduction="cca")   # or "rpca"
+merged = integrate_data(anchors)                # active assay is now "integrated"
+scale_data(merged)
+run_pca(merged)                                 # clusters by cell type, not batch
+find_clusters(merged, resolution=0.5)
+
+# --- One-call Seurat v5 path: split one object by batch, integrate, embed ----
+integrate_layers(pbmc, method="cca", group_by="batch", new_reduction="integrated")
+run_umap(pbmc, reduction="integrated", dims=range(30))
+```
+
+**`find_integration_anchors`** is *reference-based*: `objects[reference]` (index
+0 by default) is the anchor every other dataset is corrected onto. **CCA** shines
+when the datasets share structure but differ globally (cross-species, cross-
+technology); **RPCA** is stricter and faster, a better fit when the batches are
+already similar or very large. Both return the same `IntegrationAnchors`, which
+is also what v0.3.0's reference mapping is built to consume.
+
+> The correction is applied to the log-normalised `data` of the shared anchor
+> features and stored as an `"integrated"` assay — so `scale_data` + `run_pca`
+> on it is the natural next step. The reference dataset is left untouched.
 
 ### Pseudobulk & conserved markers
 

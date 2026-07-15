@@ -437,25 +437,45 @@ class StdAssay(KeyMixin, ABC):
             shared_layers &= set(a.layers)
 
         new_layers: dict = {}
+        new_layer_features: dict = {}
         for layer_name in shared_layers:
+            # A layer may span only a subset of the assay's features (e.g.
+            # scale.data holds the variable features), so index against each
+            # assay's *layer* feature names, not the assay-wide list.
+            per_assay_feats = [
+                a._layer_features.get(layer_name, a._all_feature_names)
+                for a in all_assays
+            ]
+            common = set(per_assay_feats[0])
+            for lf in per_assay_feats[1:]:
+                common &= set(lf)
+            layer_features = [f for f in per_assay_feats[0] if f in common]
+
             mats = []
-            for a in all_assays:
-                feat_idx = [a._all_feature_names.index(f) for f in shared_features]
-                mat = a.layers[layer_name][feat_idx, :]
-                mats.append(mat)
+            for a, lf in zip(all_assays, per_assay_feats):
+                pos = {f: i for i, f in enumerate(lf)}
+                feat_idx = [pos[f] for f in layer_features]
+                mats.append(a.layers[layer_name][feat_idx, :])
             if sp.issparse(mats[0]):
                 new_layers[layer_name] = sp.hstack(mats, format="csc")
             else:
                 new_layers[layer_name] = np.hstack(mats)
+            new_layer_features[layer_name] = layer_features
 
-        return self.__class__(
+        merged = self.__class__(
             layers=new_layers,
             feature_names=shared_features,
             cell_names=new_cell_names,
             assay_orig=self.assay_orig,
             misc=dict(self.misc),
             key=self._key,
+            layer_features=new_layer_features,
         )
+        # Preserve the scaled-feature bookkeeping when every input agrees.
+        scaled = new_layer_features.get("scale.data")
+        if scaled is not None:
+            merged._scaled_features = list(scaled)
+        return merged
 
     # ------------------------------------------------------------------
     # Calc nCount / nFeature

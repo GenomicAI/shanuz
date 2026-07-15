@@ -23,6 +23,11 @@ from .multimodal import find_multi_modal_neighbors
 from .clustering import find_clusters
 from .umap import run_umap
 from .integration import run_harmony, integrate_layers
+from .anchors import (
+    find_integration_anchors,
+    integrate_data,
+    IntegrationAnchors,
+)
 from .markers import find_markers, find_all_markers, find_conserved_markers
 from .aggregate import aggregate_expression
 from .sctransform import sctransform
@@ -135,6 +140,9 @@ __all__ = [
     "run_umap",
     "run_harmony",
     "integrate_layers",
+    "find_integration_anchors",
+    "integrate_data",
+    "IntegrationAnchors",
     "find_markers",
     "find_all_markers",
     "find_conserved_markers",

@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Optional, Union
 
 import numpy as np
+import pandas as pd
 
 from .dimreduc import DimReduc
 
@@ -126,13 +127,13 @@ def integrate_layers(
 
     Parameters
     ----------
-    method         : 'harmony' (only method currently implemented).
-                     'cca' / 'rpca' are planned (v0.2.0) and raise
-                     NotImplementedError for now.
-    orig_reduction : reduction to integrate (default 'pca')
+    method         : 'harmony', 'cca', or 'rpca'.
+    orig_reduction : reduction to integrate (only used by 'harmony';
+                     default 'pca')
     new_reduction  : storage key for the integrated reduction
                      (defaults to '{method}')
-    group_by       : batch column(s); required for 'harmony'
+    group_by       : batch column identifying the layers/batches to integrate
+                     (required for every method)
     """
     method = method.lower()
     new_reduction = new_reduction or method
@@ -149,12 +150,88 @@ def integrate_layers(
             **kwargs,
         )
     elif method in ("cca", "rpca", "ccaintegration", "rpcaintegration"):
-        raise NotImplementedError(
-            f"method={method!r} (CCA/RPCA anchor integration) is on the "
-            "v0.2.0 roadmap and not yet implemented. Use method='harmony'."
+        if group_by is None:
+            raise ValueError(
+                f"method={method!r} requires group_by (batch column)."
+            )
+        reduction = "rpca" if method.startswith("rpca") else "cca"
+        _integrate_anchor_reduction(
+            seurat,
+            group_by=group_by,
+            reduction=reduction,
+            new_reduction=new_reduction,
+            assay=assay,
+            **kwargs,
         )
     else:
         raise ValueError(
             f"Unknown integration method {method!r}. "
-            "Supported: 'harmony' (also planned: 'cca', 'rpca')."
+            "Supported: 'harmony', 'cca', 'rpca'."
         )
+
+
+def _integrate_anchor_reduction(
+    seurat,
+    group_by: str,
+    reduction: str,
+    new_reduction: str,
+    assay: Optional[str] = None,
+    n_pcs: int = 30,
+    seed: int = 42,
+    **kwargs,
+) -> None:
+    """CCA/RPCA layer integration → a corrected reduction (Seurat v5 path).
+
+    Splits the object by ``group_by`` into per-batch datasets, finds anchors
+    between them (:func:`shanuz.anchors.find_integration_anchors`), builds the
+    batch-corrected ``"integrated"`` assay (:func:`shanuz.anchors.integrate_data`),
+    then runs ``scale_data`` + ``run_pca`` on it and stores the resulting
+    embedding under ``new_reduction`` (reindexed to the object's cell order).
+    """
+    from .anchors import find_integration_anchors, integrate_data
+    from .preprocessing import scale_data
+    from .reduction import run_pca
+
+    if isinstance(group_by, (list, tuple)):
+        if len(group_by) != 1:
+            raise ValueError(
+                "CCA/RPCA integration supports a single group_by column."
+            )
+        group_by = group_by[0]
+    if group_by not in seurat.meta_data.columns:
+        raise KeyError(f"group_by column {group_by!r} not found in meta_data.")
+
+    k_weight = kwargs.pop("k_weight", 100)
+    sd_weight = kwargs.pop("sd_weight", 1.0)
+
+    groups = list(pd.unique(seurat.meta_data[group_by]))
+    if len(groups) < 2:
+        raise ValueError(
+            f"group_by={group_by!r} has < 2 levels; nothing to integrate."
+        )
+
+    all_cells = seurat.cell_names()
+    labels = seurat.meta_data[group_by]
+    objects = [
+        seurat.subset(cells=[c for c in all_cells if labels.loc[c] == g])
+        for g in groups
+    ]
+
+    anchors = find_integration_anchors(
+        objects, reduction=reduction, seed=seed, **kwargs
+    )
+    merged = integrate_data(anchors, k_weight=k_weight, sd_weight=sd_weight)
+
+    scale_data(merged, assay="integrated")
+    run_pca(
+        merged,
+        n_pcs=n_pcs,
+        assay="integrated",
+        reduction_name=new_reduction,
+        seed=seed,
+    )
+
+    # Reindex the integrated embedding back to the original cell order.
+    seurat.reductions[new_reduction] = merged.reductions[new_reduction].subset(
+        cells=all_cells
+    )
