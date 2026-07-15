@@ -425,19 +425,40 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 
 ## v0.8.0 — Scale & Performance
 
-> **Status:** leverage-score sketching is delivered — `sketch_data` /
-> `project_data` (+ the standalone `leverage_score`) in `shanuz/sketch.py` draw an
-> information-dense subset of a huge dataset and extend the sketch's analysis back
-> to every cell, reusing the `mapping.py` projection and `transfer.py` anchors and
-> adding no dependency. BPCells-style lazy/on-disk matrices remain open.
+> **Status:** ✅ **complete.** Leverage-score sketching (`sketch_data` /
+> `project_data` + `leverage_score`, `shanuz/sketch.py`) draws an information-dense
+> subset of a huge dataset and extends the sketch's analysis back to every cell;
+> BPCells-style lazy on-disk matrices (`LazyMatrix`, `shanuz/lazy.py`) keep a matrix
+> out-of-core and stream over it. Both add **no new dependency** — sketching reuses
+> the `mapping.py` / `transfer.py` machinery, and `LazyMatrix` is built on NumPy's
+> memory-mapping alone.
 
-### BPCells-style lazy/on-disk matrices
-- **R:** `BPCells` package enables out-of-core analysis on millions of cells
-- **Python dep:** `bpcells-python` (if available) or `zarr` / `h5py` lazy arrays
-- **Plan:** `Assay5` layers can already hold any array-like object; extend
-  `_get_data_matrix` to handle `zarr.Array` and `h5py.Dataset` transparently
-  (they support numpy-style slicing). The key change is avoiding `.toarray()` /
-  `.todense()` calls in hot paths — audit and gate these behind shape checks.
+### BPCells-style lazy/on-disk matrices — ✅ delivered
+- Implemented as `LazyMatrix` in `shanuz/lazy.py`, with `write_lazy_matrix(matrix,
+  path)` to persist a matrix out-of-core and `open_lazy_matrix(path)` to map it
+  back (`is_lazy(x)` to test). A matrix is stored as a directory of three
+  **memory-mapped** `.npy` arrays — the `data` / `indices` / `indptr` triple of a
+  compressed-sparse-**column** matrix, exactly scipy's `csc_matrix` layout — plus a
+  JSON header. Opening maps the arrays without reading them; peak memory is the
+  slices you touch, not the whole matrix (`tests/test_lazy.py`).
+- **A faithful drop-in for a sparse layer.** Indexing (`m[:, cells]`,
+  `m[np.ix_(genes, cells)]`, slices, boolean masks) reads only the touched columns
+  off disk and returns an ordinary `scipy.sparse.csc_matrix`, so every hot path
+  that already accepts a sparse layer keeps working. `Assay5` layers hold any
+  array-like, so `assay.set_layer_data("counts", lazy)` just works, and the
+  full-densify helpers (`as_dense` / `np.asarray`) route through `__array__` — the
+  deliberate "materialise everything" escape hatch you avoid on the huge path.
+- **Streaming reductions.** `sum` / `mean` over axis 0 (per-cell) or 1 (per-feature)
+  run in a single pass over the on-disk arrays; `nnz_per_col()` (the `nFeature`
+  count) comes straight from `indptr`; `col_blocks(block_size)` walks the matrix in
+  cell-blocks — the primitive for processing a million cells at bounded RAM.
+- **R:** `BPCells` package enables out-of-core analysis on millions of cells.
+- **Design note (CSC, not CSR):** shanuz matrices are `features × cells` and the
+  scale-out ops (sketching, cell subsetting, per-cell normalisation) select
+  **columns**, which CSC makes cheap. Row-only (feature) subsetting still scans the
+  touched columns; keeping both orientations on disk (as BPCells does) to make that
+  cheap too, and a full `.toarray()` audit of the hot paths to gate densification
+  behind shape checks, are the natural follow-ons.
 
 ### `SketchData` (leverage-score sub-sampling) — ✅ delivered
 - Implemented as `sketch_data(obj, ncells=5000, method="LeverageScore")` in
@@ -560,7 +581,7 @@ Each milestone's new `pip` deps:
 | v0.5.0 | *(none — sPCA and GLM-PCA are pure NumPy/SciPy; `glmpca-py` proved unnecessary)* |
 | v0.6.0 | `pydeseq2` (optional) |
 | v0.7.0 | *(none — Moran's I is pure NumPy/SciPy; the Visium PNG uses matplotlib, already in `[analysis]`)* |
-| v0.8.0 | `zarr` (optional) |
+| v0.8.0 | *(none — sketching reuses existing machinery; `LazyMatrix` is built on NumPy memory-mapping alone)* |
 | v0.9.0 | *(none — sklearn already present)* |
 | v0.10.0 | `build`, `twine`, `mkdocs`, `mkdocstrings`, `ruff`, `mypy` (all dev-only) |
 
@@ -586,10 +607,13 @@ If milestones are too large, these are the highest-value individual items:
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
-7. ~~**`SketchData`** (`v0.8.0`)~~ — ✅ delivered (`sketch_data` / `project_data` +
-   `leverage_score` in `shanuz/sketch.py`): leverage-weighted subsampling for
-   million-cell datasets, and projection of the sketch's PCA/UMAP/labels back to
-   the full data. BPCells-style lazy matrices are the remaining v0.8.0 item.
+7. ~~**`SketchData`** + **BPCells-style lazy matrices** (`v0.8.0`)~~ — ✅ delivered.
+   `sketch_data` / `project_data` + `leverage_score` (`shanuz/sketch.py`):
+   leverage-weighted subsampling for million-cell datasets, and projection of the
+   sketch's PCA/UMAP/labels back to the full data. `LazyMatrix` (`shanuz/lazy.py`):
+   out-of-core, memory-mapped compressed-sparse-column storage with lazy column
+   reads, streaming block reductions, and a clean `Assay5`-layer drop-in — no new
+   dependency. **v0.8.0 is complete.**
 8. ~~**`run_spca` + `glm_pca`** (Poisson + negative binomial)~~ ✅ (`v0.5.0`) —
    **v0.5.0 is complete**; GLM-PCA now fits both `family="poisson"` and
    `family="nb"` (dispersion estimated by ML), closing the last gap in it

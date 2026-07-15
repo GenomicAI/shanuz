@@ -262,6 +262,8 @@ same caveat as the other tutorials.
 | Leverage scores | `LeverageScore(obj)` | `leverage_score(obj)` |
 | Sketch a large dataset | `SketchData(obj, ncells=5000, method="LeverageScore")` | `sketch_data(obj, ncells=5000)` |
 | Project sketch → full data | `ProjectData(obj, sketched.assay="sketch", reduction="pca")` | `project_data(full, sketch, refdata={"cluster_full": "seurat_clusters"})` |
+| Matrix to disk (out-of-core) | `write_matrix_dir(mat, "counts.mat")` (BPCells) | `write_lazy_matrix(mat, "counts.mat")` |
+| Open on-disk matrix | `open_matrix_dir("counts.mat")` (BPCells) | `open_lazy_matrix("counts.mat")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -505,6 +507,50 @@ cluster labels across.
 > a faithful embedding once it has more rows than roughly the squared feature
 > count, which the default comfortably clears for the few-thousand variable
 > features a sketch runs on.
+
+### Lazy on-disk matrices — keeping a million cells out of RAM
+
+Sketching shrinks *how many cells you analyse*; a **lazy matrix** shrinks *how much
+of the matrix is in memory at once*. A dense million-by-twenty-thousand `float64`
+matrix is 160 GB; even the sparse counts leave no room for the copies each step
+makes. Seurat's answer is the `BPCells` package, which keeps the matrix on disk and
+streams over it. `LazyMatrix` is the shanuz analogue, built on NumPy's
+memory-mapping — **no new dependency**.
+
+A matrix is written to a directory as the three memory-mapped arrays of a
+compressed-sparse-column matrix (scipy's `csc_matrix` layout). Opening it maps
+those arrays without reading them; a slice pulls only the touched cells off disk
+and hands back an ordinary `scipy.sparse` block, so it drops straight into an assay
+layer:
+
+```python
+from shanuz import write_lazy_matrix, open_lazy_matrix
+
+assay = obj.get_assay()
+
+# Persist the counts layer out-of-core, then map it back in and swap it in place.
+write_lazy_matrix(assay.layers["counts"], "counts.mat")
+lazy = open_lazy_matrix("counts.mat")
+assay.set_layer_data("counts", lazy)          # a LazyMatrix is a valid layer
+
+# Slicing reads only the selected cells' non-zeros off disk...
+block = assay.layer_data("counts", cells=obj.cell_names()[:1000])
+
+# ...and reductions stream in a single pass without materialising the matrix.
+per_cell = lazy.sum(axis=0)                    # nCount, one pass over the store
+per_gene = lazy.mean(axis=1)                   # per-feature mean
+
+# col_blocks is the streaming primitive: walk a million cells at bounded RAM.
+for start, stop, chunk in lazy.col_blocks(block_size=50_000):
+    ...                                        # chunk is a csc_matrix of those cells
+```
+
+`LazyMatrix` stores **columns** (cells) contiguously, because the operations that
+dominate at scale — sketching, cell subsetting, per-cell normalisation — select
+cells, and CSC makes reading an arbitrary set of columns cost only their own
+non-zeros. `as_dense(lazy)` / `np.asarray(lazy)` still materialise the whole thing
+when you genuinely need it — the escape hatch you keep for the small datasets and
+avoid on the million-cell path.
 
 ### Pseudobulk & conserved markers
 
