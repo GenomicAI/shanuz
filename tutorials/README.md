@@ -259,6 +259,9 @@ same caveat as the other tutorials.
 | Transfer labels | `TransferData(anchors, refdata=reference$celltype)` | `transfer_data(anchors, refdata="celltype")` |
 | Project into reference UMAP | `ProjectUMAP(query, reference, reduction.model="umap")` | `project_umap(query, reference)` |
 | Map query (annotate + place) | `MapQuery(anchors, query, reference, refdata=list(id="celltype"))` | `map_query(anchors, refdata="celltype")` |
+| Leverage scores | `LeverageScore(obj)` | `leverage_score(obj)` |
+| Sketch a large dataset | `SketchData(obj, ncells=5000, method="LeverageScore")` | `sketch_data(obj, ncells=5000)` |
+| Project sketch → full data | `ProjectData(obj, sketched.assay="sketch", reduction="pca")` | `project_data(full, sketch, refdata={"cluster_full": "seurat_clusters"})` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -456,6 +459,52 @@ space the query never helped define" logic as `pcaproject` above), then runs the
 reference's UMAP model's `.transform`. A query cell that resembles reference
 T cells is pinned near the reference's T-cell island and optimised to sit there —
 so the query overlays the atlas, batch block and all.
+
+### Sketching — analysing a million cells through a small subset
+
+A huge atlas is mostly redundant: the common states are thousands of near-identical
+cells stacked on top of each other, while the rare states — usually the interesting
+ones — are a handful of points each. Sketching picks a small, information-dense
+subset, does the expensive clustering / UMAP on *that*, and projects the answers
+back onto every cell. The subset is drawn by **leverage**, not uniformly: a cell in
+a dense redundant cloud has low leverage (drop it and nothing changes), a cell in a
+sparse distinctive corner has high leverage (it is the only evidence that corner
+exists) — so leverage sampling keeps the rare states a uniform sample would lose.
+
+```python
+from shanuz import sketch_data, project_data, run_pca, run_umap
+from shanuz.neighbors import find_neighbors
+from shanuz.clustering import find_clusters
+
+# full: a large, normalized + scaled object. Draw a leverage-weighted sketch.
+sketch = sketch_data(full, ncells=5000)   # a standalone object; assay -> "sketch"
+# full.meta_data["leverage.score"] now holds the per-cell scores.
+
+# Do the heavy analysis on the small sketch.
+run_pca(sketch, n_pcs=30)
+find_neighbors(sketch, dims=range(30))
+find_clusters(sketch, resolution=0.8)     # -> sketch.meta_data["seurat_clusters"]
+run_umap(sketch, dims=range(30))          # keeps the umap-learn model
+
+# Extend the sketch's PCA, UMAP and cluster labels back to *every* cell.
+project_data(full, sketch, refdata={"cluster_full": "seurat_clusters"})
+full.reductions["pca.full"]               # every cell in the sketch's PC space
+full.reductions["ref.umap"]               # every cell on the sketch's UMAP
+full.meta_data["cluster_full"]            # every cell's transferred cluster
+```
+
+`leverage_score` computes the scores with a sparse **CountSketch** rather than a
+full SVD of the data — the whole reason sketching scales — so it stays cheap on
+millions of cells. `project_data` is the mirror image of reference mapping: the
+sketch plays the role of the reference, and each full cell is pushed through the
+sketch's PCA loadings (and its fitted UMAP model) exactly as `project_umap` places
+a query on an atlas, with `find_transfer_anchors` + `transfer_data` carrying the
+cluster labels across.
+
+> `leverage_score` and `sketch_data` default to `nsketch=5000`; the CountSketch is
+> a faithful embedding once it has more rows than roughly the squared feature
+> count, which the default comfortably clears for the few-thousand variable
+> features a sketch runs on.
 
 ### Pseudobulk & conserved markers
 

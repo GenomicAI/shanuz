@@ -425,6 +425,12 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 
 ## v0.8.0 — Scale & Performance
 
+> **Status:** leverage-score sketching is delivered — `sketch_data` /
+> `project_data` (+ the standalone `leverage_score`) in `shanuz/sketch.py` draw an
+> information-dense subset of a huge dataset and extend the sketch's analysis back
+> to every cell, reusing the `mapping.py` projection and `transfer.py` anchors and
+> adding no dependency. BPCells-style lazy/on-disk matrices remain open.
+
 ### BPCells-style lazy/on-disk matrices
 - **R:** `BPCells` package enables out-of-core analysis on millions of cells
 - **Python dep:** `bpcells-python` (if available) or `zarr` / `h5py` lazy arrays
@@ -433,20 +439,46 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   (they support numpy-style slicing). The key change is avoiding `.toarray()` /
   `.todense()` calls in hot paths — audit and gate these behind shape checks.
 
-### `SketchData` (leverage-score sub-sampling)
+### `SketchData` (leverage-score sub-sampling) — ✅ delivered
+- Implemented as `sketch_data(obj, ncells=5000, method="LeverageScore")` in
+  `shanuz/sketch.py`, with the leverage computation exposed on its own as
+  `leverage_score(obj)`. Each cell is sampled **without replacement** with
+  probability proportional to its statistical leverage, so the rare states a
+  uniform sample would drop are kept (indeed over-represented, which the tests
+  check directly). Returns a standalone subset `Shanuz` object whose active assay
+  is renamed to `"sketch"`; the scores are written back onto the source object's
+  `leverage.score` metadata (`tests/test_sketch.py`).
+- **The leverage computation is the point, not a detail.** The exact leverage of
+  cell *i* is `ℓ_i = ‖U_i‖²` (the row norm of the left singular vectors), an
+  *O(n·d²)* SVD — the very cost sketching exists to avoid. So (as Seurat's
+  `LeverageScore` does) a sparse **CountSketch** `S` embeds the *n* rows into a
+  small `nsketch × d` matrix `B` with `BᵀB ≈ AᵀA` in a single pass over the
+  non-zeros; whitening `A` with `B`'s right singular vectors gives an approximately
+  orthonormal `Z` and `ℓ_i ≈ ‖Z_i‖²`. When `nsketch ≥ n` no sketch is taken and
+  the scores are exact — validated against the textbook `‖U_i‖²` to `1e-6`.
+- **One caveat, documented in the docstring and a test:** a single-hash CountSketch
+  is a faithful subspace embedding only once it has ~`d²` rows, so `nsketch` should
+  comfortably exceed the feature count (the default 5000 does, for the few-thousand
+  variable features a real sketch runs on).
 - **R:** `SketchData(obj, ncells = 5000, method = "LeverageScore")`
-- **Plan:**
-  1. Compute per-cell leverage scores from PCA: `lev[i] = ||U[i,:]||² / k` where
-     `U` is the left singular matrix of the scaled data
-  2. Sample `ncells` cells with probability proportional to leverage scores
-  3. Return subset `Shanuz` object; use `ProjectData` to extend results back to
-     the full dataset
-- **Tests:** sketched subset preserves cluster structure of the full dataset
+- **Divergence from R:** Seurat stores the sketch as an extra assay on the same
+  object; here it is a separate object (as the plan called for), which fits
+  shanuz's `subset` model and keeps the full/sketch data cleanly apart.
 
-### `ProjectData`
+### `ProjectData` — ✅ delivered
+- Implemented as `project_data(full, sketch, ...)` in `shanuz/sketch.py`, the
+  inverse of `sketch_data`. Projects every full-dataset cell through the *sketch's*
+  PCA loadings (stored as `full.reductions["pca.full"]`) — the same transform-only
+  linear map `project_umap` uses — and, when the sketch carries a fitted UMAP,
+  through that model too (`full.reductions["ref.umap"]`, via `project_umap`).
+  Optional `refdata` (`{new_col: sketch_col}` or a column name) carries the
+  sketch's labels to the full data via `find_transfer_anchors` + `transfer_data`.
+  Verified that projected sketch cells reproduce their sketch-PCA coordinates and
+  that transferred labels recover the full data's cell types at >85%
+  (`tests/test_sketch.py`).
 - **R:** `ProjectData(obj, reference = sketch, reduction = "pca")`
-- **Plan:** project the full dataset into sketch's PCA/UMAP space using
-  `sklearn.neighbors` or `umap-learn`'s `transform` method
+- **Reuse:** no new machinery — the PCA/UMAP projection is `mapping.py`'s and the
+  label transfer is `transfer.py`'s; `project_data` is the composition.
 
 ---
 
@@ -554,7 +586,10 @@ If milestones are too large, these are the highest-value individual items:
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
-7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets
+7. ~~**`SketchData`** (`v0.8.0`)~~ — ✅ delivered (`sketch_data` / `project_data` +
+   `leverage_score` in `shanuz/sketch.py`): leverage-weighted subsampling for
+   million-cell datasets, and projection of the sketch's PCA/UMAP/labels back to
+   the full data. BPCells-style lazy matrices are the remaining v0.8.0 item.
 8. ~~**`run_spca` + `glm_pca`** (Poisson + negative binomial)~~ ✅ (`v0.5.0`) —
    **v0.5.0 is complete**; GLM-PCA now fits both `family="poisson"` and
    `family="nb"` (dispersion estimated by ML), closing the last gap in it
