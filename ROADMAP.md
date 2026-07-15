@@ -70,16 +70,16 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ---
 
-## v0.3.0 — Reference Mapping & Label Transfer — 🚧 in progress
+## v0.3.0 — Reference Mapping & Label Transfer — ✅ complete
 
 > **Why:** label transfer from a curated atlas to a query dataset is a standard
 > first-annotation step; all machinery (KNN, PCA, anchors) already exists.
 >
-> **Status:** the anchor + transfer core is delivered — `find_transfer_anchors`
+> **Status:** all three pieces delivered — `find_transfer_anchors`
 > (pcaproject / cca) and `transfer_data` (classification + imputation) in
-> `shanuz/transfer.py`, reusing the `anchors.py` machinery end-to-end.
-> `MapQuery` / `ProjectUMAP` (placing the query in the reference UMAP) is the
-> remaining item.
+> `shanuz/transfer.py`, plus `project_umap` / `map_query` in `shanuz/mapping.py`
+> (placing the query in the reference UMAP). Reuses the `anchors.py` machinery
+> end-to-end and adds no dependency.
 
 ### `FindTransferAnchors` — ✅ delivered
 - Implemented as `find_transfer_anchors(reference, query, reduction="pcaproject")`
@@ -105,12 +105,25 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 - **Tests:** query cells get the correct transferred label at >85% accuracy;
   per-class scores form a distribution; imputation recovers the marker split.
 
-### `MapQuery` + `ProjectUMAP` — ⏳ next
-- **R:** `MapQuery(query, reference, refmodel)` then `ProjectUMAP(...)`
-- **Plan:** compose `FindTransferAnchors` + `TransferData` + UMAP projection
-  (transform-only mode of `umap-learn`, using reference's fitted UMAP model)
-- **Note:** `umap-learn` exposes `UMAP.transform(query_embeddings)` — store the
-  fitted model in `obj.reductions["umap"].misc["umap_model"]` after `run_umap`
+### `MapQuery` + `ProjectUMAP` — ✅ delivered
+- Implemented in `shanuz/mapping.py` as `project_umap(query, reference)` and the
+  `map_query(anchors, refdata="celltype")` convenience. `project_umap` is a
+  two-step map: project the query through the reference's PCA loadings into the
+  reference's PC space, then run the reference's *fitted* UMAP model in
+  transform-only mode (`umap-learn`'s `UMAP.transform`), so the query lands in the
+  reference's existing embedding. It aligns the loadings to only the reference-PCA
+  features the query actually carries scaled, so a query missing a few variable
+  features still projects. Result stored as `query.reductions["ref.umap"]`.
+- `map_query` composes the whole workflow from a `TransferAnchors`: `transfer_data`
+  the labels onto `query.meta_data` (`predicted.id` / `prediction.score.*`), then
+  `project_umap` the query into the reference UMAP — one call from anchors to an
+  annotated, atlas-placed query. Verified (`tests/test_mapping.py`) that projected
+  query cells land nearest the matching reference type's UMAP centroid (>85%)
+  despite an injected batch block, and that `map_query` annotates + places in one
+  call.
+- **R:** `MapQuery(anchorset, query, reference, refdata = ...)` then `ProjectUMAP(...)`
+- **Note:** the fitted model lives in `reference.reductions["umap"].misc["umap_model"]`,
+  stored by `run_umap` when embedding from a reduction (not a graph).
 
 ---
 
@@ -531,11 +544,12 @@ If milestones are too large, these are the highest-value individual items:
 1. ~~**Harmony** (`v0.2.0`)~~ — ✅ delivered (`run_harmony` / `integrate_layers`)
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
-4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — ✅ delivered
-   (`shanuz/transfer.py`: `find_transfer_anchors` pcaproject/cca + `transfer_data`
-   classification/imputation), enabling atlas-based annotation. Built on the
-   v0.2.0 anchor machinery. **`MapQuery` / `ProjectUMAP`** (query into the
-   reference UMAP) is the remaining v0.3.0 item.
+4. ~~**`FindTransferAnchors` / `TransferData` / `MapQuery` / `ProjectUMAP`**~~ ✅
+   (`v0.3.0`) — `shanuz/transfer.py` (`find_transfer_anchors` pcaproject/cca +
+   `transfer_data` classification/imputation) and `shanuz/mapping.py`
+   (`project_umap` + `map_query`) deliver atlas-based annotation and place the
+   query in the reference UMAP. Built on the v0.2.0 anchor machinery — **v0.3.0 is
+   complete**.
 5. ~~**`FindSpatiallyVariableFeatures`** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, both spatially-variable-feature methods (Moran's I and markvariogram), the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; **v0.7.0 is complete**
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
