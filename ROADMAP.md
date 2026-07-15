@@ -158,7 +158,7 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   orderings differ only in the tail.
 - **R:** `RunSPCA(obj, assay, graph)`
 
-### `glm_pca` (GLM-PCA) — ✅ delivered (Poisson)
+### `glm_pca` (GLM-PCA) — ✅ delivered (Poisson + negative binomial)
 - Implemented in `shanuz/glmpca.py` as `glm_pca(obj, n_components=10)`, following
   Townes et al. (2019). Pure NumPy/SciPy — **no `glmpca-py` dependency**, in
   keeping with how MAST and bimod were done (`tests/test_spca_glmpca.py`).
@@ -185,9 +185,16 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   cleanly in a plot while the deviance sits at its null value. So the factors are
   seeded from the SVD of the intercept-only model's residuals instead, as Townes
   recommends. `test_glmpca_actually_fits_rather_than_stalling` guards it.
-- **Still open:** `family="nb"` (negative binomial) raises `NotImplementedError`.
-  Poisson understates the overdispersion in most scRNA-seq; NB needs a dispersion
-  parameter estimated alongside the factors.
+- **Negative binomial:** `family="nb"` fits `Y ~ NB(μ, θ)`, `Var = μ + μ²/θ`.
+  Poisson understates the overdispersion in most scRNA-seq, and a few noisy genes
+  then dominate a Poisson fit; NB down-weights them. The Fisher scoring loop is the
+  Poisson one with a single divisor `1 + μ/θ` on both the residual and the working
+  weight — as `θ → ∞` it collapses back onto Poisson exactly. The shared dispersion
+  `θ` is estimated by maximum likelihood between factor updates (`optimize_theta`,
+  MASS `theta.ml`-style Newton seeded from a method-of-moments estimate) or pinned
+  at a value you pass. Stored in `misc["theta"]` (`inf` for a Poisson fit). A moving
+  `θ` re-scales the deviance, so the monotone-deviance guarantee holds only when `θ`
+  is held fixed (`optimize_theta=False`).
 - **Scale:** the fit is dense in genes × cells. Pass a few thousand variable
   features, as you would to `run_pca`.
 - **R:** `RunGLMPCA(obj, L = 10)` (via SeuratWrappers + glmpca)
@@ -503,5 +510,6 @@ If milestones are too large, these are the highest-value individual items:
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
    MAST (`test_use="mast"`) and bimod (`test_use="bimod"`) too — **v0.6.0 complete**
 7. **`SketchData`** (`v0.8.0`) — enables million-cell datasets
-8. ~~**`run_spca` + `glm_pca`**~~ ✅ (`v0.5.0`) — **v0.5.0 is complete**; the only
-   gap left in it is GLM-PCA's negative-binomial family
+8. ~~**`run_spca` + `glm_pca`** (Poisson + negative binomial)~~ ✅ (`v0.5.0`) —
+   **v0.5.0 is complete**; GLM-PCA now fits both `family="poisson"` and
+   `family="nb"` (dispersion estimated by ML), closing the last gap in it
