@@ -24,6 +24,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Dimensionality reduction** — `run_pca`, `run_spca` (supervised, off a cell graph), `run_ica`, `run_tsne`, `glm_pca` (Poisson or negative binomial, straight on counts)
 - **Batch correction / integration** — `run_harmony` (via harmonypy), CCA/RPCA anchors (`find_integration_anchors` + `integrate_data`), and the `integrate_layers` dispatcher (`method="harmony"|"cca"|"rpca"`)
 - **Reference mapping** — `find_transfer_anchors` (project a query into a reference; `pcaproject` or `cca`) + `transfer_data` (annotate the query with reference labels, or impute reference expression onto it); `project_umap` / `map_query` place the query in the reference's own UMAP in one call
+- **Scale (sketching)** — `sketch_data` draws a leverage-weighted subset of a huge dataset (rare states kept, not lost), `leverage_score` computes the per-cell scores via a CountSketch (no full SVD), and `project_data` extends the sketch's PCA/UMAP/labels back to every cell
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
 - **Multimodal WNN** — `find_multi_modal_neighbors` (per-cell RNA/protein weights, joint `wknn`/`wsnn` graphs)
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
@@ -295,7 +296,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.5.0 | Additional reductions — t-SNE, ICA, `run_spca`, `glm_pca` (Poisson + negative binomial) ✅ *(complete)* |
 | v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |
 | v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(delivered — see Tutorial 5)* |
-| v0.8.0 | Scale — BPCells-style lazy matrices, `SketchData`, `ProjectData` |
+| v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy matrices *(open)* |
 | v0.9.0 | Specialized — `HTODemux`, Mixscape (CRISPR screens) |
 | v0.10.0 | Infrastructure — PyPI, GitHub Actions CI, type annotations, MkDocs site |
 
