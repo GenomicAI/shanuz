@@ -23,6 +23,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Signature scoring** — `add_module_score`, `cell_cycle_scoring` (S/G2M + Phase)
 - **Dimensionality reduction** — `run_pca`, `run_spca` (supervised, off a cell graph), `run_ica`, `run_tsne`, `glm_pca` (Poisson or negative binomial, straight on counts)
 - **Batch correction / integration** — `run_harmony` (via harmonypy), CCA/RPCA anchors (`find_integration_anchors` + `integrate_data`), and the `integrate_layers` dispatcher (`method="harmony"|"cca"|"rpca"`)
+- **Reference mapping** — `find_transfer_anchors` (project a query into a reference; `pcaproject` or `cca`) + `transfer_data` (annotate the query with reference labels, or impute reference expression onto it)
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
 - **Multimodal WNN** — `find_multi_modal_neighbors` (per-cell RNA/protein weights, joint `wknn`/`wsnn` graphs)
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
@@ -289,7 +290,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | Milestone | Focus |
 |-----------|-------|
 | v0.2.0 | Batch correction — Harmony, CCA/RPCA anchors, `IntegrateLayers` dispatcher ✅ *(complete)* |
-| v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery` |
+| v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData` ✅, `MapQuery` 🚧 |
 | v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
 | v0.5.0 | Additional reductions — t-SNE, ICA, `run_spca`, `glm_pca` (Poisson + negative binomial) ✅ *(complete)* |
 | v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |

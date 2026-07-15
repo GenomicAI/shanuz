@@ -255,6 +255,8 @@ same caveat as the other tutorials.
 | Harmony integration | `RunHarmony(pbmc, "batch")` | `run_harmony(pbmc, "batch")` / `integrate_layers(pbmc, method="harmony", group_by="batch")` |
 | CCA/RPCA anchors | `FindIntegrationAnchors(list, reduction="cca")` → `IntegrateData(anchors)` | `find_integration_anchors(objs, reduction="cca")` → `integrate_data(anchors)` |
 | CCA/RPCA layers | `IntegrateLayers(obj, method=CCAIntegration)` | `integrate_layers(obj, method="cca", group_by="batch")` (or `"rpca"`) |
+| Transfer anchors | `FindTransferAnchors(reference, query, reduction="pcaproject")` | `find_transfer_anchors(reference, query, reduction="pcaproject")` (or `"cca"`) |
+| Transfer labels | `TransferData(anchors, refdata=reference$celltype)` | `transfer_data(anchors, refdata="celltype")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -379,6 +381,46 @@ is also what v0.3.0's reference mapping is built to consume.
 > The correction is applied to the log-normalised `data` of the shared anchor
 > features and stored as an `"integrated"` assay — so `scale_data` + `run_pca`
 > on it is the natural next step. The reference dataset is left untouched.
+
+### Reference mapping — annotating a query from an atlas
+
+Integration mixes several datasets into one shared space. Reference mapping is
+the asymmetric cousin: you keep an annotated atlas fixed and *borrow* its labels
+for a new, unlabelled dataset. The anchor machinery is the same — build a shared
+space, find mutual nearest neighbours, score and filter them — but the reference
+is never moved and the anchors carry information *reference → query*.
+
+```python
+from shanuz import find_transfer_anchors, transfer_data
+
+# reference: annotated atlas (has a "celltype" column). query: new, unlabelled.
+# Both normalized + find_variable_features + scale_data, as usual.
+anchors = find_transfer_anchors(reference, query, reduction="pcaproject")
+
+# Classification: predict the query's cell types from the reference labels.
+pred = transfer_data(anchors, refdata="celltype")
+query.add_meta_data(pred["predicted.id"], col_name="predicted.celltype")
+query.add_meta_data(pred["prediction.score.max"], col_name="prediction.score")
+# pred also has one prediction.score.<class> column per reference class.
+
+# Imputation: carry reference expression (features × ref-cells) onto the query.
+ref_expr = reference.get_assay().layer_data("data", features=["CD3D", "MS4A1"])
+imputed = transfer_data(anchors, refdata=ref_expr, refdata_features=["CD3D", "MS4A1"])
+```
+
+**`reduction="pcaproject"`** (the default) projects the query through the
+*reference's* PCA loadings — the principal axes are learned once on the reference
+and the query is pushed through the same map. Because those axes never saw the
+query, batch-specific structure the reference lacks simply lands nowhere, which
+is what makes projection robust for annotation. **`reduction="cca"`** learns a
+joint space instead, for the harder cross-modality / cross-species cases.
+
+> `transfer_data` weights each query cell's anchors with the same
+> distance-weighted, score-scaled Gaussian kernel `integrate_data` uses, so a
+> query cell surrounded by confident, consistent anchors of one type gets a
+> high `prediction.score.max`; an ambiguous one gets a low score you can filter
+> on. Placing the query in the reference *UMAP* (`MapQuery` / `ProjectUMAP`)
+> builds on these same anchors and lands next.
 
 ### Pseudobulk & conserved markers
 

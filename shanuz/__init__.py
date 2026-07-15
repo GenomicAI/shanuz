@@ -28,6 +28,11 @@ from .anchors import (
     integrate_data,
     IntegrationAnchors,
 )
+from .transfer import (
+    find_transfer_anchors,
+    transfer_data,
+    TransferAnchors,
+)
 from .markers import find_markers, find_all_markers, find_conserved_markers
 from .aggregate import aggregate_expression
 from .sctransform import sctransform
@@ -143,6 +148,9 @@ __all__ = [
     "find_integration_anchors",
     "integrate_data",
     "IntegrationAnchors",
+    "find_transfer_anchors",
+    "transfer_data",
+    "TransferAnchors",
     "find_markers",
     "find_all_markers",
     "find_conserved_markers",
