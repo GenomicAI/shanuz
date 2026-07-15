@@ -264,6 +264,7 @@ same caveat as the other tutorials.
 | Project sketch → full data | `ProjectData(obj, sketched.assay="sketch", reduction="pca")` | `project_data(full, sketch, refdata={"cluster_full": "seurat_clusters"})` |
 | Matrix to disk (out-of-core) | `write_matrix_dir(mat, "counts.mat")` (BPCells) | `write_lazy_matrix(mat, "counts.mat")` |
 | Open on-disk matrix | `open_matrix_dir("counts.mat")` (BPCells) | `open_lazy_matrix("counts.mat")` |
+| Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -551,6 +552,50 @@ cells, and CSC makes reading an arbitrary set of columns cost only their own
 non-zeros. `as_dense(lazy)` / `np.asarray(lazy)` still materialise the whole thing
 when you genuinely need it — the escape hatch you keep for the small datasets and
 avoid on the million-cell path.
+
+### Cell hashing — demultiplexing pooled samples
+
+Cell Hashing (Stoeckius et al.) tags each *sample* with a distinct
+antibody-oligo **hashtag** before pooling the samples on one lane. Every droplet
+then carries a little vector of hashtag counts saying which sample it came from —
+and droplets that caught two cells carry two tags. `hto_demux` (Seurat's
+`HTODemux`) turns that hashtag matrix back into per-cell calls: **singlet** (one
+tag), **doublet** (two or more), or **negative** (none).
+
+The hashtags live in their own assay alongside the RNA. `hto_demux` learns each
+tag's positive cutoff from the data — it CLR-normalizes the counts, k-means
+clusters the cells (`k = n_hashtags + 1`), fits a negative binomial to each tag's
+*background* (the cluster where it is least expressed), and thresholds at the
+0.99 quantile:
+
+```python
+from shanuz import hto_demux
+
+# `obj` has an "HTO" assay of hashtag counts (features = hashtags, columns = cells).
+hto_demux(obj, assay="HTO")                    # positive_quantile=0.99 by default
+
+# Per-cell results land in meta_data under the Seurat column names:
+obj.meta_data["HTO_classification.global"]     # "Singlet" / "Doublet" / "Negative"
+obj.meta_data["HTO_maxID"]                      # the top hashtag per cell
+obj.meta_data["HTO_classification"]            # tag name (singlet) or "HTOa_HTOb" (doublet)
+obj.meta_data["hash.ID"]                        # tag name / "Doublet" / "Negative"
+
+# hash.ID is also set as the active identity, so keeping only the clean singlets
+# of one sample is a one-liner:
+singlets = obj.meta_data["HTO_classification.global"] == "Singlet"
+sample3 = obj.subset(cells=obj.meta_data.index[
+    singlets & (obj.meta_data["hash.ID"] == "HTO-3")
+].tolist())
+
+# The learned per-hashtag cutoffs are kept for inspection:
+obj.misc["hto_demux"]["HTO"]["cutoffs"]         # {"HTO-1": 6.0, "HTO-2": 5.0, ...}
+```
+
+By default `hto_demux` CLR-normalizes internally; if you already ran
+`normalize_data(obj, normalization_method="CLR", margin=2, assay="HTO")`, pass
+`normalize=False` to reuse that `data` layer. The negative binomial — not a fixed
+threshold — is what makes the call robust to each antibody's own staining
+background and each run's own depth.
 
 ### Pseudobulk & conserved markers
 

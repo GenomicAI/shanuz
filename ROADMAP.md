@@ -507,12 +507,21 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 
 ### `HTODemux` / `MULTIseqDemux` (cell hashing)
 - **R:** `HTODemux(obj)`, `MULTIseqDemux(obj)`
-- **Plan:**
-  - `hto_demux`: k-means (`k = n_hashtags + 1`) on CLR-normalised HTO counts;
-    per-hashtag negative-binomial threshold to call positive cells; classify as
-    singlet / doublet / negative
-  - `multiseq_demux`: quantile-based bar-code classification
-  - Both store `HTO_classification`, `HTO_maxID`, `nCount_HTO` in `meta_data`
+- **`hto_demux` — ✅ delivered** (`shanuz/hto.py`): k-means (`k = n_hashtags + 1`)
+  on CLR-normalised HTO counts, then a per-hashtag **negative-binomial** fit
+  (maximum likelihood) to the tag's *lowest-expressing* cluster — its background —
+  thresholded at `positive_quantile` (0.99) to call positive cells. Cells positive
+  for zero / one / many hashtags are classified singlet / doublet / negative.
+  Writes the Seurat columns `HTO_maxID`, `HTO_secondID`, `HTO_margin`,
+  `HTO_classification`, `HTO_classification.global` plus a convenient `hash.ID`
+  (also set as the active identity); learned cutoffs are stashed in
+  `obj.misc["hto_demux"]`. `normalize=False` reuses a prior
+  `normalize_data(method="CLR")` layer. Built on the existing CLR helper +
+  sklearn k-means — no new dependency.
+- **Still open:** `multiseq_demux` (McGinnis et al. — quantile-sweep bar-code
+  classification); it shares `hto_demux`'s normalize-then-threshold skeleton.
+  Seurat's `"clara"` k-medoids clustering option is not ported (`kfunc="kmeans"`
+  only).
 
 ### Mixscape (pooled CRISPR screen analysis)
 - **R:** `RunMixscape(obj, target.gene.ident, nt.class.name)`
