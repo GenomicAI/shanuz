@@ -15,11 +15,15 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ---
 
-## v0.2.0 — Batch Correction & Integration
+## v0.2.0 — Batch Correction & Integration — ✅ complete
 
 > **Why first:** batch effects are unavoidable in real datasets; Harmony is the
 > most widely-used, has a pip-installable Python package, and has a well-defined
 > scope. CCA/RPCA follow naturally.
+>
+> **Status:** all three integration paths delivered — Harmony (`run_harmony`),
+> CCA/RPCA anchors (`find_integration_anchors` / `integrate_data`), and the
+> `integrate_layers` dispatcher (`method="harmony"|"cca"|"rpca"`).
 
 ### Harmony integration — ✅ delivered
 - Implemented in `shanuz/integration.py` as `run_harmony(...)`; stores a
@@ -35,22 +39,33 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   4. Downstream: pass `reduction="harmony"` to `find_neighbors` / `run_umap`
 - **Tests:** corrected embeddings have lower silhouette separation by batch than raw PCA
 
-### CCA / RPCA integration (`IntegrateData` v4 API)
+### CCA / RPCA integration (`IntegrateData` v4 API) — ✅ delivered
+- Implemented in `shanuz/anchors.py` as `find_integration_anchors(...)` +
+  `integrate_data(...)`, with the `IntegrationAnchors` result container. Anchors
+  are mutual nearest neighbours in a shared CCA (SVD of the cross-covariance
+  `AᵀB`) or reciprocal-PCA space, scored by neighbourhood consistency and
+  filtered against the raw expression space; `integrate_data` corrects each
+  query onto the reference with a Gaussian-weighted sum of anchor correction
+  vectors and returns a merged object carrying an active `"integrated"` assay.
+  Verified (`tests/test_integration.py`) to cluster by cell type, not batch.
 - **R:** `FindIntegrationAnchors(list, reduction="cca")` → `IntegrateData(anchors)`
-- **Plan:**
-  1. `find_integration_anchors(objects, dims, reduction, k_anchor, k_filter)` → `IntegrationAnchors`
-  2. `integrate_data(anchors, dims)` → corrected `"integrated"` assay on merged object
-  3. CCA: `scipy.linalg.svd` on cross-covariance; RPCA: project each dataset into
-     shared PCA space, find mutual nearest neighbours (MNN) via `sklearn.neighbors`
-- **Tests:** integrated embedding clusters by cell type, not by batch
+- **Implemented:**
+  1. `find_integration_anchors(objects, reduction, dims, k_anchor, k_filter, k_score, reference)` → `IntegrationAnchors`
+  2. `integrate_data(anchors, new_assay, k_weight, sd_weight)` → corrected `"integrated"` assay on merged object
+  3. CCA: `numpy.linalg.svd` on the cross-covariance; RPCA: reciprocal PCA
+     projections, MNN via `sklearn.neighbors`
+- **Note:** *reference-based* — anchors link each dataset to `reference=0`, and
+  every other dataset is corrected onto it (one of Seurat's supported modes).
+  A full guide-tree over all pairwise anchors is a later refinement.
+- **Reuse:** the same `IntegrationAnchors` object is what v0.3.0's reference
+  mapping (`FindTransferAnchors` / `TransferData`) is built to consume.
 
-### `IntegrateLayers` (Seurat v5 API) — ✅ harmony method delivered
-- Implemented as `integrate_layers(obj, method="harmony", group_by=...)` in
-  `shanuz/integration.py`. The `"cca"` / `"rpca"` methods raise
-  `NotImplementedError` pending the CCA/RPCA anchor work above.
+### `IntegrateLayers` (Seurat v5 API) — ✅ delivered (harmony + cca + rpca)
+- Implemented as `integrate_layers(obj, method=..., group_by=...)` in
+  `shanuz/integration.py`. `method="harmony"` corrects an existing reduction;
+  `method="cca"` / `"rpca"` split the object by `group_by`, run the anchor
+  pipeline above, and store the batch-corrected embedding as a new reduction.
 - **R:** `IntegrateLayers(obj, method = HarmonyIntegration, orig.reduction = "pca")`
-- **Plan:** thin dispatch wrapper over the individual integration functions above;
-  accepts `method` kwarg (`"harmony"`, `"cca"`, `"rpca"`)
 - **Dep:** Harmony and CCA/RPCA functions above
 
 ---
@@ -504,7 +519,7 @@ If milestones are too large, these are the highest-value individual items:
 1. ~~**Harmony** (`v0.2.0`)~~ — ✅ delivered (`run_harmony` / `integrate_layers`)
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
-4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate; needs CCA/RPCA first). `run_spca` is now in place, which is the reduction Azimuth maps onto.
+4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate). CCA/RPCA anchors are now in place (`shanuz/anchors.py`, with a reusable `IntegrationAnchors`), as is `run_spca` — the reduction Azimuth maps onto. This is now unblocked.
 5. ~~**`FindSpatiallyVariableFeatures`** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, both spatially-variable-feature methods (Moran's I and markvariogram), the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; **v0.7.0 is complete**
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
