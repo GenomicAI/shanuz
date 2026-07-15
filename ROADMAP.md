@@ -70,30 +70,42 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 
 ---
 
-## v0.3.0 — Reference Mapping & Label Transfer
+## v0.3.0 — Reference Mapping & Label Transfer — 🚧 in progress
 
 > **Why:** label transfer from a curated atlas to a query dataset is a standard
 > first-annotation step; all machinery (KNN, PCA, anchors) already exists.
+>
+> **Status:** the anchor + transfer core is delivered — `find_transfer_anchors`
+> (pcaproject / cca) and `transfer_data` (classification + imputation) in
+> `shanuz/transfer.py`, reusing the `anchors.py` machinery end-to-end.
+> `MapQuery` / `ProjectUMAP` (placing the query in the reference UMAP) is the
+> remaining item.
 
-### `FindTransferAnchors`
+### `FindTransferAnchors` — ✅ delivered
+- Implemented as `find_transfer_anchors(reference, query, reduction="pcaproject")`
+  in `shanuz/transfer.py`, returning a `TransferAnchors` container (anchor pairs
+  `cell1/cell2/score` + the query embedding used for weighting). Default
+  **pcaproject** projects the query through the reference's PCA loadings (computed
+  on the shared anchor features, so the reference need not already carry a `pca`
+  reduction); **cca** builds a jointly-learned space. MNN → score → filter reuse
+  the same helpers as `find_integration_anchors` (`tests/test_transfer.py`).
 - **R:** `FindTransferAnchors(reference, query, dims = 1:30)`
-- **Plan:**
-  1. Project query into reference PCA space (`reference.reductions["pca"].loadings`)
-  2. Find MNN between reference and projected query cells (sklearn `NearestNeighbors`)
-  3. Score and filter anchors by consistency (same logic as CCA anchors above)
-  4. Returns `TransferAnchors` object (stores anchor pairs + weights)
-- **Dep:** CCA/RPCA from v0.2.0
+- **Dep:** CCA/RPCA anchors from v0.2.0 (`shanuz/anchors.py`)
 
-### `TransferData`
+### `TransferData` — ✅ delivered
+- Implemented as `transfer_data(anchors, refdata)` in `shanuz/transfer.py`. Builds
+  a per-query-cell weight over the anchors (the same distance-weighted,
+  score-scaled Gaussian kernel `integrate_data` uses), then either **classifies**
+  (a metadata column or 1-D label array → `predicted.id` +
+  `prediction.score.<class>` per class, rows summing to 1, + `prediction.score.max`)
+  or **imputes** (a 2-D `features × reference-cells` matrix → predicted query
+  expression). Verified to recover a query's true cell types across an injected
+  batch block (`tests/test_transfer.py`).
 - **R:** `TransferData(anchors, refdata = reference$celltype)`
-- **Plan:**
-  1. For each query cell, take a weighted average of reference labels/embeddings
-     across its anchors
-  2. Categorical labels → predicted label + prediction score per class
-  3. Continuous (e.g. gene expression imputation) → weighted mean
-- **Tests:** majority of cells get correct label when query == reference (self-transfer)
+- **Tests:** query cells get the correct transferred label at >85% accuracy;
+  per-class scores form a distribution; imputation recovers the marker split.
 
-### `MapQuery` + `ProjectUMAP`
+### `MapQuery` + `ProjectUMAP` — ⏳ next
 - **R:** `MapQuery(query, reference, refmodel)` then `ProjectUMAP(...)`
 - **Plan:** compose `FindTransferAnchors` + `TransferData` + UMAP projection
   (transform-only mode of `umap-learn`, using reference's fitted UMAP model)
@@ -519,7 +531,11 @@ If milestones are too large, these are the highest-value individual items:
 1. ~~**Harmony** (`v0.2.0`)~~ — ✅ delivered (`run_harmony` / `integrate_layers`)
 2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
-4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — enables atlas-based annotation (next-cycle candidate). CCA/RPCA anchors are now in place (`shanuz/anchors.py`, with a reusable `IntegrationAnchors`), as is `run_spca` — the reduction Azimuth maps onto. This is now unblocked.
+4. **`FindTransferAnchors` / `TransferData`** (`v0.3.0`) — ✅ delivered
+   (`shanuz/transfer.py`: `find_transfer_anchors` pcaproject/cca + `transfer_data`
+   classification/imputation), enabling atlas-based annotation. Built on the
+   v0.2.0 anchor machinery. **`MapQuery` / `ProjectUMAP`** (query into the
+   reference UMAP) is the remaining v0.3.0 item.
 5. ~~**`FindSpatiallyVariableFeatures`** + **`SpatialFeaturePlot`**~~ ✅ (`v0.7.0`) — all four loaders, niche/neighbourhood analysis, both spatially-variable-feature methods (Moran's I and markvariogram), the `VisiumV2` tissue-image data layer and the `spatial_*` H&E plots delivered; **v0.7.0 is complete**
 6. ~~**`AggregateExpression` + DESeq2**~~ ✅ (`v0.6.0`) — `aggregate_expression`,
    `find_conserved_markers`, and pseudobulk DESeq2 (`test_use="deseq2"`) delivered;
