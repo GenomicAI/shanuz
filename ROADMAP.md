@@ -532,14 +532,33 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 - **Still open:** Seurat's `"clara"` k-medoids clustering option for `hto_demux` is
   not ported (`kfunc="kmeans"` only).
 
-### Mixscape (pooled CRISPR screen analysis)
-- **R:** `RunMixscape(obj, target.gene.ident, nt.class.name)`
-- **Plan:**
-  1. `calc_perturbation_score`: per-cell log-fold-change vs negative-control cells
-     projected onto a perturbation-response PCA (PRTB PCA)
-  2. `run_mixscape`: Gaussian mixture model (2-component) per guide RNA;
-     classify each cell as "perturbed" or "escaped"; uses `sklearn.mixture.GaussianMixture`
-  3. `plot_mixscape`: violin of perturbation scores split by classification
+### Mixscape (pooled CRISPR screen analysis) — ✅ delivered
+- **R:** `CalcPerturbSig(obj, ...)` → `RunMixscape(obj, labels, nt.class.name)`
+- **`calc_perturb_sig` — ✅ delivered** (`shanuz/mixscape.py`): Seurat's
+  `CalcPerturbSig`. For every cell, the mean expression of its `num_neighbors`
+  (20) nearest **non-targeting (NT)** control cells — in the first `ndims` of a
+  reduction (default `pca`), optionally within each `split_by` batch — is
+  subtracted from its own expression. The residual local perturbation signature
+  (shared technical variation cancelled) is stored as a new assay (default
+  `"PRTB"`). Neighbours via `sklearn.neighbors.NearestNeighbors` — no new dep.
+- **`run_mixscape` — ✅ delivered** (`shanuz/mixscape.py`): Seurat's `RunMixscape`.
+  Per target gene: (1) DE vs NT on `de_assay` (reuses `find_markers`) picks the
+  perturbation-response genes; a gene with fewer than `min_de_genes` (5) is all
+  NP. (2) On the signature over those genes, a *perturbation vector*
+  (mean KO − mean NT) projects every cell to a single perturbation score, and an
+  **iterative 2-component `sklearn.mixture.GaussianMixture`** splits the knockout
+  (KO) mode from the non-perturbed (NP) mode — the vector is recomputed from each
+  new KO set and re-fit until it stabilises (up to `iter_num` rounds). Writes
+  `mixscape_class` (`"<gene> KO"` / `"<gene> NP"` / `"NT"`, also the active
+  identity), `mixscape_class.global`, and `mixscape_class_p_<type>`; per-gene
+  bookkeeping stashed in `obj.misc["mixscape"]`.
+- **Two documented departures from R:** the mixture is fit on the pooled NT +
+  gene-cell scores (so the NP mode is anchored by the controls), and the
+  signature is read from the assay's `data` layer directly — Seurat's pre-`ScaleData`
+  centring is a provable no-op for the KO/NP calls (it leaves the perturbation
+  vector unchanged and only globally shifts the scores the re-fit mixture absorbs).
+- **Still open:** `MixscapeLDA` (the LDA visualization of the perturbation
+  classes) and a dedicated mixscape violin/heatmap plot are not ported.
 
 ---
 

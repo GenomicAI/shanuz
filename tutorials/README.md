@@ -266,6 +266,8 @@ same caveat as the other tutorials.
 | Open on-disk matrix | `open_matrix_dir("counts.mat")` (BPCells) | `open_lazy_matrix("counts.mat")` |
 | Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO")` |
 | Demultiplex (MULTI-seq) | `MULTIseqDemux(obj, assay="HTO")` | `multiseq_demux(obj, assay="HTO")` |
+| Perturbation signature | `CalcPerturbSig(obj, gd.class="gene", nt.cell.class="NT")` | `calc_perturb_sig(obj, labels="gene", nt_class="NT")` |
+| Mixscape (CRISPR KO calls) | `RunMixscape(obj, labels="gene", nt.class.name="NT")` | `run_mixscape(obj, labels="gene", nt_class="NT")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -624,6 +626,42 @@ multiseq_demux(obj, assay="HTO", autothresh=True)  # ignores `quantile`
 `MULTI_ID` is set as the active identity, so subsetting one sample's singlets works
 exactly as with `hash.ID` above. As with `hto_demux`, pass `normalize=False` to
 reuse an existing CLR `data` layer instead of recomputing it.
+
+### Pooled CRISPR screens — Mixscape
+
+In a pooled CRISPR screen every cell carries a guide RNA, but carrying a guide is
+not the same as being perturbed: some cells escape the knockout and look just like
+controls. Mixscape (Papalexi, Mimitou et al.) separates the true knockouts (KO)
+from those non-perturbed escapers (NP) so downstream analysis runs on genuinely
+perturbed cells. It is a two-step workflow — build a per-cell **perturbation
+signature**, then classify against it — mirroring Seurat's `CalcPerturbSig` +
+`RunMixscape`. It expects a guide-assignment column (each cell's target gene, with
+the controls labelled `"NT"`) and a computed reduction (`pca`):
+
+```python
+from shanuz import calc_perturb_sig, run_mixscape
+
+# 1. Local perturbation signature: subtract each cell's 20 nearest NT controls
+#    (in PCA space) to cancel cell-cycle / depth / batch variation. Stored as a
+#    new "PRTB" assay. `split_by` keeps neighbours within a replicate.
+calc_perturb_sig(obj, assay="RNA", labels="gene", nt_class="NT",
+                 reduction="pca", ndims=15, num_neighbors=20)   # → obj.assays["PRTB"]
+
+# 2. Per guide: DE vs NT picks the response genes, then an iterative 2-component
+#    Gaussian mixture over the perturbation score splits KO from NP.
+run_mixscape(obj, assay="PRTB", labels="gene", nt_class="NT", de_assay="RNA")
+
+obj.meta_data["mixscape_class"]           # "IFNGR2 KO" / "IFNGR2 NP" / "NT"
+obj.meta_data["mixscape_class.global"]    # "KO" / "NP" / "NT"
+obj.meta_data["mixscape_class_p_ko"]      # KO posterior per guide cell (NaN for NT)
+obj.misc["mixscape"]["PRTB"]["genes"]     # per-gene DE-gene / iteration / KO counts
+```
+
+`mixscape_class` is set as the active identity, so `obj.subset(idents="IFNGR2 KO")`
+pulls just the confirmed knockouts. A guide with too few cells, or too few DE genes
+to show a phenotype (`min_de_genes`, default 5), has all its cells called NP. For a
+knock-down rather than a knockout screen, pass `prtb_type="KD"` — the class labels
+and the `mixscape_class_p_kd` posterior column follow the name.
 
 ### Pseudobulk & conserved markers
 
