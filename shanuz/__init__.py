@@ -37,6 +37,7 @@ from .mapping import map_query, project_umap
 from .sketch import sketch_data, project_data, leverage_score
 from .lazy import LazyMatrix, write_lazy_matrix, open_lazy_matrix, is_lazy
 from .hto import hto_demux
+from .multiseq import multiseq_demux
 from .markers import find_markers, find_all_markers, find_conserved_markers
 from .aggregate import aggregate_expression
 from .sctransform import sctransform
@@ -165,6 +166,7 @@ __all__ = [
     "open_lazy_matrix",
     "is_lazy",
     "hto_demux",
+    "multiseq_demux",
     "find_markers",
     "find_all_markers",
     "find_conserved_markers",

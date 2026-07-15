@@ -26,7 +26,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Reference mapping** — `find_transfer_anchors` (project a query into a reference; `pcaproject` or `cca`) + `transfer_data` (annotate the query with reference labels, or impute reference expression onto it); `project_umap` / `map_query` place the query in the reference's own UMAP in one call
 - **Scale (sketching)** — `sketch_data` draws a leverage-weighted subset of a huge dataset (rare states kept, not lost), `leverage_score` computes the per-cell scores via a CountSketch (no full SVD), and `project_data` extends the sketch's PCA/UMAP/labels back to every cell
 - **Scale (lazy on-disk matrices)** — `LazyMatrix` keeps a matrix out-of-core as memory-mapped compressed-sparse-column arrays (BPCells-style); `write_lazy_matrix` / `open_lazy_matrix` persist and map it, a slice reads only the touched cells off disk, `col_blocks` streams a million cells at bounded RAM, and it drops straight into an `Assay5` layer — no new dependency
-- **Cell hashing (demultiplexing)** — `hto_demux` (Seurat's `HTODemux`) demultiplexes pooled samples from hashtag counts: CLR normalize → k-means (`k = n_hashtags + 1`) → per-hashtag negative-binomial background threshold → singlet / doublet / negative calls, written to `meta_data` (`HTO_maxID`, `HTO_classification`, …) plus a `hash.ID` identity
+- **Cell hashing (demultiplexing)** — `hto_demux` (Seurat's `HTODemux`) demultiplexes pooled samples from hashtag counts: CLR normalize → k-means (`k = n_hashtags + 1`) → per-hashtag negative-binomial background threshold → singlet / doublet / negative calls, written to `meta_data` (`HTO_maxID`, `HTO_classification`, …) plus a `hash.ID` identity. `multiseq_demux` (Seurat's `MULTIseqDemux`) is the MULTI-seq alternative — a Gaussian-KDE quantile threshold per barcode, with an `autothresh` sweep — writing `MULTI_ID` / `MULTI_classification`
 - **Nearest-neighbour graph** — `find_neighbors` (KNN + SNN)
 - **Multimodal WNN** — `find_multi_modal_neighbors` (per-cell RNA/protein weights, joint `wknn`/`wsnn` graphs)
 - **Clustering** — `find_clusters` (Louvain via python-igraph, Leiden via leidenalg)
@@ -299,7 +299,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |
 | v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(delivered — see Tutorial 5)* |
 | v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy on-disk matrices (`LazyMatrix`) ✅ *(complete)* |
-| v0.9.0 | Specialized — `HTODemux` (cell hashing) ✅; Mixscape (CRISPR screens) |
+| v0.9.0 | Specialized — `HTODemux` ✅ + `MULTIseqDemux` ✅ (cell hashing); Mixscape (CRISPR screens) |
 | v0.10.0 | Infrastructure — PyPI, GitHub Actions CI, type annotations, MkDocs site |
 
 ---

@@ -518,10 +518,19 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   `obj.misc["hto_demux"]`. `normalize=False` reuses a prior
   `normalize_data(method="CLR")` layer. Built on the existing CLR helper +
   sklearn k-means — no new dependency.
-- **Still open:** `multiseq_demux` (McGinnis et al. — quantile-sweep bar-code
-  classification); it shares `hto_demux`'s normalize-then-threshold skeleton.
-  Seurat's `"clara"` k-medoids clustering option is not ported (`kfunc="kmeans"`
-  only).
+- **`multiseq_demux` — ✅ delivered** (`shanuz/multiseq.py`): the MULTI-seq
+  chemistry (McGinnis et al.). Reuses `hto_demux`'s CLR extraction, then thresholds
+  each barcode straight off its distribution shape rather than a background fit — a
+  Gaussian KDE over a 100-point grid exposes the background and positive modes as
+  the two tallest local maxima and the cutoff sits a fraction `quantile` (0.7)
+  between them. Cells clearing zero / one / many barcodes are singlet / doublet /
+  negative. `autothresh=True` runs McGinnis's iterative `deMULTIplex` sweep — pick
+  the `q` maximising the singlet rate, peel off negatives, re-threshold the
+  remainder up to `maxiter` rounds. Writes `MULTI_ID` (also the active identity)
+  and `MULTI_classification`; thresholds stashed in `obj.misc["multiseq_demux"]`.
+  KDE via `scipy.stats.gaussian_kde` — no new dependency.
+- **Still open:** Seurat's `"clara"` k-medoids clustering option for `hto_demux` is
+  not ported (`kfunc="kmeans"` only).
 
 ### Mixscape (pooled CRISPR screen analysis)
 - **R:** `RunMixscape(obj, target.gene.ident, nt.class.name)`

@@ -265,6 +265,7 @@ same caveat as the other tutorials.
 | Matrix to disk (out-of-core) | `write_matrix_dir(mat, "counts.mat")` (BPCells) | `write_lazy_matrix(mat, "counts.mat")` |
 | Open on-disk matrix | `open_matrix_dir("counts.mat")` (BPCells) | `open_lazy_matrix("counts.mat")` |
 | Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO")` |
+| Demultiplex (MULTI-seq) | `MULTIseqDemux(obj, assay="HTO")` | `multiseq_demux(obj, assay="HTO")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -596,6 +597,33 @@ By default `hto_demux` CLR-normalizes internally; if you already ran
 `normalize=False` to reuse that `data` layer. The negative binomial — not a fixed
 threshold — is what makes the call robust to each antibody's own staining
 background and each run's own depth.
+
+**MULTI-seq — the other demultiplexer.** MULTI-seq (McGinnis et al.) uses
+lipid-anchored barcodes instead of antibodies, and Seurat's `MULTIseqDemux` calls
+it a different way: rather than a background fit, it reads each barcode's cutoff
+straight off the *shape* of its distribution. `multiseq_demux` is a drop-in
+alternative that often disagrees with `hto_demux` at the margins, so it is handy
+as a second opinion:
+
+```python
+from shanuz import multiseq_demux
+
+# Same "HTO" assay of barcode counts. For each barcode a Gaussian KDE exposes its
+# background and positive modes; the cutoff sits a fraction `quantile` between them.
+multiseq_demux(obj, assay="HTO", quantile=0.7)     # 0.7 is the Seurat default
+
+obj.meta_data["MULTI_ID"]                          # barcode name / "Doublet" / "Negative"
+obj.meta_data["MULTI_classification"]              # a character copy of MULTI_ID
+obj.misc["multiseq_demux"]["HTO"]["thresholds"]    # learned per-barcode cutoffs
+
+# Don't want to guess `quantile`? Let it sweep for the value that maximises the
+# singlet rate, peeling off negatives and re-thresholding until it settles:
+multiseq_demux(obj, assay="HTO", autothresh=True)  # ignores `quantile`
+```
+
+`MULTI_ID` is set as the active identity, so subsetting one sample's singlets works
+exactly as with `hash.ID` above. As with `hto_demux`, pass `normalize=False` to
+reuse an existing CLR `data` layer instead of recomputing it.
 
 ### Pseudobulk & conserved markers
 
