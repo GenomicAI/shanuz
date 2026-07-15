@@ -20,7 +20,19 @@ sequencing depth is a known quantity rather than a factor to be discovered), and
 loadings and embeddings. There is no closed form, so the model is fitted by
 Fisher scoring.
 
-Poisson only, for now. ``family="nb"`` raises; see ROADMAP.
+Two noise models are available. ``family="poisson"`` assumes the variance equals
+the mean; real UMI counts are usually noisier than that (the same gene in two
+copies of the same cell state still varies more than Poisson predicts), and a
+handful of over-dispersed genes will otherwise dominate the fit. ``family="nb"``
+swaps in a negative binomial::
+
+    Y[g,c] ~ NB(μ[g,c], θ)      Var = μ + μ²/θ
+
+with a single shared dispersion ``θ``: as ``θ → ∞`` the extra ``μ²/θ`` term
+vanishes and NB collapses back onto Poisson, so NB never fits *worse* than
+Poisson, only more forgivingly. ``θ`` can be pinned or estimated from the data by
+maximum likelihood alongside the factors (see ``glm_pca``'s ``theta`` /
+``optimize_theta``).
 """
 from __future__ import annotations
 
@@ -31,7 +43,9 @@ import scipy.sparse as sp
 
 from .dimreduc import DimReduc
 
-FAMILIES = ("poisson",)
+FAMILIES = ("poisson", "nb")
+
+_THETA_MIN, _THETA_MAX = 1e-2, 1e6      # keep the dispersion positive and finite
 
 _ETA_CLIP = 30.0        # exp(30) ≈ 1e13; keeps a bad step from overflowing to inf
 _EPS = 1e-10
@@ -50,6 +64,8 @@ def glm_pca(
     tol: float = 1e-4,
     penalty: float = 1.0,
     learning_rate: float = 0.1,
+    theta: float = 100.0,
+    optimize_theta: bool = True,
     seed: int = 42,
 ) -> None:
     """Fit a Poisson GLM-PCA and store it as a DimReduc.
@@ -65,7 +81,7 @@ def glm_pca(
     n_components  : rank of the fit (L) — the number of factors
     features      : genes to use (defaults to variable features)
     assay         : assay name (defaults to active assay)
-    family        : noise model; only ``"poisson"`` is implemented
+    family        : noise model — ``"poisson"`` or ``"nb"`` (negative binomial)
     layer         : layer to read counts from
     max_iter      : maximum Fisher scoring iterations
     tol           : stop when the relative change in deviance falls below this
@@ -74,6 +90,13 @@ def glm_pca(
     learning_rate : initial Fisher step size. Halved on any step that fails to
                     lower the deviance, so this is an opening bid, not a
                     commitment.
+    theta         : negative-binomial dispersion (``Var = μ + μ²/θ``). Ignored for
+                    Poisson. With ``optimize_theta`` it is only the starting value;
+                    otherwise it is held fixed at this number for the whole fit.
+    optimize_theta: re-estimate ``θ`` by maximum likelihood between factor updates
+                    (NB only). Turn off to fit at a dispersion you already trust —
+                    that also restores strict monotone deviance, since a moving
+                    ``θ`` re-scales the deviance under it.
     seed          : only used if the counts have no structure at all — the fit is
                     started deterministically from the data (see `_init_factors`)
 
@@ -116,11 +139,20 @@ def glm_pca(
             "offset by. Filter them out first.")
     offsets = np.log(totals / totals.mean())
 
-    intercept, U, V, deviance, converged = _fit_poisson(
-        Y, n_components, offsets,
-        max_iter=max_iter, tol=tol, penalty=penalty,
-        learning_rate=learning_rate, seed=seed,
-    )
+    if family == "poisson":
+        intercept, U, V, deviance, converged = _fit_poisson(
+            Y, n_components, offsets,
+            max_iter=max_iter, tol=tol, penalty=penalty,
+            learning_rate=learning_rate, seed=seed,
+        )
+        fitted_theta = np.inf
+    else:                                                   # family == "nb"
+        intercept, U, V, deviance, converged, fitted_theta = _fit_nb(
+            Y, n_components, offsets,
+            max_iter=max_iter, tol=tol, penalty=penalty,
+            learning_rate=learning_rate, theta=theta,
+            optimize_theta=optimize_theta, seed=seed,
+        )
     loadings, factors = _orthogonalize(U, V)
 
     seurat.reductions[reduction_name] = DimReduc(
@@ -136,6 +168,7 @@ def glm_pca(
             "deviance": deviance,
             "converged": converged,
             "intercept": intercept,
+            "theta": fitted_theta,
         },
     )
 
@@ -288,6 +321,164 @@ def _fit_poisson(
             break
 
     return intercept, U, V, np.array(deviance), converged
+
+
+def _nb_deviance(Y: np.ndarray, mu: np.ndarray, theta: float) -> float:
+    """2·Σ[y·log(y/μ) − (y+θ)·log((y+θ)/(μ+θ))] — the NB goodness-of-fit.
+
+    The second term is the negative-binomial correction to the Poisson deviance;
+    as ``θ → ∞`` it tends to ``y − μ`` and this reduces to `_poisson_deviance`. For
+    ``y = 0`` the first term is 0 (as in Poisson) and the second stays finite, so a
+    gene detected in no cell does not blow it up.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        term = np.where(Y > 0, Y * np.log(Y / mu), 0.0)
+    correction = (Y + theta) * np.log((Y + theta) / (mu + theta))
+    return float(2.0 * np.sum(term - correction))
+
+
+def _moment_theta(Y: np.ndarray, mu: np.ndarray) -> float:
+    """Method-of-moments dispersion: match ``Var = μ + μ²/θ`` in aggregate.
+
+    ``(y − μ)² − μ`` estimates ``μ²/θ`` cell by cell, so ``θ ≈ Σμ² / Σ[(y−μ)² − μ]``.
+    A non-positive denominator means the counts are *under*-dispersed relative to
+    Poisson — there is no finite NB that fits tighter than Poisson, so hand back
+    the ceiling (effectively Poisson). Cheap, always defined, and close enough to
+    the optimum to drop Newton straight into the concave basin.
+    """
+    num = float(np.sum(mu ** 2))
+    den = float(np.sum((Y - mu) ** 2 - mu))
+    if den <= 0:
+        return _THETA_MAX
+    return float(np.clip(num / den, _THETA_MIN, _THETA_MAX))
+
+
+def _estimate_theta(Y: np.ndarray, mu: np.ndarray, theta: float,
+                    n_steps: int = 10, tol: float = 1e-3) -> float:
+    """ML estimate of the shared NB dispersion given the current means.
+
+    Newton–Raphson on the profile log-likelihood for ``θ`` with the factors held
+    fixed — the same alternating scheme MASS's ``theta.ml`` uses, just shared
+    across the whole matrix rather than one θ per group. The score and observed
+    information are the digamma/trigamma sums below; a step that leaves the
+    concave region (information ≤ 0) or the sane range is refused, so this only
+    ever hands back a positive, finite θ.
+
+    Newton on this likelihood is only reliable *near* the optimum — far out it is
+    not concave and a raw step can fly off to nonsense. So ignore the incoming
+    ``theta`` as a starting point and seed from the method-of-moments estimate,
+    which is already in the right basin; ``theta`` still matters as the value the
+    fit ran at, just not as where this search begins.
+    """
+    from scipy.special import digamma, polygamma
+
+    th = _moment_theta(Y, mu)
+    for _ in range(n_steps):
+        score = np.sum(
+            digamma(Y + th) - digamma(th) + np.log(th) + 1.0
+            - np.log(mu + th) - (Y + th) / (mu + th))
+        # Observed information: −∂²ℓ/∂θ². Positive near the optimum.
+        info = np.sum(
+            polygamma(1, th) - polygamma(1, Y + th) - 1.0 / th
+            + 1.0 / (mu + th) - (Y - mu) / (mu + th) ** 2)
+        if not np.isfinite(score) or not np.isfinite(info) or info <= 0:
+            break                                       # not usefully concave here
+        new = th + score / info
+        if not np.isfinite(new):
+            break
+        new = float(np.clip(new, _THETA_MIN, _THETA_MAX))
+        if abs(new - th) <= tol * th:
+            th = new
+            break
+        th = new
+    return th
+
+
+def _fit_nb(
+    Y: np.ndarray,
+    L: int,
+    offsets: np.ndarray,
+    max_iter: int,
+    tol: float,
+    penalty: float,
+    learning_rate: float,
+    theta: float,
+    optimize_theta: bool,
+    seed: int,
+):
+    """Fisher scoring for the negative-binomial log-bilinear model.
+
+    Mirrors `_fit_poisson` step for step; the only change is the noise model. A
+    log link and NB(μ, θ) noise give an IRLS working weight ``w = μ / (1 + μ/θ)``
+    and an effective residual ``(y − μ) / (1 + μ/θ)`` — the raw residual and ``μ``
+    of the Poisson updates, each divided by the same ``1 + μ/θ``. As ``θ → ∞`` the
+    divisor is 1 and every line below becomes its Poisson twin.
+
+    When ``optimize_theta`` is on, ``θ`` is re-estimated by ML after each accepted
+    factor step and the running deviance is re-based to that new ``θ`` (the accept
+    test only ever compares two deviances measured at the *same* ``θ``). That
+    re-basing is why the NB deviance trace is not promised to be monotone unless
+    ``θ`` is held fixed.
+    """
+    rate = Y.sum(axis=1) / np.exp(offsets).sum()
+    intercept = np.log(np.maximum(rate, _EPS))
+
+    U, V = _init_factors(Y, intercept, offsets, L, seed)
+    th = float(np.clip(theta, _THETA_MIN, _THETA_MAX))
+
+    def mean_of(intercept, U, V):
+        eta = intercept[:, None] + offsets[None, :] + U @ V.T
+        return np.exp(np.clip(eta, -_ETA_CLIP, _ETA_CLIP))
+
+    mu = mean_of(intercept, U, V)
+    deviance = [_nb_deviance(Y, mu, th)]
+    lr = learning_rate
+    converged = False
+
+    for _ in range(max_iter):
+        keep = (intercept.copy(), U.copy(), V.copy(), mu)
+
+        denom = 1.0 + mu / th                           # the NB down-weighting
+        R = (Y - mu) / denom                            # effective residual
+        W = mu / denom                                  # working weight
+
+        intercept = intercept + lr * R.sum(axis=1) / np.maximum(
+            W.sum(axis=1), _EPS)
+        mu = mean_of(intercept, U, V)
+
+        denom = 1.0 + mu / th
+        R = (Y - mu) / denom
+        W = mu / denom
+        U = U + lr * (R @ V - penalty * U) / (W @ V**2 + penalty)
+        mu = mean_of(intercept, U, V)
+
+        denom = 1.0 + mu / th
+        R = (Y - mu) / denom
+        W = mu / denom
+        V = V + lr * (R.T @ U - penalty * V) / (W.T @ U**2 + penalty)
+        mu = mean_of(intercept, U, V)
+
+        current = _nb_deviance(Y, mu, th)
+        if not np.isfinite(current) or current > deviance[-1]:
+            intercept, U, V, mu = keep      # the step overshot — take it back
+            lr *= 0.5
+            if lr < 1e-6:
+                break
+            continue
+
+        improvement = abs(deviance[-1] - current) / (abs(deviance[-1]) + 0.1)
+        deviance.append(current)
+
+        if optimize_theta:
+            th = _estimate_theta(Y, mu, th)
+            # Re-base the baseline to the new θ so the next accept test is fair.
+            deviance[-1] = _nb_deviance(Y, mu, th)
+
+        if improvement < tol:
+            converged = True
+            break
+
+    return intercept, U, V, np.array(deviance), converged, th
 
 
 def _orthogonalize(U: np.ndarray, V: np.ndarray):

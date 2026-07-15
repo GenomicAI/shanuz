@@ -248,7 +248,7 @@ same caveat as the other tutorials.
 | Scale | `ScaleData(pbmc, features)` | `scale_data(pbmc, features)` |
 | PCA | `RunPCA(pbmc, features, npcs)` | `run_pca(pbmc, features, n_pcs)` |
 | Supervised PCA | `RunSPCA(pbmc, graph="wsnn")` | `run_spca(pbmc, graph="wsnn")` |
-| GLM-PCA | `RunGLMPCA(pbmc, L=10)` | `glm_pca(pbmc, n_components=10)` — Poisson only; `family="nb"` not yet implemented |
+| GLM-PCA | `RunGLMPCA(pbmc, L=10)` | `glm_pca(pbmc, n_components=10)` — Poisson; `family="nb"` for negative binomial |
 | Neighbors | `FindNeighbors(pbmc, dims)` | `find_neighbors(pbmc, dims, k_param)` |
 | Cluster | `FindClusters(pbmc, resolution)` | `find_clusters(pbmc, resolution, algorithm)` |
 | UMAP | `RunUMAP(pbmc, dims)` | `run_umap(pbmc, dims)` |
@@ -285,6 +285,10 @@ run_umap(cbmc, reduction="spca", dims=range(30))
 glm_pca(pbmc, n_components=10)
 find_neighbors(pbmc, reduction="glmpca", dims=range(10))
 print(pbmc.reductions["glmpca"].misc["converged"])
+
+# Negative binomial for over-dispersed counts; θ is estimated by ML.
+glm_pca(pbmc, n_components=10, family="nb")
+print(pbmc.reductions["glmpca"].misc["theta"])          # the fitted dispersion
 ```
 
 **`run_spca`** maximises `vᵀXᵀGXv` where PCA maximises `vᵀXᵀXv` — the same problem
@@ -305,10 +309,20 @@ fits `log μ = a[g] + o[c] + U·Vᵀ` with a Poisson likelihood, holding the log
 library size as a fixed offset so sequencing depth is a known quantity rather than
 something the factors have to spend themselves discovering.
 
-> Two things to know. `glm_pca` is **Poisson only** — `family="nb"` raises. And it
-> fits densely in genes × cells, so pass a few thousand variable features, as you
-> would to `run_pca`. Check `misc["converged"]`; if it is `False`, or
-> `misc["deviance"]` is still falling steeply at the end, raise `max_iter`.
+Real UMI counts are usually noisier than Poisson allows — the same gene in two
+copies of one cell state still varies more than the mean — and a handful of such
+genes will dominate a Poisson fit. `family="nb"` swaps in a negative binomial,
+`Var = μ + μ²/θ`, with a single shared dispersion `θ` estimated by maximum
+likelihood alongside the factors (pass `optimize_theta=False` and a `theta=` to
+pin it). As `θ → ∞` it collapses back onto Poisson, so NB never fits worse — only
+more forgivingly. The fitted `θ` lands in `misc["theta"]`.
+
+> Two things to know. `glm_pca` fits densely in genes × cells, so pass a few
+> thousand variable features, as you would to `run_pca`. And check
+> `misc["converged"]`; if it is `False`, or `misc["deviance"]` is still falling
+> steeply at the end, raise `max_iter`. (With `family="nb"` and `θ` being
+> estimated, the deviance is re-scaled as `θ` moves, so it is only strictly
+> monotone when you pin `θ` with `optimize_theta=False`.)
 
 ### Pseudobulk & conserved markers
 

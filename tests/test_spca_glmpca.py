@@ -16,7 +16,14 @@ from shanuz.preprocessing import (  # noqa: E402
     scale_data,
 )
 from shanuz.reduction import run_pca, run_spca  # noqa: E402
-from shanuz.glmpca import glm_pca, _counts_for, _orthogonalize, _poisson_deviance  # noqa: E402
+from shanuz.glmpca import (  # noqa: E402
+    glm_pca,
+    _counts_for,
+    _orthogonalize,
+    _poisson_deviance,
+    _nb_deviance,
+    _estimate_theta,
+)
 from shanuz.neighbors import find_neighbors  # noqa: E402
 
 pytest.importorskip("sklearn")
@@ -279,7 +286,7 @@ def test_glmpca_embeddings_feed_downstream_steps(counts_obj):
 def test_glmpca_rejects_an_unknown_family(counts_obj):
     obj, _ = counts_obj
     with pytest.raises(NotImplementedError, match="not implemented"):
-        glm_pca(obj, family="nb")
+        glm_pca(obj, family="gaussian")
 
 
 def test_glmpca_rejects_a_cell_with_no_counts():
@@ -292,6 +299,118 @@ def test_glmpca_rejects_a_cell_with_no_counts():
     )
     with pytest.raises(ValueError, match="zero total counts"):
         glm_pca(obj, n_components=2)
+
+
+# ---------------------------------------------------------------------------
+# glm_pca — negative binomial family
+# ---------------------------------------------------------------------------
+
+def _nb_counts(rng, mean, theta):
+    """Draw NB counts with the given mean and dispersion (Var = μ + μ²/θ)."""
+    p = theta / (theta + mean)
+    return rng.negative_binomial(theta, p).astype(float)
+
+
+@pytest.fixture
+def overdispersed_obj():
+    """60 cells in 3 clusters of *over-dispersed* counts — NB territory.
+
+    Same cluster layout as ``counts_obj`` but drawn from NB(μ, θ=4) rather than
+    Poisson, so the per-gene noise is well above what a Poisson fit expects. The
+    dispersion is deliberately low enough to matter.
+    """
+    rng = np.random.default_rng(0)
+    n_genes, per, k = 40, 20, 3
+    n = per * k
+    mean = np.full((n_genes, n), 2.0)
+    for c in range(n):
+        cluster = c // per
+        mean[cluster * 10:(cluster + 1) * 10, c] += 10.0
+    counts = _nb_counts(rng, mean, theta=4.0)
+
+    obj = create_shanuz_object(
+        counts=sp.csc_matrix(counts),
+        assay="RNA",
+        feature_names=[f"g{i}" for i in range(n_genes)],
+        cell_names=[f"c{i}" for i in range(n)],
+    )
+    return obj, np.repeat(np.arange(k), per)
+
+
+def test_glmpca_nb_recovers_clusters_from_overdispersed_counts(overdispersed_obj):
+    obj, labels = overdispersed_obj
+    glm_pca(obj, n_components=3, family="nb", seed=0)
+
+    dr = obj.reductions["glmpca"]
+    assert dr.cell_embeddings.shape == (len(labels), 3)
+    assert np.isfinite(dr.cell_embeddings).all()
+    assert _silhouette(dr.cell_embeddings, labels) > 0.5
+    assert dr.misc["glmpca_family"] == "nb"
+
+
+def test_glmpca_nb_reduces_to_poisson_at_large_fixed_theta(counts_obj):
+    """θ → ∞ is the Poisson limit: the NB fit must land on the Poisson fit.
+
+    Same counts, same seed; a negative binomial with a huge fixed dispersion has
+    almost no ``μ²/θ`` term left, so every Fisher step matches its Poisson twin.
+    """
+    obj, _ = counts_obj
+    glm_pca(obj, n_components=3, family="poisson", seed=0, reduction_name="pois")
+    glm_pca(obj, n_components=3, family="nb", theta=1e8,
+            optimize_theta=False, seed=0, reduction_name="nb")
+
+    pois = obj.reductions["pois"].cell_embeddings
+    nb = obj.reductions["nb"].cell_embeddings
+    for i in range(3):
+        assert _cosine(nb[:, i], pois[:, i]) > 0.999
+
+
+def test_glmpca_nb_deviance_falls_with_theta_fixed(overdispersed_obj):
+    """A moving θ re-scales the deviance, so monotonicity is only promised when
+    θ is pinned. Hold it fixed and the backtracking guarantee is back."""
+    obj, _ = overdispersed_obj
+    glm_pca(obj, n_components=3, family="nb", theta=4.0,
+            optimize_theta=False, seed=0)
+
+    deviance = obj.reductions["glmpca"].misc["deviance"]
+    assert len(deviance) > 1
+    assert (np.diff(deviance) <= 1e-9).all()
+    assert np.isfinite(deviance).all()
+    assert deviance[-1] < 0.9 * deviance[0]
+
+
+def test_glmpca_nb_learns_more_dispersion_on_noisier_data(counts_obj,
+                                                          overdispersed_obj):
+    """Estimated θ is a read-out of the noise: small when counts are over-dispersed,
+    large (toward the Poisson limit) when they are merely Poisson."""
+    pois_obj, _ = counts_obj
+    over_obj, _ = overdispersed_obj
+    glm_pca(pois_obj, n_components=3, family="nb", seed=0)
+    glm_pca(over_obj, n_components=3, family="nb", seed=0)
+
+    theta_pois = pois_obj.reductions["glmpca"].misc["theta"]
+    theta_over = over_obj.reductions["glmpca"].misc["theta"]
+    assert 0 < theta_over < theta_pois              # the noisier data pins θ lower
+
+
+def test_glmpca_nb_stores_the_fitted_theta(overdispersed_obj, counts_obj):
+    over_obj, _ = overdispersed_obj
+    glm_pca(over_obj, n_components=3, family="nb", seed=0)
+    theta = over_obj.reductions["glmpca"].misc["theta"]
+    assert np.isfinite(theta) and theta > 0
+
+    # Poisson is NB at θ = ∞; record that so misc["theta"] always means something.
+    pois_obj, _ = counts_obj
+    glm_pca(pois_obj, n_components=3, family="poisson", seed=0)
+    assert pois_obj.reductions["glmpca"].misc["theta"] == np.inf
+
+
+def test_glmpca_nb_is_deterministic(overdispersed_obj):
+    obj, _ = overdispersed_obj
+    glm_pca(obj, n_components=3, family="nb", seed=7, reduction_name="a")
+    glm_pca(obj, n_components=3, family="nb", seed=7, reduction_name="b")
+    np.testing.assert_allclose(
+        obj.reductions["a"].cell_embeddings, obj.reductions["b"].cell_embeddings)
 
 
 # --- the pieces, on their own ---------------------------------------------
@@ -315,6 +434,43 @@ def test_poisson_deviance_is_zero_for_a_perfect_fit():
     Y = np.array([[0.0, 3.0], [7.0, 2.0]])
     assert _poisson_deviance(Y, Y) == pytest.approx(0.0)     # y = 0 must not blow up
     assert _poisson_deviance(Y, Y + 1.0) > 0.0
+
+
+def test_nb_deviance_is_zero_for_a_perfect_fit():
+    Y = np.array([[0.0, 3.0], [7.0, 2.0]])
+    assert _nb_deviance(Y, Y, theta=5.0) == pytest.approx(0.0)   # y = 0 stays finite
+    assert _nb_deviance(Y, Y + 1.0, theta=5.0) > 0.0
+
+
+def test_nb_deviance_approaches_poisson_as_theta_grows():
+    """The μ²/θ correction vanishes as θ → ∞, leaving the Poisson deviance."""
+    rng = np.random.default_rng(4)
+    Y = rng.poisson(3.0, size=(8, 6)).astype(float)
+    mu = np.full_like(Y, 3.0)
+    assert _nb_deviance(Y, mu, theta=1e10) == pytest.approx(
+        _poisson_deviance(Y, mu), rel=1e-4)
+
+
+def test_estimate_theta_recovers_a_known_dispersion():
+    """Hand the estimator the true mean and a big sample; it should find θ."""
+    rng = np.random.default_rng(5)
+    theta_true, mu = 3.0, 5.0
+    p = theta_true / (theta_true + mu)
+    Y = rng.negative_binomial(theta_true, p, size=(200, 200)).astype(float)
+    mu_mat = np.full_like(Y, mu)
+
+    theta_hat = _estimate_theta(Y, mu_mat, theta=100.0)     # start far from truth
+    assert theta_hat == pytest.approx(theta_true, rel=0.2)
+
+
+def test_estimate_theta_stays_in_range_for_poisson_like_data():
+    """No over-dispersion to find: θ climbs toward the ceiling, never negative."""
+    rng = np.random.default_rng(6)
+    Y = rng.poisson(4.0, size=(100, 100)).astype(float)
+    mu = np.full_like(Y, 4.0)
+    theta_hat = _estimate_theta(Y, mu, theta=10.0)
+    assert theta_hat > 10.0                                 # pushed up, not down
+    assert np.isfinite(theta_hat)
 
 
 def test_counts_for_rejects_negative_values():
