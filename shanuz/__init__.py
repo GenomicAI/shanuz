@@ -33,6 +33,7 @@ from .transfer import (
     transfer_data,
     TransferAnchors,
 )
+from .mapping import map_query, project_umap
 from .markers import find_markers, find_all_markers, find_conserved_markers
 from .aggregate import aggregate_expression
 from .sctransform import sctransform
@@ -151,6 +152,8 @@ __all__ = [
     "find_transfer_anchors",
     "transfer_data",
     "TransferAnchors",
+    "map_query",
+    "project_umap",
     "find_markers",
     "find_all_markers",
     "find_conserved_markers",

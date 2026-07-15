@@ -257,6 +257,8 @@ same caveat as the other tutorials.
 | CCA/RPCA layers | `IntegrateLayers(obj, method=CCAIntegration)` | `integrate_layers(obj, method="cca", group_by="batch")` (or `"rpca"`) |
 | Transfer anchors | `FindTransferAnchors(reference, query, reduction="pcaproject")` | `find_transfer_anchors(reference, query, reduction="pcaproject")` (or `"cca"`) |
 | Transfer labels | `TransferData(anchors, refdata=reference$celltype)` | `transfer_data(anchors, refdata="celltype")` |
+| Project into reference UMAP | `ProjectUMAP(query, reference, reduction.model="umap")` | `project_umap(query, reference)` |
+| Map query (annotate + place) | `MapQuery(anchors, query, reference, refdata=list(id="celltype"))` | `map_query(anchors, refdata="celltype")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -419,8 +421,41 @@ joint space instead, for the harder cross-modality / cross-species cases.
 > distance-weighted, score-scaled Gaussian kernel `integrate_data` uses, so a
 > query cell surrounded by confident, consistent anchors of one type gets a
 > high `prediction.score.max`; an ambiguous one gets a low score you can filter
-> on. Placing the query in the reference *UMAP* (`MapQuery` / `ProjectUMAP`)
-> builds on these same anchors and lands next.
+> on.
+
+#### Placing the query in the reference UMAP
+
+Annotating the query is half the job; the other half is *seeing* it on the atlas
+you already know how to read. `project_umap` runs the reference's **fitted** UMAP
+model in transform-only mode, so the query cells land in the reference's existing
+embedding rather than in a fresh, unrelated one. `map_query` composes the whole
+workflow — transfer the labels *and* project the UMAP — in a single call.
+
+```python
+from shanuz import run_pca, run_umap, find_transfer_anchors, map_query, project_umap
+
+# The reference needs a fitted PCA + UMAP; run_umap stashes the umap-learn model
+# in reference.reductions["umap"].misc["umap_model"] for transform-only projection.
+run_pca(reference)
+run_umap(reference)                       # embeds from "pca", keeps the model
+
+anchors = find_transfer_anchors(reference, query, reduction="pcaproject")
+
+# One call: transfer_data writes predicted.id / prediction.score.* onto the
+# query's metadata, and project_umap places it in the reference UMAP.
+pred = map_query(anchors, refdata="celltype")
+query.reductions["ref.umap"]              # the query, on the reference's UMAP
+
+# Or just the projection, without label transfer:
+project_umap(query, reference)            # -> query.reductions["ref.umap"]
+```
+
+`project_umap` is itself a two-step map: it projects the query through the
+*reference's* PCA loadings into the reference's PC space (the same "project into a
+space the query never helped define" logic as `pcaproject` above), then runs the
+reference's UMAP model's `.transform`. A query cell that resembles reference
+T cells is pinned near the reference's T-cell island and optimised to sit there —
+so the query overlays the atlas, batch block and all.
 
 ### Pseudobulk & conserved markers
 
