@@ -271,7 +271,7 @@ same caveat as the other tutorials.
 | Project sketch → full data | `ProjectData(obj, sketched.assay="sketch", reduction="pca")` | `project_data(full, sketch, refdata={"cluster_full": "seurat_clusters"})` |
 | Matrix to disk (out-of-core) | `write_matrix_dir(mat, "counts.mat")` (BPCells) | `write_lazy_matrix(mat, "counts.mat")` |
 | Open on-disk matrix | `open_matrix_dir("counts.mat")` (BPCells) | `open_lazy_matrix("counts.mat")` |
-| Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO")` |
+| Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO", kfunc="clara")` — shanuz defaults to `kfunc="kmeans"`, Seurat to `"clara"` |
 | Demultiplex (MULTI-seq) | `MULTIseqDemux(obj, assay="HTO")` | `multiseq_demux(obj, assay="HTO")` |
 | Perturbation signature | `CalcPerturbSig(obj, gd.class="gene", nt.cell.class="NT")` | `calc_perturb_sig(obj, labels="gene", nt_class="NT")` |
 | Mixscape (CRISPR KO calls) | `RunMixscape(obj, labels="gene", nt.class.name="NT")` | `run_mixscape(obj, labels="gene", nt_class="NT")` |
@@ -576,8 +576,8 @@ and droplets that caught two cells carry two tags. `hto_demux` (Seurat's
 tag), **doublet** (two or more), or **negative** (none).
 
 The hashtags live in their own assay alongside the RNA. `hto_demux` learns each
-tag's positive cutoff from the data — it CLR-normalizes the counts, k-means
-clusters the cells (`k = n_hashtags + 1`), fits a negative binomial to each tag's
+tag's positive cutoff from the data — it CLR-normalizes the counts, clusters the
+cells into `k = n_hashtags + 1` groups, fits a negative binomial to each tag's
 *background* (the cluster where it is least expressed), and thresholds at the
 0.99 quantile:
 
@@ -604,11 +604,32 @@ sample3 = obj.subset(cells=obj.meta_data.index[
 obj.misc["hto_demux"]["HTO"]["cutoffs"]         # {"HTO-1": 6.0, "HTO-2": 5.0, ...}
 ```
 
-By default `hto_demux` CLR-normalizes internally; if you already ran
-`normalize_data(obj, normalization_method="CLR", margin=2, assay="HTO")`, pass
-`normalize=False` to reuse that `data` layer. The negative binomial — not a fixed
-threshold — is what makes the call robust to each antibody's own staining
-background and each run's own depth.
+By default `hto_demux` CLR-normalizes internally at `margin=1` — per hashtag,
+across cells — which is what Seurat's hashing vignette does and what `HTODemux`
+assumes. If you already ran
+`normalize_data(obj, normalization_method="CLR", margin=1, assay="HTO")`, pass
+`normalize=False` to reuse that `data` layer. (Note this is the *opposite* margin
+to the ADT/CITE-seq recipe above, where `margin=2` centers each cell across a
+small protein panel; hashing wants each tag centered across cells.) The negative
+binomial — not a fixed threshold — is what makes the call robust to each
+antibody's own staining background and each run's own depth.
+
+**Choosing the clustering.** The clustering only decides which cluster is each
+tag's background, so it rarely changes the calls — but Seurat's default is
+`clara` (k-medoids), not k-means, and shanuz ships both:
+
+```python
+hto_demux(obj, assay="HTO", kfunc="clara")     # Seurat's default; nsamples=100
+hto_demux(obj, assay="HTO", kfunc="kmeans")    # shanuz's default
+```
+
+`clara` takes no `seed` — its sampling runs off a generator R's `set.seed` cannot
+reach either, so it is deterministic in the data alone. One caveat worth knowing
+if you diff against R: clara accepts a swap on any improvement below zero (R
+really does take swaps worth `-2.2e-16`), so its answer is decided at the last
+bit, and R's own clara returns different clusterings on arm64 vs x86_64. shanuz
+follows plain IEEE arithmetic — identical to R's on x86_64, and to R everywhere
+the two agree. See `ROADMAP.md` for the measurements.
 
 **MULTI-seq — the other demultiplexer.** MULTI-seq (McGinnis et al.) uses
 lipid-anchored barcodes instead of antibodies, and Seurat's `MULTIseqDemux` calls

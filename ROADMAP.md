@@ -580,7 +580,8 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 
 ### `HTODemux` / `MULTIseqDemux` (cell hashing)
 - **R:** `HTODemux(obj)`, `MULTIseqDemux(obj)`
-- **`hto_demux` — ✅ delivered** (`shanuz/hto.py`): k-means (`k = n_hashtags + 1`)
+- **`hto_demux` — ✅ delivered** (`shanuz/hto.py`): clustering into
+  `k = n_hashtags + 1` groups (`kfunc="kmeans"`, or `"clara"` — see below)
   on CLR-normalised HTO counts, then a per-hashtag **negative-binomial** fit
   (maximum likelihood) to the tag's *lowest-expressing* cluster — its background —
   thresholded at `positive_quantile` (0.99) to call positive cells. Cells positive
@@ -602,8 +603,46 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   remainder up to `maxiter` rounds. Writes `MULTI_ID` (also the active identity)
   and `MULTI_classification`; thresholds stashed in `obj.misc["multiseq_demux"]`.
   KDE via `scipy.stats.gaussian_kde` — no new dependency.
-- **Still open:** Seurat's `"clara"` k-medoids clustering option for `hto_demux` is
-  not ported (`kfunc="kmeans"` only).
+- **`kfunc="clara"` — ✅ delivered** (`shanuz/_clara.py`): Seurat's default
+  clustering for `HTODemux`, a port of the `clara` C routine in R's **cluster**
+  package (2.1.8.2). CLARA is k-medoids for data too big for PAM: it draws
+  `nsamples` (100, Seurat's default) sub-samples of `min(n, 40 + 2k)` cells, runs
+  PAM on each, assigns every cell to the resulting medoids, and keeps the
+  sub-sample with the lowest total dissimilarity. Ported rather than taken from a
+  library because the details that decide the answer are all non-standard: clara
+  draws from its **own** 16-bit LCG (`rngR = FALSE`), so `set.seed` cannot reach it
+  and `clara` correctly takes no `seed` argument; at `pamLike = FALSE` the swap
+  rule is the pre-2011 one the C source itself calls "a bit illogical", *not*
+  `pam()`'s; ties break **last**-wins in BUILD but **first**-wins in SWAP; and
+  cluster numbering follows first appearance. `kfunc` stays `"kmeans"` by default
+  — **shanuz diverges from Seurat here**, deliberately and documented — because
+  only each tag's least-expressing cluster feeds the background fit, so the two
+  rarely change the calls. No new dependency; `clara` needs no sklearn.
+
+#### Note: `clara`'s answer depends on the CPU it was compiled for
+clara accepts a swap on *any* improvement below zero — R genuinely takes swaps
+worth `-2.2e-16` — so a one-ulp difference in a single distance flips a swap, then
+the winning sub-sample, then the whole clustering. That ulp is a compiler's
+choice: `clara.c` built for **arm64** contracts `clk += d*d` into a fused
+multiply-add (one rounding), while the same source built for baseline **x86_64**,
+whose ISA has no FMA, rounds twice. Compiling the real `clara.c` for both targets
+and running them against each other confirms it — same source, same input,
+materially different clusterings on ~2% of random inputs and ~7% of realistic
+hashtag panels. **R's clara is therefore not reproducible across architectures**,
+and "bit-exact to R" is not a well-defined target.
+
+shanuz follows plain IEEE double arithmetic, which is what numpy gives on every
+platform and what `clara.c` gives on x86_64. Against that reference the port is
+exact — 200/200 pathological and 40/40 realistic HTO cases — and the only inputs
+where it differs from an arm64 R are exactly the ones where `clara.c` disagrees
+with itself across architectures. Emulating FMA to chase the arm64 answer would
+simply break fidelity the other way; there is no choice that satisfies both.
+Three details in `_clara.py` exist solely to hold that reference — `np.cumsum`
+rather than `np.sum` in `_selec`, the per-`j` accumulation of `dz` in `_bswap2`,
+and `dz`'s h-major layout — and provably have **no** observable effect on any
+architecture-stable input (no fixture among 1490 can distinguish them). They are
+not redundant: without them the port drifts from the IEEE reference in the chaotic
+regime. Don't "simplify" them.
 
 ### Mixscape (pooled CRISPR screen analysis) — ✅ delivered
 - **R:** `CalcPerturbSig(obj, ...)` → `RunMixscape(obj, labels, nt.class.name)` →
