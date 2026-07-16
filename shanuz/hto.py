@@ -18,13 +18,15 @@ learns the threshold from the data:
 1. **Normalize.** Hashtag counts are compositional (what matters is a cell's
    *relative* tag levels, not its total), so they are centered-log-ratio (CLR)
    normalized — the same transform :func:`shanuz.normalize_data` applies with
-   ``method="CLR"``. Margin 2 (across cells, per hashtag) is the usual choice for
-   small panels.
-2. **Cluster.** k-means with ``k = n_hashtags + 1`` splits the cells into one
-   high cluster per hashtag plus a background cluster. For any given hashtag, the
-   cluster with the *lowest* average expression of that tag is its **negative**
-   population — real cells that were never stained by this antibody, i.e. a clean
-   sample of the tag's background.
+   ``method="CLR"``. Margin 1 — per hashtag, across cells — is what the hashing
+   vignette uses and is this module's default; it is Seurat's default too.
+2. **Cluster.** ``k = n_hashtags + 1`` groups split the cells into one high
+   cluster per hashtag plus a background cluster, by either k-means or ``clara``
+   (k-medoids; Seurat's default — see :mod:`shanuz._clara`). For any given
+   hashtag, the cluster with the *lowest* average expression of that tag is its
+   **negative** population — real cells that were never stained by this antibody,
+   i.e. a clean sample of the tag's background. Only that ranking feeds the next
+   step, which is why the choice of clustering rarely changes the calls.
 3. **Fit a background model.** A negative binomial is fit (maximum likelihood) to
    the raw counts of that hashtag in its negative cluster, and the
    ``positive.quantile`` (default 0.99) of the fitted distribution becomes the
@@ -70,6 +72,7 @@ def hto_demux(
     init: Optional[int] = None,
     nstarts: int = 10,
     kfunc: str = "kmeans",
+    nsamples: int = 100,
     normalize: bool = True,
     margin: int = 1,
     seed: int = 42,
@@ -95,16 +98,23 @@ def hto_demux(
                         positive cutoff is set (Seurat default 0.99).
     init              : number of k-means centers; default ``n_hashtags + 1``.
     nstarts           : k-means restarts (``n_init``). Seurat uses 100; 10 is a
-                        faster, usually-equivalent default.
-    kfunc             : clustering function. Only ``"kmeans"`` is implemented;
-                        Seurat's default ``"clara"`` (k-medoids) is not ported.
+                        faster, usually-equivalent default. Ignored by ``clara``.
+    kfunc             : ``"kmeans"`` (default) or ``"clara"``, Seurat's k-medoids.
+                        **Note shanuz's default differs from Seurat's**, which is
+                        ``"clara"``; pass ``kfunc="clara"`` to follow R. The two
+                        rarely disagree on which cluster is a tag's background, so
+                        the calls usually match either way.
+    nsamples          : ``clara`` only — sub-samples to draw (Seurat's default,
+                        100). Ignored by ``kmeans``.
     normalize         : CLR-normalize the counts internally for clustering and
                         margins (default). Set False to use the assay's existing
                         ``data`` layer (e.g. a prior ``normalize_data(method="CLR")``).
     margin            : CLR margin when ``normalize`` is True — 1 (per hashtag
                         across cells; Seurat's default, and what the hashing
                         vignette normalizes with) or 2 (per cell across hashtags).
-    seed              : random seed for k-means.
+    seed              : random seed for k-means. Has no effect on ``clara``, which
+                        draws from its own generator that R cannot seed either —
+                        see :mod:`shanuz._clara`.
     verbose           : print each hashtag's learned cutoff.
 
     Returns
@@ -112,10 +122,9 @@ def hto_demux(
     Shanuz
         ``seurat``, with the classification metadata and ``hash.ID`` identity.
     """
-    if kfunc != "kmeans":
+    if kfunc not in ("kmeans", "clara"):
         raise NotImplementedError(
-            f"kfunc={kfunc!r} is not supported; only 'kmeans' is implemented "
-            "(Seurat's 'clara' k-medoids is not ported)."
+            f"kfunc={kfunc!r} is not supported; choose from 'kmeans' or 'clara'."
         )
 
     counts, data, feats, cells = _hto_matrices(seurat, assay, normalize, margin)
@@ -125,7 +134,7 @@ def hto_demux(
             f"HTODemux needs at least 2 hashtags; assay {assay!r} has {n_htos}."
         )
 
-    labels, ncenters = _cluster_cells(data, init, nstarts, seed)
+    labels, ncenters = _cluster_cells(data, init, nstarts, seed, kfunc, nsamples)
 
     # Average (de-logged) expression of each hashtag within each cluster, so the
     # least-expressing cluster can be read off as that hashtag's background.
@@ -210,22 +219,39 @@ def _hto_matrices(seurat, assay, normalize, margin):
     return counts, data, feats, cells
 
 
-def _cluster_cells(data: np.ndarray, init, nstarts: int, seed: int):
-    """k-means the cells (columns) into ``init or n_hashtags + 1`` groups.
+def _cluster_cells(
+    data: np.ndarray, init, nstarts: int, seed: int, kfunc: str, nsamples: int,
+):
+    """Cluster the cells (columns) into ``init or n_hashtags + 1`` groups.
 
-    Returns ``(labels, ncenters)`` with one integer cluster label per cell.
+    Returns ``(labels, ncenters)`` with one integer cluster label per cell. Only
+    the split matters downstream: each hashtag's least-expressing cluster becomes
+    its background, so ``kmeans`` and ``clara`` usually agree on the cutoffs even
+    where they draw slightly different boundaries.
     """
-    from sklearn.cluster import KMeans
-
     n_htos, n_cells = data.shape
     ncenters = init if init is not None else n_htos + 1
     ncenters = int(min(ncenters, n_cells))
     if ncenters < 2:
         raise ValueError("Too few cells to cluster for HTODemux.")
 
+    if kfunc == "clara":
+        from ._clara import clara
+
+        # R: clara(x = t(GetAssayData(object, assay)), k = ncenters,
+        #          samples = nsamples), leaving sampsize at its default.
+        # clara needs k <= n - 1, which is tighter than k <= n above.
+        if ncenters > n_cells - 1:
+            raise ValueError(
+                f"clara needs at least {ncenters + 1} cells to find {ncenters} "
+                f"clusters; got {n_cells}."
+            )
+        return clara(data.T, k=ncenters, samples=nsamples), ncenters
+
+    from sklearn.cluster import KMeans
+
     km = KMeans(n_clusters=ncenters, n_init=nstarts, random_state=seed)
-    labels = km.fit_predict(data.T)
-    return labels, ncenters
+    return km.fit_predict(data.T), ncenters
 
 
 def _fit_nbinom(x: np.ndarray) -> Optional[tuple[float, float]]:
