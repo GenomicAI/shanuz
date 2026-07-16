@@ -49,6 +49,7 @@ dev = [
     "pytest>=7",
     "pytest-cov",
     "ruff",
+    "mypy",
     "build",
     "twine",
 ]
@@ -69,3 +70,15 @@ addopts = "-v"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+# Pinned here, not just in CI's command, so a bare `mypy` checks exactly what CI
+# checks. `ruff` takes its scope from the command line, where `ruff check shanuz`
+# (75 errors) and `ruff check .` (163) are both correct and easy to confuse.
+files = ["shanuz"]
+# The scientific stack (scipy, sklearn, numba, umap-learn, igraph, anndata, ...)
+# ships no type information. Without this the run is 222 errors, of which 139 are
+# only "this third party has no stubs" — silencing them leaves 81 that are about
+# our own code.
+ignore_missing_imports = true

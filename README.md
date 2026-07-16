@@ -49,9 +49,16 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 ## Installation
 
 Shanuz is published on [PyPI](https://pypi.org/project/shanuz/) — `pip install shanuz` just works.
-Installing from source (editable install) is only needed if you want to modify shanuz itself.
 
-### From PyPI (recommended)
+> **The PyPI release lags `main` by a long way right now.** The newest release is
+> **0.2.0** (2026-07-05), and much of the Features list above landed after it:
+> reference mapping, sketching, `LazyMatrix`, cell hashing, Mixscape,
+> `run_spca`/`glm_pca`, pseudobulk DE, and the MERSCOPE/Visium additions are
+> **not** in `pip install shanuz` yet — only in a source install.
+> [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)
+> records exactly what has and has not been released.
+
+### From PyPI — the released core
 
 ```bash
 pip install shanuz                 # core: object model, preprocessing, PCA, markers
@@ -67,7 +74,7 @@ Or with [uv](https://docs.astral.sh/uv/):
 uv pip install "shanuz[analysis]"
 ```
 
-### From source (for development)
+### From source — everything above
 
 ```bash
 git clone https://github.com/GenomicAI/shanuz.git
@@ -289,7 +296,11 @@ Shanuz
 
 ## Roadmap
 
-See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)** for the full development plan. Milestones:
+See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)** for the full
+development plan, and **[`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)**
+for what has actually shipped. The two are not the same thing: these milestones are planning
+labels rather than release versions, and most of the ✅ rows below are on `main` but not yet in
+any release. Milestones:
 
 | Milestone | Focus |
 |-----------|-------|
@@ -301,7 +312,7 @@ See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)**
 | v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(delivered — see Tutorial 5)* |
 | v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy on-disk matrices (`LazyMatrix`) ✅ *(complete)* |
 | v0.9.0 | Specialized — `HTODemux` ✅ + `MULTIseqDemux` ✅ (cell hashing); Mixscape ✅ (`CalcPerturbSig` + `RunMixscape` + `MixscapeLDA` + `PlotPerturbScore` + `MixscapeHeatmap`, CRISPR screens) — **complete** |
-| v0.10.0 | Infrastructure — PyPI, GitHub Actions CI, type annotations, MkDocs site |
+| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.10–3.12 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md) ✅, `mypy` wired advisory ✅ (annotating to `--strict` clean still open); MkDocs site still open |
 
 ---
 

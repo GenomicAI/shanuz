@@ -1,5 +1,7 @@
 """shanuz — Python port of satijalab/seurat-object (v5.4.0)."""
 
+from importlib.metadata import PackageNotFoundError, version as _metadata_version
+
 from .assay import Assay, create_assay_object
 from .assay5 import Assay5, StdAssay, create_assay5_object
 from .command import ShanuzCommand, log_shanuz_command
@@ -90,7 +92,13 @@ from .plotting import (
     mixscape_heatmap,
 )
 
-__version__ = "0.2.0"
+try:
+    __version__ = _metadata_version("shanuz")
+except PackageNotFoundError:  # pragma: no cover - needs an uninstalled source tree
+    # A source tree on sys.path with no installed distribution: the package still
+    # imports and works, only its version is unknowable. PEP 440-valid on purpose,
+    # so `packaging.version.Version(shanuz.__version__)` parses on this path too.
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     # Core classes

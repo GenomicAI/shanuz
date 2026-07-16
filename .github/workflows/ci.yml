@@ -31,5 +31,67 @@ jobs:
         # full check is informational; it must not gate the build.
         run: uv run ruff check shanuz || true
 
+      - name: Type check (mypy, advisory)
+        # Same footing as ruff, and for the same reason: 81 pre-existing errors
+        # across 15 modules. `mypy --strict` clean is a v0.10.0 goal (676 errors
+        # away), not today's state, so this reports without gating. Scope and
+        # settings come from [tool.mypy] in pyproject.toml, so this bare `mypy`
+        # and a developer's bare `mypy` check the identical file set.
+        run: uv run mypy || true
+
       - name: Run tests
-        run: uv run pytest tests/ -q
+        run: uv run pytest tests/ -q --cov=shanuz --cov-report=term --cov-report=xml
+
+      - name: Upload coverage
+        # One matrix leg is enough; the other two would upload the same numbers.
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  build:
+    name: Build and verify the distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check the metadata PyPI will render
+        run: uvx twine check dist/*
+
+      - name: Install the wheel clean and verify it imports
+        # Two things this catches that the test job cannot. First, the test job
+        # installs `-e .[all]`, so it never proves the *wheel* is complete or
+        # that a plain `pip install shanuz` works without the optional
+        # scientific stack — the base deps are numpy/scipy/pandas/packaging and
+        # everything heavier is imported lazily. Second, `__version__` now comes
+        # from importlib.metadata, so it can only be verified against a real
+        # (non-editable) install, where the dist-info is freshly written.
+        #
+        # `cd /tmp` matters: from the checkout root, `import shanuz` would find
+        # the source tree on sys.path and prove nothing about the wheel.
+        run: |
+          EXPECTED=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          uv venv --python 3.12 /tmp/wheel-venv
+          uv pip install --python /tmp/wheel-venv/bin/python dist/*.whl
+          cd /tmp
+          EXPECTED="$EXPECTED" /tmp/wheel-venv/bin/python -c '
+          import os, shanuz
+          expected = os.environ["EXPECTED"]
+          assert shanuz.__version__ == expected, (
+              f"wheel reports {shanuz.__version__!r}, pyproject declares {expected!r}"
+          )
+          print("wheel OK:", shanuz.__version__, "from", shanuz.__file__)
+          '
+
+      - name: Upload the distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
