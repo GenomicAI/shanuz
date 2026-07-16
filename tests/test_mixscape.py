@@ -2,6 +2,7 @@
 
   * calc_perturb_sig  (mixscape.py)
   * run_mixscape      (mixscape.py)
+  * mixscape_lda      (mixscape.py)
 
 A synthetic ECCITE-like screen is built with *known* ground truth: non-targeting
 (NT) controls, plus two target genes whose cells are a mixture of true knockouts
@@ -22,7 +23,7 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.mixscape import calc_perturb_sig, run_mixscape  # noqa: E402
+from shanuz.mixscape import calc_perturb_sig, mixscape_lda, run_mixscape  # noqa: E402
 from shanuz.preprocessing import normalize_data, scale_data  # noqa: E402
 from shanuz.reduction import run_pca  # noqa: E402
 from shanuz.shanuz import create_shanuz_object  # noqa: E402
@@ -256,3 +257,120 @@ def test_run_mixscape_requires_nt():
     obj.meta_data["gene"] = "G1"                        # no NT cells
     with pytest.raises(ValueError):
         run_mixscape(obj)
+
+
+# ----------------------------------------------------------------------
+# mixscape_lda
+# ----------------------------------------------------------------------
+#
+# NPCS is held below the N_RESP response genes: a guide only contributes a block
+# if it clears npcs + 1 DE genes, and the synthetic screen has ~12 to give.
+
+NPCS = 5
+
+
+def test_lda_creates_reduction():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS)
+    assert "lda" in obj.reductions
+    lda = obj.reductions["lda"]
+    assert lda.cells() == obj.cell_names()
+    # 3 guide classes (NT, G1, G2) → 2 discriminant directions
+    assert lda.cell_embeddings.shape == (len(obj.cell_names()), 2)
+
+
+def test_lda_only_needs_calc_perturb_sig():
+    # MixscapeLDA groups by the raw guide label, so run_mixscape is not required.
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS)                        # no run_mixscape call
+    assert "mixscape_class" not in obj.meta_data.columns
+    assert "lda" in obj.reductions
+
+
+def test_lda_block_features():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS)
+    lda = obj.reductions["lda"]
+    # one npcs-wide block per contributing guide, named "<gene>_PC_<k>"
+    assert lda.features() == [f"{g}_PC_{k + 1}" for g in GENES for k in range(NPCS)]
+    assert lda.misc["genes_used"] == GENES
+    assert lda.feature_loadings.shape == (len(GENES) * NPCS, 2)
+
+
+def test_lda_separates_guide_classes():
+    obj, _, truth = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS)
+    guessed = obj.meta_data["lda_assignments"].to_numpy()
+    guide = obj.meta_data["gene"].to_numpy()
+    # NP escapers genuinely look like NT, so score only the separable cells.
+    separable = truth != "NP"
+    assert (guessed[separable] == guide[separable]).mean() >= 0.8
+
+
+def test_lda_posterior_columns():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS)
+    cols = [f"LDAP_{c}" for c in ["G1", "G2", "NT"]]
+    for col in cols:
+        assert col in obj.meta_data.columns
+    post = obj.meta_data[cols].to_numpy()
+    assert np.allclose(post.sum(axis=1), 1.0)
+    assert ((post >= -1e-9) & (post <= 1 + 1e-9)).all()
+
+
+def test_lda_assignment_domain():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS)
+    assert set(obj.meta_data["lda_assignments"]) <= {"NT", *GENES}
+
+
+def test_lda_preserves_idents():
+    # run_mixscape leaves mixscape_class as the identity; LDA must hand it back.
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj)
+    before = list(obj.idents)
+    mixscape_lda(obj, npcs=NPCS)
+    assert list(obj.idents) == before
+
+
+def test_lda_reduction_key():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    mixscape_lda(obj, npcs=NPCS, reduction_name="prtb_lda", reduction_key="PLDA_")
+    assert "prtb_lda" in obj.reductions
+    assert obj.reductions["prtb_lda"].key == "PLDA_"
+
+
+def test_lda_insufficient_de_raises():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    with pytest.raises(ValueError):
+        mixscape_lda(obj, npcs=1000)                    # no guide clears npcs + 1
+
+
+def test_lda_requires_nt():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    obj.meta_data["gene"] = "G1"                        # no NT cells
+    with pytest.raises(ValueError):
+        mixscape_lda(obj, npcs=NPCS)
+
+
+def test_lda_deterministic():
+    obj_a, _, _ = _screen_object()
+    obj_b, _, _ = _screen_object()
+    calc_perturb_sig(obj_a)
+    calc_perturb_sig(obj_b)
+    mixscape_lda(obj_a, npcs=NPCS)
+    mixscape_lda(obj_b, npcs=NPCS)
+    assert np.allclose(
+        obj_a.reductions["lda"].cell_embeddings,
+        obj_b.reductions["lda"].cell_embeddings,
+    )

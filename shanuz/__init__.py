@@ -38,7 +38,7 @@ from .sketch import sketch_data, project_data, leverage_score
 from .lazy import LazyMatrix, write_lazy_matrix, open_lazy_matrix, is_lazy
 from .hto import hto_demux
 from .multiseq import multiseq_demux
-from .mixscape import calc_perturb_sig, run_mixscape
+from .mixscape import calc_perturb_sig, run_mixscape, mixscape_lda
 from .markers import find_markers, find_all_markers, find_conserved_markers
 from .aggregate import aggregate_expression
 from .sctransform import sctransform
@@ -170,6 +170,7 @@ __all__ = [
     "multiseq_demux",
     "calc_perturb_sig",
     "run_mixscape",
+    "mixscape_lda",
     "find_markers",
     "find_all_markers",
     "find_conserved_markers",
