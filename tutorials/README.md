@@ -271,7 +271,7 @@ same caveat as the other tutorials.
 | Project sketch → full data | `ProjectData(obj, sketched.assay="sketch", reduction="pca")` | `project_data(full, sketch, refdata={"cluster_full": "seurat_clusters"})` |
 | Matrix to disk (out-of-core) | `write_matrix_dir(mat, "counts.mat")` (BPCells) | `write_lazy_matrix(mat, "counts.mat")` |
 | Open on-disk matrix | `open_matrix_dir("counts.mat")` (BPCells) | `open_lazy_matrix("counts.mat")` |
-| Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO", kfunc="clara")` — shanuz defaults to `kfunc="kmeans"`, Seurat to `"clara"` |
+| Demultiplex hashtags | `HTODemux(obj, assay="HTO")` | `hto_demux(obj, assay="HTO")` — both default to `kfunc="clara"` |
 | Demultiplex (MULTI-seq) | `MULTIseqDemux(obj, assay="HTO")` | `multiseq_demux(obj, assay="HTO")` |
 | Perturbation signature | `CalcPerturbSig(obj, gd.class="gene", nt.cell.class="NT")` | `calc_perturb_sig(obj, labels="gene", nt_class="NT")` |
 | Mixscape (CRISPR KO calls) | `RunMixscape(obj, labels="gene", nt.class.name="NT")` | `run_mixscape(obj, labels="gene", nt_class="NT")` |
@@ -615,13 +615,18 @@ binomial — not a fixed threshold — is what makes the call robust to each
 antibody's own staining background and each run's own depth.
 
 **Choosing the clustering.** The clustering only decides which cluster is each
-tag's background, so it rarely changes the calls — but Seurat's default is
-`clara` (k-medoids), not k-means, and shanuz ships both:
+tag's background, so it rarely changes the calls. shanuz ships both and defaults
+to `clara` (k-medoids), matching Seurat:
 
 ```python
-hto_demux(obj, assay="HTO", kfunc="clara")     # Seurat's default; nsamples=100
-hto_demux(obj, assay="HTO", kfunc="kmeans")    # shanuz's default
+hto_demux(obj, assay="HTO")                    # clara, nsamples=100 -- as in Seurat
+hto_demux(obj, assay="HTO", kfunc="kmeans")    # the alternative
 ```
+
+On synthetic panels the two put ~1% of cells in different classes, rising with
+tag count (~3.5% at 12 tags, where `clara` is also the more accurate). Both scale
+linearly in cells; `clara` costs a roughly constant 4× (~1.3 s vs ~0.3 s at 100k
+cells), so pick on fidelity, not speed.
 
 `clara` takes no `seed` — its sampling runs off a generator R's `set.seed` cannot
 reach either, so it is deterministic in the data alone. One caveat worth knowing

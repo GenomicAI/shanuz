@@ -175,11 +175,20 @@ def test_normalize_false_uses_data_layer():
     assert (gclass[singlet] == "Singlet").mean() >= 0.9
 
 
-def test_deterministic():
+@pytest.mark.parametrize("kfunc", ["kmeans", "clara"])
+def test_deterministic(kfunc):
+    """Both clustering paths are reproducible, for different reasons.
+
+    ``kmeans`` is reproducible *because* of ``seed``; ``clara`` is reproducible
+    regardless of it (its generator is not seedable — see
+    ``test_clara_takes_no_seed_and_is_deterministic``). Naming the kfunc matters
+    here: run on the ``clara`` default alone this would pass even if ``seed`` were
+    dropped on the floor, so it would no longer test what it claims to.
+    """
     obj_a, _ = _hashing_object()
     obj_b, _ = _hashing_object()
-    hto_demux(obj_a, seed=7)
-    hto_demux(obj_b, seed=7)
+    hto_demux(obj_a, kfunc=kfunc, seed=7)
+    hto_demux(obj_b, kfunc=kfunc, seed=7)
     assert list(obj_a.meta_data["hash.ID"]) == list(obj_b.meta_data["hash.ID"])
 
 
@@ -317,6 +326,24 @@ def test_clara_rejects_non_finite():
     x[0, 0] = np.nan
     with pytest.raises(ValueError, match="missing or non-finite"):
         clara(x, k=3, samples=5, sampsize=24)
+
+
+def test_hto_demux_defaults_to_clara_like_seurat():
+    """The default kfunc is ``clara`` — Seurat's default, and why _clara exists.
+
+    ``hto_demux`` first shipped defaulting to ``"kmeans"`` and was flipped to R's
+    default. Pinned here because nothing else would catch a revert: the two agree
+    on most cells, so every accuracy assertion in this file passes either way.
+    """
+    import inspect
+
+    assert inspect.signature(hto_demux).parameters["kfunc"].default == "clara"
+
+    default, _ = _hashing_object()
+    explicit, _ = _hashing_object()
+    hto_demux(default)
+    hto_demux(explicit, kfunc="clara")
+    assert list(default.meta_data["hash.ID"]) == list(explicit.meta_data["hash.ID"])
 
 
 def test_hto_demux_clara_recovers_the_truth():
