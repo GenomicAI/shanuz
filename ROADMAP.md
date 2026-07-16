@@ -581,8 +581,8 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 ### `HTODemux` / `MULTIseqDemux` (cell hashing)
 - **R:** `HTODemux(obj)`, `MULTIseqDemux(obj)`
 - **`hto_demux` — ✅ delivered** (`shanuz/hto.py`): clustering into
-  `k = n_hashtags + 1` groups (`kfunc="kmeans"`, or `"clara"` — see below)
-  on CLR-normalised HTO counts, then a per-hashtag **negative-binomial** fit
+  `k = n_hashtags + 1` groups (`kfunc="clara"` by default, as in Seurat, or
+  `"kmeans"` — see below) on CLR-normalised HTO counts, then a per-hashtag **negative-binomial** fit
   (maximum likelihood) to the tag's *lowest-expressing* cluster — its background —
   thresholded at `positive_quantile` (0.99) to call positive cells. Cells positive
   for zero / one / many hashtags are classified singlet / doublet / negative.
@@ -590,8 +590,8 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   `HTO_classification`, `HTO_classification.global` plus a convenient `hash.ID`
   (also set as the active identity); learned cutoffs are stashed in
   `obj.misc["hto_demux"]`. `normalize=False` reuses a prior
-  `normalize_data(method="CLR")` layer. Built on the existing CLR helper +
-  sklearn k-means — no new dependency.
+  `normalize_data(method="CLR")` layer. Built on the existing CLR helper, with
+  `clara` in-tree and sklearn k-means optional — no new dependency.
 - **`multiseq_demux` — ✅ delivered** (`shanuz/multiseq.py`): the MULTI-seq
   chemistry (McGinnis et al.). Reuses `hto_demux`'s CLR extraction, then thresholds
   each barcode straight off its distribution shape rather than a background fit — a
@@ -614,10 +614,15 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   and `clara` correctly takes no `seed` argument; at `pamLike = FALSE` the swap
   rule is the pre-2011 one the C source itself calls "a bit illogical", *not*
   `pam()`'s; ties break **last**-wins in BUILD but **first**-wins in SWAP; and
-  cluster numbering follows first appearance. `kfunc` stays `"kmeans"` by default
-  — **shanuz diverges from Seurat here**, deliberately and documented — because
-  only each tag's least-expressing cluster feeds the background fit, so the two
-  rarely change the calls. No new dependency; `clara` needs no sklearn.
+  cluster numbering follows first appearance. **`kfunc="clara"` is the default**,
+  matching Seurat; `"kmeans"` remains available. `hto_demux` first shipped
+  defaulting to `"kmeans"`, so this is a behaviour change for callers who never
+  passed `kfunc` — one for the CHANGELOG when v0.10.0 adds it. The switch moves
+  ~1% of calls on synthetic panels (rising with tag count — ~3.5% at 12 tags,
+  where clara is also the *more* accurate of the two) because only each tag's
+  least-expressing cluster feeds the background fit. Both scale linearly in cells;
+  clara costs a roughly constant 4× (~1.3 s vs ~0.3 s at 100k cells). No new
+  dependency; `clara` needs no sklearn.
 
 #### Note: `clara`'s answer depends on the CPU it was compiled for
 clara accepts a swap on *any* improvement below zero — R genuinely takes swaps

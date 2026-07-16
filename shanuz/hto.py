@@ -21,10 +21,10 @@ learns the threshold from the data:
    ``method="CLR"``. Margin 1 — per hashtag, across cells — is what the hashing
    vignette uses and is this module's default; it is Seurat's default too.
 2. **Cluster.** ``k = n_hashtags + 1`` groups split the cells into one high
-   cluster per hashtag plus a background cluster, by either k-means or ``clara``
-   (k-medoids; Seurat's default — see :mod:`shanuz._clara`). For any given
-   hashtag, the cluster with the *lowest* average expression of that tag is its
-   **negative** population — real cells that were never stained by this antibody,
+   cluster per hashtag plus a background cluster, by ``clara`` (k-medoids —
+   Seurat's default and this module's, see :mod:`shanuz._clara`) or k-means. For
+   any given hashtag, the cluster with the *lowest* average expression of that
+   tag is its **negative** population — real cells never stained by this antibody,
    i.e. a clean sample of the tag's background. Only that ranking feeds the next
    step, which is why the choice of clustering rarely changes the calls.
 3. **Fit a background model.** A negative binomial is fit (maximum likelihood) to
@@ -71,7 +71,7 @@ def hto_demux(
     positive_quantile: float = 0.99,
     init: Optional[int] = None,
     nstarts: int = 10,
-    kfunc: str = "kmeans",
+    kfunc: str = "clara",
     nsamples: int = 100,
     normalize: bool = True,
     margin: int = 1,
@@ -82,9 +82,9 @@ def hto_demux(
 
     Mirrors ``HTODemux(object, assay = "HTO", positive.quantile = 0.99)``. Each
     hashtag's positive/negative cutoff is learned by fitting a negative binomial
-    to the tag's background — the k-means cluster in which it is least expressed —
-    and thresholding at ``positive_quantile``. Cells positive for zero / one /
-    many hashtags are called ``Negative`` / ``Singlet`` / ``Doublet``.
+    to the tag's background — the cluster in which it is least expressed — and
+    thresholding at ``positive_quantile``. Cells positive for zero / one / many
+    hashtags are called ``Negative`` / ``Singlet`` / ``Doublet``.
 
     The object is mutated in place: five ``<assay>_*`` metadata columns plus
     ``hash.ID`` are written (matching Seurat), the active identity is set to
@@ -96,14 +96,18 @@ def hto_demux(
     assay             : the hashtag assay to demultiplex (default ``"HTO"``).
     positive_quantile : quantile of each tag's fitted background at which the
                         positive cutoff is set (Seurat default 0.99).
-    init              : number of k-means centers; default ``n_hashtags + 1``.
-    nstarts           : k-means restarts (``n_init``). Seurat uses 100; 10 is a
-                        faster, usually-equivalent default. Ignored by ``clara``.
-    kfunc             : ``"kmeans"`` (default) or ``"clara"``, Seurat's k-medoids.
-                        **Note shanuz's default differs from Seurat's**, which is
-                        ``"clara"``; pass ``kfunc="clara"`` to follow R. The two
-                        rarely disagree on which cluster is a tag's background, so
-                        the calls usually match either way.
+    init              : number of clusters; default ``n_hashtags + 1``.
+    nstarts           : ``kmeans`` only — restarts (``n_init``). Seurat uses 100;
+                        10 is a faster, usually-equivalent default. Ignored by
+                        ``clara``.
+    kfunc             : ``"clara"`` (default, Seurat's k-medoids — see
+                        :mod:`shanuz._clara`) or ``"kmeans"``. The two rarely
+                        disagree on which cluster is a tag's background, so the
+                        calls usually match either way (~1% of cells differ on
+                        synthetic panels, rising with tag count). Both scale
+                        linearly in cells; ``clara`` costs a roughly constant 4×
+                        (~1.3 s vs ~0.3 s at 100k cells), so the choice is about
+                        matching R, not speed.
     nsamples          : ``clara`` only — sub-samples to draw (Seurat's default,
                         100). Ignored by ``kmeans``.
     normalize         : CLR-normalize the counts internally for clustering and
@@ -112,9 +116,9 @@ def hto_demux(
     margin            : CLR margin when ``normalize`` is True — 1 (per hashtag
                         across cells; Seurat's default, and what the hashing
                         vignette normalizes with) or 2 (per cell across hashtags).
-    seed              : random seed for k-means. Has no effect on ``clara``, which
-                        draws from its own generator that R cannot seed either —
-                        see :mod:`shanuz._clara`.
+    seed              : ``kmeans`` only — random seed. Has no effect on ``clara``
+                        (the default), which draws from its own generator that R
+                        cannot seed either — see :mod:`shanuz._clara`.
     verbose           : print each hashtag's learned cutoff.
 
     Returns
