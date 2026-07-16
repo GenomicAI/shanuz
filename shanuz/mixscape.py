@@ -10,7 +10,7 @@ fails, one allele survives, the protein lingers — so the cells labelled
 (NP) that look just like controls. Averaging over that mixture dilutes, and can
 entirely mask, the real phenotype. Mixscape (Papalexi, Mimitou et al. 2021) is
 the method that separates the two, so downstream analysis runs on genuinely
-perturbed cells. It comes in two steps, both ported here.
+perturbed cells. It comes in two steps, both ported here, plus a visualization.
 
 **Step 1 — :func:`calc_perturb_sig` (Seurat's ``CalcPerturbSig``).** Guide
 assignment is confounded by everything else that varies between cells: cell
@@ -50,6 +50,14 @@ identity; ``mixscape_class.global`` (``"KO"`` / ``"NP"`` / ``"NT"``); and a
 posterior column ``mixscape_class_p_<type>`` (default ``mixscape_class_p_ko``).
 Per-gene bookkeeping (DE-gene count, iterations, KO count) is stashed in
 ``obj.misc["mixscape"]``.
+
+**Visualization — :func:`mixscape_lda` (Seurat's ``MixscapeLDA``).** Where
+:func:`run_mixscape` asks *which cells are perturbed*, this asks *how do the guide
+populations differ from each other and from control*, and answers with one
+supervised map on which each guide class forms its own cloud. It reads only the
+perturbation signature and the raw guide labels — the KO/NP calls are not used —
+so it can follow :func:`calc_perturb_sig` directly. See its docstring for the
+per-guide PCA blocks and the discriminant fit over them.
 
 Two deliberate, documented choices differ from a literal reading of R:
 
@@ -350,6 +358,208 @@ def run_mixscape(
 
 
 # ----------------------------------------------------------------------
+# Public API — LDA visualization of perturbation classes
+# ----------------------------------------------------------------------
+
+
+def mixscape_lda(
+    seurat,
+    labels: str = "gene",
+    nt_class: str = "NT",
+    assay: str = "PRTB",
+    de_assay: str = "RNA",
+    layer: str = "data",
+    npcs: int = 10,
+    logfc_threshold: float = 0.25,
+    min_pct: float = 0.1,
+    pval_cutoff: float = 0.05,
+    de_test: str = "wilcox",
+    reduction_name: str = "lda",
+    reduction_key: str = "LDA_",
+    scale_max: float = 10.0,
+    seed: int = 42,
+    verbose: bool = False,
+):
+    """Linear-discriminant projection that separates the guide classes (Seurat's ``MixscapeLDA``).
+
+    Mirrors ``MixscapeLDA(object, pc.assay = "PRTB", labels = "gene",
+    nt.class.name = "NT", npcs = 10)``, which asks a complementary question to
+    :func:`run_mixscape`: not *which cells are perturbed* but *how do the whole
+    guide populations differ from one another and from control*. It builds a
+    single supervised 2-D-ish map on which every guide class (and NT) forms its
+    own cloud, the classic mixscape LDA plot. The only prerequisite is a
+    perturbation-signature assay from :func:`calc_perturb_sig`; the mixscape KO/NP
+    calls are **not** used — cells are grouped by their raw guide label.
+
+    The construction (Seurat's ``PrepLDA`` → ``RunLDA``):
+
+    1. **Per-guide feature blocks.** For each target gene, its cells are tested
+       against NT (on ``de_assay``) to find that guide's response genes; a guide
+       with fewer than ``npcs + 1`` such genes is dropped (it cannot support
+       ``npcs`` components). Restricted to those genes on the perturbation-signature
+       ``assay``, a PCA is fit on that guide's cells **plus** the NT cells, and then
+       **every** cell in the dataset is projected onto that guide's ``npcs``-dim
+       subspace. Each surviving guide thus contributes ``npcs`` columns describing
+       where all cells fall along *its* perturbation axes.
+    2. **One LDA over the concatenation.** The per-guide blocks are stacked side by
+       side into one cell × (guides · ``npcs``) matrix and a single linear
+       discriminant analysis (``sklearn`` ``LinearDiscriminantAnalysis``) is fit
+       with the guide label as the class — finding the ``n_classes − 1`` directions
+       that best separate the guide populations (including NT). The discriminant
+       scores are stored as a reduction (default ``"lda"``, key ``"LDA_"``), and
+       the per-cell class assignment and posteriors are written to metadata
+       (``lda_assignments`` and ``LDAP_<class>``).
+
+    Two choices differ from a literal reading of R, both documented:
+
+    * **The per-guide subspace is read from the signature's ``data`` layer, scaled
+      against the guide-plus-NT reference**, in place of Seurat's ``ScaleData`` →
+      ``RunPCA`` → ``ProjectCellEmbeddings`` chain. The composition is the same map:
+      centre/scale each response gene by the reference cells' mean and SD, project
+      through the reference PCA loadings.
+    * **The leave-one-out CV posterior** (MASS ``lda(..., CV = TRUE)``) that Seurat
+      stashes in ``misc`` is not computed; only the resubstitution assignment and
+      posterior are kept, which is all the plot and the metadata columns use.
+
+    Parameters
+    ----------
+    seurat          : a :class:`~shanuz.Shanuz` object carrying the ``assay``
+                      perturbation signature (from :func:`calc_perturb_sig`) and a
+                      ``labels`` guide column.
+    labels          : metadata column of per-cell target-gene / guide class.
+    nt_class        : value in ``labels`` marking non-targeting controls.
+    assay           : perturbation-signature assay projected for the LDA features
+                      (default ``"PRTB"``).
+    de_assay        : assay for the per-guide guide-vs-NT differential expression
+                      (default ``"RNA"``).
+    layer           : signature layer to project (default ``"data"``).
+    npcs            : per-guide PCA components (Seurat default 10); a guide needs at
+                      least ``npcs + 1`` DE genes to contribute.
+    logfc_threshold : ``|avg_log2FC|`` DE cutoff passed to ``find_markers`` (0.25).
+    min_pct         : ``min.pct`` DE cutoff passed to ``find_markers`` (0.1, as in
+                      Seurat's ``TopDEGenesMixscape``).
+    pval_cutoff     : adjusted-p cutoff a DE gene must clear (0.05).
+    de_test         : ``find_markers`` test for the guide-vs-NT DE (``"wilcox"``).
+    reduction_name  : key under which the LDA reduction is stored (default
+                      ``"lda"``).
+    reduction_key   : prefix for the discriminant dimension names (``"LDA_"``).
+    scale_max       : clip scaled values to ``±scale_max`` before PCA, matching
+                      Seurat's ``ScaleData`` (default 10; ``None`` to disable).
+    seed            : random state for the per-guide PCA (determinism).
+    verbose         : print each guide's DE-gene count and whether it contributed.
+
+    Returns
+    -------
+    Shanuz
+        ``seurat``, with the ``reduction_name`` LDA reduction and the
+        ``lda_assignments`` / ``LDAP_<class>`` metadata columns.
+    """
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+    sig, sig_feats, cells = _layer_matrix(seurat.assays[assay], layer)
+    sig_feat_idx = {f: i for i, f in enumerate(sig_feats)}
+
+    labels_vec = _aligned_meta(seurat, labels, cells)
+    nt_idx = np.where(labels_vec == nt_class)[0]
+    if nt_idx.size == 0:
+        raise ValueError(
+            f"No non-targeting cells: column {labels!r} has no value {nt_class!r}."
+        )
+
+    genes = sorted(
+        {g for g in labels_vec.tolist() if isinstance(g, str) and g != nt_class}
+    )
+    if not genes:
+        raise ValueError(f"No target genes to test in column {labels!r}.")
+
+    blocks: list[np.ndarray] = []
+    feat_names: list[str] = []
+    genes_used: list[str] = []
+
+    # find_markers reads the active identity — drive the guide-vs-NT DE off the
+    # guide labels, restored afterwards.
+    saved_ident = pd.Categorical(list(seurat.idents))
+    seurat.idents = list(labels_vec)
+    try:
+        for gene in genes:
+            gene_local = np.where(labels_vec == gene)[0]
+            de_genes = _de_genes(
+                seurat, gene, nt_class, de_assay, de_test,
+                logfc_threshold, min_pct, pval_cutoff, sig_feat_idx,
+            )
+            if len(de_genes) < npcs + 1:
+                if verbose:
+                    print(
+                        f"[mixscape_lda] {gene}: {len(de_genes)} DE genes "
+                        f"< npcs+1={npcs + 1} → skipped"
+                    )
+                continue
+            de_rows = [sig_feat_idx[g] for g in de_genes]
+            block = _lda_guide_block(
+                sig, de_rows, nt_idx, gene_local, npcs, scale_max, seed,
+            )
+            blocks.append(block)
+            feat_names.extend(f"{gene}_PC_{k + 1}" for k in range(block.shape[1]))
+            genes_used.append(gene)
+            if verbose:
+                print(
+                    f"[mixscape_lda] {gene}: {len(de_genes)} DE genes → "
+                    f"{block.shape[1]} PCs"
+                )
+    finally:
+        seurat.idents = saved_ident
+
+    if not blocks:
+        raise ValueError(
+            f"No guide reached npcs+1={npcs + 1} DE genes; lower `npcs` or the DE "
+            f"thresholds."
+        )
+
+    features = np.hstack(blocks)                     # cells × (guides · npcs)
+    y = np.array([str(v) for v in labels_vec], dtype=object)
+    n_comp = min(len(set(y.tolist())) - 1, features.shape[1])
+
+    lda = LinearDiscriminantAnalysis(n_components=n_comp)
+    lda.fit(features, y)
+    embeddings = lda.transform(features)             # cells × n_comp
+    loadings = np.asarray(lda.scalings_)[:, :n_comp]
+    assignments = lda.predict(features)
+    posterior = lda.predict_proba(features)          # cells × n_classes
+    classes = [str(c) for c in lda.classes_]
+
+    from .dimreduc import DimReduc
+
+    dr = DimReduc(
+        cell_embeddings=embeddings,
+        cell_names=list(cells),
+        feature_loadings=loadings,
+        feature_names=list(feat_names),
+        assay_used=assay,
+        key=reduction_key,
+        misc={
+            "assignments": list(assignments),
+            "posterior": posterior,
+            "classes": classes,
+            "genes_used": genes_used,
+            "npcs": npcs,
+        },
+    )
+    seurat.reductions[reduction_name] = dr
+
+    target = seurat.cell_names()
+
+    def put(col, values):
+        seurat.meta_data[col] = (
+            pd.Series(list(values), index=cells).reindex(target).values
+        )
+
+    put("lda_assignments", assignments)
+    for j, cls in enumerate(classes):
+        put(f"LDAP_{cls}", posterior[:, j])
+    return seurat
+
+
+# ----------------------------------------------------------------------
 # Internals
 # ----------------------------------------------------------------------
 
@@ -479,6 +689,33 @@ def _mixscape_em(sig, de_rows, nt_idx, gene_local, iter_num, seed):
     if np.all(np.isnan(post)):
         post = np.zeros(n_gene)
     return ko_pos, post, n_iter
+
+
+def _lda_guide_block(sig, de_rows, nt_idx, gene_local, npcs, scale_max, seed):
+    """One guide's LDA feature block: every cell projected onto its PCA subspace.
+
+    The reference — this guide's cells plus the NT cells — sets both the per-gene
+    centring/scaling and the PCA loadings; all cells in the dataset are then pushed
+    through that same map, so the block says where each cell falls along *this*
+    guide's perturbation axes. Returns ``n_all_cells × npcs``.
+    """
+    from sklearn.decomposition import PCA
+
+    ref_cols = np.concatenate([nt_idx, gene_local])
+    X = sig[de_rows, :]                              # n_de × n_all
+
+    # ScaleData against the reference cells.
+    ref = X[:, ref_cols]
+    mu = ref.mean(axis=1, keepdims=True)
+    sd = ref.std(axis=1, ddof=1, keepdims=True)
+    sd[sd == 0] = 1.0
+    scaled = (X - mu) / sd
+    if scale_max is not None:
+        scaled = np.clip(scaled, -scale_max, scale_max)
+
+    pca = PCA(n_components=npcs, random_state=seed)
+    pca.fit(scaled[:, ref_cols].T)                   # fit on guide + NT
+    return pca.transform(scaled.T)                   # project every cell
 
 
 def _assign(mixscape_class, global_class, gene_local, gene, kind, prtb_type):

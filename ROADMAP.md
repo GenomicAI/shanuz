@@ -533,7 +533,8 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   not ported (`kfunc="kmeans"` only).
 
 ### Mixscape (pooled CRISPR screen analysis) — ✅ delivered
-- **R:** `CalcPerturbSig(obj, ...)` → `RunMixscape(obj, labels, nt.class.name)`
+- **R:** `CalcPerturbSig(obj, ...)` → `RunMixscape(obj, labels, nt.class.name)` →
+  `MixscapeLDA(obj, labels, nt.label)`
 - **`calc_perturb_sig` — ✅ delivered** (`shanuz/mixscape.py`): Seurat's
   `CalcPerturbSig`. For every cell, the mean expression of its `num_neighbors`
   (20) nearest **non-targeting (NT)** control cells — in the first `ndims` of a
@@ -557,8 +558,29 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   signature is read from the assay's `data` layer directly — Seurat's pre-`ScaleData`
   centring is a provable no-op for the KO/NP calls (it leaves the perturbation
   vector unchanged and only globally shifts the scores the re-fit mixture absorbs).
-- **Still open:** `MixscapeLDA` (the LDA visualization of the perturbation
-  classes) and a dedicated mixscape violin/heatmap plot are not ported.
+- **`mixscape_lda` — ✅ delivered** (`shanuz/mixscape.py`): Seurat's `MixscapeLDA`
+  (its `PrepLDA` + `RunLDA`). The complementary question to `run_mixscape` — not
+  *which cells are perturbed* but *how do the guide populations differ from each
+  other and from control* — answered with one supervised map. Per guide: DE vs NT
+  picks its response genes (a guide needs `npcs + 1`, default 10, to contribute);
+  on the signature assay over those genes a PCA is fit on that guide's cells **plus**
+  the NT cells, and **every** cell is projected onto that guide's `npcs`-dim
+  subspace. The per-guide blocks are concatenated and a single
+  `sklearn.discriminant_analysis.LinearDiscriminantAnalysis` is fit with the guide
+  label as the class. Stores an `lda` reduction (key `LDA_`, `n_classes − 1` dims,
+  loadings + assignments/posterior/`genes_used` in `misc`) and the
+  `lda_assignments` / `LDAP_<class>` metadata columns.
+- **Prerequisite is only `calc_perturb_sig`:** faithful to R, the LDA groups cells
+  by their **raw guide label**, not `mixscape_class` — the KO/NP calls are not
+  consumed and no cells are dropped, so NP escapers stay in their guide's group
+  (and, being control-like, generally land on NT).
+- **Two more documented departures from R:** Seurat's `ScaleData` → `RunPCA` →
+  `ProjectCellEmbeddings` chain is composed directly (centre/scale each response
+  gene against the guide-plus-NT reference, project through the reference PCA
+  loadings — the same map, `scale_max=10` clip included); and MASS's leave-one-out
+  CV posterior (`lda(..., CV = TRUE)`, stashed in `misc` by R and read by nothing)
+  is not computed, only the resubstitution assignment and posterior.
+- **Still open:** a dedicated mixscape violin/heatmap plot is not ported.
 
 ---
 

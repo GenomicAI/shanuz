@@ -268,6 +268,7 @@ same caveat as the other tutorials.
 | Demultiplex (MULTI-seq) | `MULTIseqDemux(obj, assay="HTO")` | `multiseq_demux(obj, assay="HTO")` |
 | Perturbation signature | `CalcPerturbSig(obj, gd.class="gene", nt.cell.class="NT")` | `calc_perturb_sig(obj, labels="gene", nt_class="NT")` |
 | Mixscape (CRISPR KO calls) | `RunMixscape(obj, labels="gene", nt.class.name="NT")` | `run_mixscape(obj, labels="gene", nt_class="NT")` |
+| Mixscape LDA (guide separation) | `MixscapeLDA(obj, labels="gene", nt.label="NT")` | `mixscape_lda(obj, labels="gene", nt_class="NT")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -662,6 +663,37 @@ pulls just the confirmed knockouts. A guide with too few cells, or too few DE ge
 to show a phenotype (`min_de_genes`, default 5), has all its cells called NP. For a
 knock-down rather than a knockout screen, pass `prtb_type="KD"` — the class labels
 and the `mixscape_class_p_kd` posterior column follow the name.
+
+#### Separating the guide populations — `mixscape_lda`
+
+`run_mixscape` asks which *cells* are perturbed. The complementary question is how
+the guide *populations* differ from each other and from control, and `mixscape_lda`
+(Seurat's `MixscapeLDA`) answers it with a single supervised map on which each guide
+class forms its own cloud. It needs only the `PRTB` signature — it groups cells by
+their raw guide label, so the KO/NP calls are not used and it can follow
+`calc_perturb_sig` directly:
+
+```python
+from shanuz import mixscape_lda
+
+# Per guide: DE vs NT picks its response genes, a PCA is fit on that guide's cells
+# plus the NT cells, and every cell is projected onto the guide's npcs-dim subspace.
+# The blocks are concatenated and one LDA is fit with the guide as the class.
+mixscape_lda(obj, assay="PRTB", labels="gene", nt_class="NT", npcs=10)
+
+obj.reductions["lda"]                      # n_classes - 1 discriminant dimensions
+obj.reductions["lda"].misc["genes_used"]   # guides that contributed a block
+obj.meta_data["lda_assignments"]           # predicted guide class per cell
+obj.meta_data["LDAP_IFNGR2"]               # posterior for that class, per cell
+```
+
+Plot it like any other reduction — `dim_plot(obj, reduction="lda", group_by="gene")`.
+A guide needs at least `npcs + 1` DE genes to contribute a block (it cannot support
+`npcs` components otherwise) and is skipped if it falls short; if no guide clears the
+bar, `mixscape_lda` raises and you should lower `npcs`. Because the grouping is by
+guide rather than by mixscape class, NP escapers stay in their guide's group — and,
+being control-like, they generally land on top of the NT cloud, which is itself a
+useful read on how much of a guide escaped.
 
 ### Pseudobulk & conserved markers
 
