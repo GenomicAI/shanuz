@@ -1,8 +1,10 @@
 """Tests for pooled CRISPR-screen analysis (v0.9.0 Specialized Assays).
 
-  * calc_perturb_sig  (mixscape.py)
-  * run_mixscape      (mixscape.py)
-  * mixscape_lda      (mixscape.py)
+  * calc_perturb_sig    (mixscape.py)
+  * run_mixscape        (mixscape.py)
+  * mixscape_lda        (mixscape.py)
+  * plot_perturb_score  (plotting.py)
+  * mixscape_heatmap    (plotting.py)
 
 A synthetic ECCITE-like screen is built with *known* ground truth: non-targeting
 (NT) controls, plus two target genes whose cells are a mixture of true knockouts
@@ -16,14 +18,22 @@ deterministic (fixed RNG + seeds).
 import sys
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
 
+matplotlib.use("Agg")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shanuz.mixscape import calc_perturb_sig, mixscape_lda, run_mixscape  # noqa: E402
+from shanuz.plotting import (  # noqa: E402
+    do_heatmap,
+    mixscape_heatmap,
+    plot_perturb_score,
+)
 from shanuz.preprocessing import normalize_data, scale_data  # noqa: E402
 from shanuz.reduction import run_pca  # noqa: E402
 from shanuz.shanuz import create_shanuz_object  # noqa: E402
@@ -374,3 +384,227 @@ def test_lda_deterministic():
         obj_a.reductions["lda"].cell_embeddings,
         obj_b.reductions["lda"].cell_embeddings,
     )
+
+
+# ----------------------------------------------------------------------
+# Perturbation scores in misc — what plot_perturb_score reads
+# ----------------------------------------------------------------------
+
+
+def test_scores_stored_per_gene():
+    obj, guide, _ = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj)
+    for g in GENES:
+        scores = obj.misc["mixscape"]["PRTB"]["genes"][g]["scores"]
+        assert list(scores.columns) == ["pvec", "gene"]
+        # One row per NT cell plus the gene's own cells, and nothing else.
+        expected = set(np.array(obj.cell_names())[(guide == "NT") | (guide == g)])
+        assert set(scores.index) == expected
+        assert set(scores["gene"]) == {"NT", g}
+        assert np.isfinite(scores["pvec"]).all()
+
+
+def test_score_separates_ko_from_nt():
+    """The score is the axis mixscape splits on: KO cells sit above the controls."""
+    obj, guide, truth = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj)
+    cells = np.array(obj.cell_names())
+    for g in GENES:
+        scores = obj.misc["mixscape"]["PRTB"]["genes"][g]["scores"]
+        pvec = scores["pvec"]
+        ko_cells = cells[(guide == g) & (truth == "KO")]
+        nt_cells = cells[guide == "NT"]
+        assert pvec[ko_cells].mean() > pvec[nt_cells].mean()
+
+
+def test_scores_absent_when_no_mixture_fit():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj, min_de_genes=1000)          # every gene short-circuits to NP
+    for g in GENES:
+        assert obj.misc["mixscape"]["PRTB"]["genes"][g]["scores"] is None
+
+
+# ----------------------------------------------------------------------
+# plot_perturb_score
+# ----------------------------------------------------------------------
+
+
+def _fitted():
+    obj, guide, truth = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj)
+    return obj, guide, truth
+
+
+def test_perturb_score_plot_returns_figure():
+    obj, _, _ = _fitted()
+    fig = plot_perturb_score(obj, target_gene_ident="G1")
+    assert fig.axes                                # at least the one density panel
+    ax = fig.axes[0]
+    assert ax.get_xlabel() == "perturbation score"
+    # After mixscape the three classes are drawn: NT, "G1 NP", "G1 KO".
+    labels = {t.get_text() for t in ax.get_legend().get_texts()}
+    assert labels == {"NT", "G1 NP", "G1 KO"}
+
+
+def test_perturb_score_before_mixscape_uses_guide_label():
+    obj, _, _ = _fitted()
+    fig = plot_perturb_score(obj, target_gene_ident="G1", before_mixscape=True)
+    labels = {t.get_text() for t in fig.axes[0].get_legend().get_texts()}
+    assert labels == {"NT", "G1"}                  # the pre-mixscape view
+
+
+def test_perturb_score_prtb_type_names_the_class():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj, prtb_type="KD")
+    fig = plot_perturb_score(obj, target_gene_ident="G1", prtb_type="KD")
+    labels = {t.get_text() for t in fig.axes[0].get_legend().get_texts()}
+    assert "G1 KD" in labels
+
+
+def test_perturb_score_split_by_facets():
+    obj, _, _ = _screen_object(split=True)
+    calc_perturb_sig(obj)
+    run_mixscape(obj)
+    fig = plot_perturb_score(obj, target_gene_ident="G1", split_by="rep")
+    titles = {ax.get_title() for ax in fig.axes if ax.get_title()}
+    assert titles == {"rep0", "rep1"}
+
+
+def test_perturb_score_unknown_gene_raises():
+    obj, _, _ = _fitted()
+    with pytest.raises(KeyError):
+        plot_perturb_score(obj, target_gene_ident="nosuchgene")
+
+
+def test_perturb_score_without_mixscape_raises():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    with pytest.raises(KeyError):
+        plot_perturb_score(obj, target_gene_ident="G1")
+
+
+def test_perturb_score_needs_a_fitted_score():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    run_mixscape(obj, min_de_genes=1000)          # no mixture fit → no score axis
+    with pytest.raises(ValueError):
+        plot_perturb_score(obj, target_gene_ident="G1")
+
+
+def test_perturb_score_deterministic_jitter():
+    obj, _, _ = _fitted()
+    a = plot_perturb_score(obj, target_gene_ident="G1", seed=7)
+    b = plot_perturb_score(obj, target_gene_ident="G1", seed=7)
+    ya = a.axes[0].collections[0].get_offsets()
+    yb = b.axes[0].collections[0].get_offsets()
+    assert np.allclose(ya, yb)
+
+
+# ----------------------------------------------------------------------
+# mixscape_heatmap
+# ----------------------------------------------------------------------
+
+
+def test_mixscape_heatmap_returns_figure():
+    obj, _, _ = _fitted()
+    fig = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO", max_genes=6)
+    assert fig.axes
+    rows = [t.get_text() for t in fig.axes[1].get_yticklabels()]
+    assert rows                                    # DE genes are the heatmap rows
+    assert all(r.startswith("g") for r in rows)
+
+
+def test_mixscape_heatmap_balanced_takes_both_directions():
+    obj, _, _ = _fitted()
+    both = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO",
+                            balanced=True, max_genes=3)
+    pos_only = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO",
+                                balanced=False, max_genes=3)
+    n_both = len(both.axes[1].get_yticklabels())
+    n_pos = len(pos_only.axes[1].get_yticklabels())
+    assert n_both > n_pos                          # the down-regulated block is added
+    assert n_pos <= 3                              # max_genes caps each direction
+
+
+def test_mixscape_heatmap_orders_cells_by_probability():
+    """The posterior drives the order, not the class.
+
+    Ordering by probability normally coincides with grouping by class (every KO
+    outranks every NT), so the two are told apart by handing a few NT cells the
+    top posterior: they must then lead the heatmap despite their class.
+    """
+    obj, guide, _ = _fitted()
+    planted = list(np.array(obj.cell_names())[guide == "NT"][:5])
+    obj.meta_data.loc[planted, "mixscape_class_p_ko"] = 1.0
+
+    fig = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO", max_genes=6)
+    # The colour-bar row records each cell's class in plotted order; classes are
+    # indexed by sorted name, so "G1 KO" is 0 and "NT" is 1.
+    bar = fig.axes[0].images[0].get_array()[0].tolist()
+    assert bar[:5] == [1] * 5                      # the planted NT cells lead
+    assert bar[5] == 0                             # then the real knockouts
+    assert set(bar) == {0, 1}
+
+
+def test_mixscape_heatmap_prob_order_differs_from_shuffle():
+    obj, _, _ = _fitted()
+    ordered = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO", max_genes=6)
+    shuffled = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO",
+                                max_genes=6, order_by_prob=False, seed=3)
+    assert not np.array_equal(ordered.axes[0].images[0].get_array()[0],
+                              shuffled.axes[0].images[0].get_array()[0])
+
+
+def test_mixscape_heatmap_max_cells_group():
+    obj, _, _ = _fitted()
+    fig = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO",
+                           max_genes=6, max_cells_group=10)
+    bar = fig.axes[0].images[0].get_array()[0]
+    assert len(bar) == 20                          # 10 per class
+
+
+def test_mixscape_heatmap_preserves_idents():
+    obj, _, _ = _fitted()
+    before = list(obj.idents)
+    mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO", max_genes=6)
+    assert list(obj.idents) == before
+
+
+def test_mixscape_heatmap_requires_mixscape_class():
+    obj, _, _ = _screen_object()
+    calc_perturb_sig(obj)
+    with pytest.raises(KeyError):
+        mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO")
+
+
+def test_mixscape_heatmap_unshuffled_is_deterministic():
+    obj, _, _ = _fitted()
+    a = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO",
+                         max_genes=6, order_by_prob=False, seed=3)
+    b = mixscape_heatmap(obj, ident_1="NT", ident_2="G1 KO",
+                         max_genes=6, order_by_prob=False, seed=3)
+    assert np.array_equal(a.axes[0].images[0].get_array()[0],
+                          b.axes[0].images[0].get_array()[0])
+
+
+# ----------------------------------------------------------------------
+# do_heatmap gained R's `cells` argument to support the ordering above
+# ----------------------------------------------------------------------
+
+
+def test_do_heatmap_cells_sets_order():
+    obj, _, _ = _fitted()
+    cells = obj.cell_names()[:6][::-1]
+    fig = do_heatmap(obj, features=["g0", "g1"], layer="data", cells=cells)
+    assert len(fig.axes[0].images[0].get_array()[0]) == 6
+
+
+def test_do_heatmap_rejects_unknown_cells():
+    obj, _, _ = _fitted()
+    with pytest.raises(KeyError):
+        do_heatmap(obj, features=["g0"], layer="data", cells=["nosuchcell"])

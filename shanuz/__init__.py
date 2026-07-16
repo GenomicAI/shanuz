@@ -86,6 +86,8 @@ from .plotting import (
     image_feature_plot,
     spatial_dim_plot,
     spatial_feature_plot,
+    plot_perturb_score,
+    mixscape_heatmap,
 )
 
 __version__ = "0.2.0"
@@ -200,5 +202,7 @@ __all__ = [
     "image_feature_plot",
     "spatial_dim_plot",
     "spatial_feature_plot",
+    "plot_perturb_score",
+    "mixscape_heatmap",
     "__version__",
 ]

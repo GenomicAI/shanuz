@@ -10,6 +10,8 @@ Mirrors the R Seurat plotting API:
   DimHeatmap    → dim_heatmap
   DoHeatmap     → do_heatmap
   RidgePlot     → ridge_plot
+  PlotPerturbScore  → plot_perturb_score
+  MixscapeHeatmap   → mixscape_heatmap
 
 All functions return a matplotlib Figure so the caller can save or display it:
 
@@ -19,6 +21,7 @@ All functions return a matplotlib Figure so the caller can save or display it:
 """
 from __future__ import annotations
 
+import re
 from typing import Optional, Union
 
 import numpy as np
@@ -64,6 +67,25 @@ _PALETTE_36 = [
 ]
 
 
+# Seurat's mixscape plots default to R colour names that matplotlib does not know.
+# Keeping the R spellings in the signatures (so the call reads like the R one) means
+# translating them here.
+_R_COLOURS = {"orange2": "#EE9A00"}
+
+
+def _r_colour(name):
+    """Translate an R colour name to a matplotlib-readable one, else pass through."""
+    if not isinstance(name, str):
+        return name
+    if name in _R_COLOURS:
+        return _R_COLOURS[name]
+    m = re.fullmatch(r"gr[ea]y(\d{1,3})", name)     # greyNN is NN% grey in R
+    if m and int(m.group(1)) <= 100:
+        level = round(int(m.group(1)) * 255 / 100)
+        return f"#{level:02x}{level:02x}{level:02x}"
+    return name
+
+
 def _palette(n: int) -> list[str]:
     """Return n categorical colours."""
     if n <= len(_PALETTE_36):
@@ -100,6 +122,29 @@ def _get_data_matrix(assay_obj, layer: Optional[str] = None):
             d = assay_obj.data
             from ._sparse import is_matrix_empty
             return d if not is_matrix_empty(d) else assay_obj.counts
+
+
+def _resolve_layer(assay_obj, layer: Optional[str] = None):
+    """Return ``(matrix, feature_names)`` for *layer*, rows and names aligned.
+
+    ``scale_data(obj, features = [...])`` scales only a subset, leaving a
+    ``scale.data`` layer with fewer rows than the assay has features — so row *i*
+    of the matrix is not feature *i* of the assay. Callers that index rows by gene
+    must go through the layer's own feature list, which is what this returns.
+    """
+    from .assay5 import Assay5
+
+    mat = _get_data_matrix(assay_obj, layer)
+    if isinstance(assay_obj, Assay5):
+        for name, candidate in assay_obj.layers.items():
+            if candidate is mat:
+                return mat, list(
+                    assay_obj._layer_features.get(name, assay_obj._all_feature_names)
+                )
+        return mat, list(assay_obj._all_feature_names)
+    if layer in ("scale.data", "scale_data"):
+        return mat, list(assay_obj.features(layer="scale_data"))
+    return mat, list(assay_obj.features())
 
 
 def _get_expression(obj, feature: str, assay: Optional[str] = None,
@@ -753,6 +798,7 @@ def do_heatmap(
     assay: Optional[str] = None,
     layer: str = "scale.data",
     label: bool = True,
+    cells: Optional[list[str]] = None,
     figsize: Optional[tuple] = None,
     palette: Optional[list] = None,
 ) -> "plt.Figure":
@@ -766,19 +812,29 @@ def do_heatmap(
     group_by : column used to sort and colour cells (default: active idents)
     layer    : which data layer to use (default: "scale.data")
     label    : annotate cluster boundaries with group names
+    cells    : restrict to these cells *and* show them in this exact order,
+               rather than the default group-sorted order. Mirrors R's ``cells``
+               argument; :func:`mixscape_heatmap` uses it to order cells by
+               knockout probability.
     """
     import scipy.sparse as sp
     plt = _mpl()
 
     assay_obj = _get_assay_obj(obj, assay)
-    mat = _get_data_matrix(assay_obj, layer)
-    all_feats = assay_obj._all_feature_names
+    mat, all_feats = _resolve_layer(assay_obj, layer)
 
     groups = _get_groups(obj, group_by)
     unique = sorted(set(groups), key=lambda x: (int(x) if x.isdigit() else x))
     colors = palette or _palette(len(unique))
 
-    cell_order = np.argsort([unique.index(g) for g in groups])
+    if cells is None:
+        cell_order = np.argsort([unique.index(g) for g in groups])
+    else:
+        pos = {c: i for i, c in enumerate(obj.cell_names())}
+        missing = [c for c in cells if c not in pos]
+        if missing:
+            raise KeyError(f"Cells not in object: {missing[:5]}")
+        cell_order = np.array([pos[c] for c in cells], dtype=int)
     sorted_groups = groups[cell_order]
 
     def _extract(gene):
@@ -816,19 +872,27 @@ def do_heatmap(
     axes[1].set_yticklabels(features, fontsize=max(5, 9 - len(features) // 20))
     axes[1].set_xticks([])
 
-    # Cluster boundary lines + labels inside the colour bar row
+    # Cluster boundary lines + labels inside the colour bar row.
+    # Walk contiguous runs rather than whole groups: with the default sort each
+    # group is one run, but an explicit `cells` order (e.g. by knockout
+    # probability) interleaves them, and a run-based pass labels both correctly.
     if label:
-        prev = 0
-        for gi, g in enumerate(unique):
-            count = np.sum(sorted_groups == g)
-            mid = prev + count / 2
+        boundaries = [0] + [
+            i for i in range(1, len(sorted_groups))
+            if sorted_groups[i] != sorted_groups[i - 1]
+        ] + [len(sorted_groups)]
+        # Interleaved orders produce many short runs; label only the ones wide
+        # enough to read, so the colour bar does not fill with overlapping text.
+        min_run = 0 if cells is None else max(1, len(sorted_groups) // 50)
+        for start, end in zip(boundaries[:-1], boundaries[1:]):
             # Separator lines in both the colour bar and the heatmap
-            axes[0].axvline(prev - 0.5, color="white", linewidth=1.2)
-            axes[1].axvline(prev - 0.5, color="white", linewidth=0.8)
-            # Labels sit inside axes[0] (the colour bar) — y=0.5 centres vertically
-            axes[0].text(mid, 0.5, g, ha="center", va="center",
-                         fontsize=7, color="white", fontweight="bold")
-            prev += count
+            axes[0].axvline(start - 0.5, color="white", linewidth=1.2)
+            axes[1].axvline(start - 0.5, color="white", linewidth=0.8)
+            if end - start >= min_run:
+                # Labels sit inside axes[0] (the colour bar) — y=0.5 centres vertically
+                axes[0].text((start + end) / 2, 0.5, sorted_groups[start],
+                             ha="center", va="center",
+                             fontsize=7, color="white", fontweight="bold")
 
     plt.colorbar(im, ax=axes[1], shrink=0.4, pad=0.01, label="Scaled expression")
     axes[1].set_xlabel("Cells (sorted by cluster)")
@@ -1370,6 +1434,334 @@ def spatial_feature_plot(
 
 
 # ---------------------------------------------------------------------------
+# Mixscape — PlotPerturbScore / MixscapeHeatmap
+# ---------------------------------------------------------------------------
+
+def _mixscape_scores(obj, target_gene_ident: str, assay: str) -> pd.DataFrame:
+    """The stored perturbation-score frame for one target gene.
+
+    R reads this from ``Tool(object, slot = "RunMixscape")``; :func:`run_mixscape`
+    keeps the same frame under ``obj.misc["mixscape"][assay]["genes"][gene]``.
+    """
+    store = obj.misc.get("mixscape", {}).get(assay)
+    if store is None:
+        raise KeyError(
+            f"No mixscape results for assay {assay!r}. Run run_mixscape(obj, "
+            f"assay={assay!r}) first."
+        )
+    genes = store["genes"]
+    if target_gene_ident not in genes:
+        raise KeyError(
+            f"{target_gene_ident!r} is not a target gene in this screen. "
+            f"Available: {sorted(genes)}"
+        )
+    scores = genes[target_gene_ident].get("scores")
+    if scores is None:
+        raise ValueError(
+            f"No perturbation score stored for {target_gene_ident!r} — its cells "
+            "were called NP without a mixture fit (too few cells, or too few DE "
+            "genes), so there is no score axis to plot."
+        )
+    return scores
+
+
+def plot_perturb_score(
+    obj,
+    target_gene_ident: str,
+    target_gene_class: str = "gene",
+    mixscape_class: str = "mixscape_class",
+    col: str = "orange2",
+    split_by: Optional[str] = None,
+    before_mixscape: bool = False,
+    prtb_type: str = "KO",
+    assay: str = "PRTB",
+    seed: int = 0,
+    figsize: Optional[tuple] = None,
+) -> "plt.Figure":
+    """Density of one target gene's perturbation scores (Seurat's ``PlotPerturbScore``).
+
+    Mirrors ``PlotPerturbScore(object, target.gene.ident = "IFNGR2",
+    target.gene.class = "gene", mixscape.class = "mixscape_class")``. This is the
+    diagnostic that shows *why* mixscape split a guide the way it did: the score
+    is each cell's projection onto the gene's perturbation axis, and the plot
+    overlays the NT control density against the guide's own. A guide with a real
+    effect is bimodal — one lobe sitting on the NT curve (the escapers) and one
+    shifted away from it (the knockouts) — which is exactly the structure the
+    mixture model is asked to find.
+
+    Two views, per R's ``before.mixscape``:
+
+    * ``before_mixscape=False`` (default) — colour by ``mixscape_class``, i.e.
+      *after* the call: NT, ``"<gene> NP"``, and ``"<gene> KO"`` get their own
+      curves, so you see where mixscape actually drew the line.
+    * ``before_mixscape=True`` — colour by the raw guide label only, the view you
+      would have had without mixscape: NT against the whole guide population.
+
+    Cells are also drawn as a jittered strip — controls above the axis, the target
+    gene below — so single-cell density is visible where the curves overlap.
+
+    Parameters
+    ----------
+    target_gene_ident : the target gene to plot (must be one mixscape tested).
+    target_gene_class : metadata column of per-cell guide class (default ``"gene"``).
+    mixscape_class    : metadata column of mixscape classifications.
+    col               : colour for the target gene / knockout class. Controls and
+                        non-perturbed cells are fixed greys, as in R.
+    split_by          : metadata column to facet on, for screens spanning more
+                        than one cell type.
+    before_mixscape   : colour by raw guide label instead of the mixscape call.
+    prtb_type         : perturbation label used by :func:`run_mixscape` (``"KO"``).
+    assay             : perturbation-signature assay the scores were stored under.
+    seed              : random state for the jitter strip (determinism).
+
+    Returns
+    -------
+    matplotlib Figure
+    """
+    from scipy.stats import gaussian_kde
+    plt = _mpl()
+
+    scores = _mixscape_scores(obj, target_gene_ident, assay)
+    pvec = scores["pvec"].to_numpy(dtype=float)
+    cells = list(scores.index)
+    guide = scores[scores.columns[1]].astype(str).to_numpy()
+
+    nt_labels = sorted(set(guide) - {target_gene_ident})
+    nt_name = nt_labels[0] if nt_labels else "NT"
+
+    col = _r_colour(col)
+    if before_mixscape:
+        classes = [nt_name, target_gene_ident]
+        colours = {nt_name: _r_colour("grey49"), target_gene_ident: col}
+        group = guide
+    else:
+        if mixscape_class not in obj.meta_data.columns:
+            raise KeyError(
+                f"Column {mixscape_class!r} not in meta_data — run run_mixscape "
+                "first, or pass before_mixscape=True."
+            )
+        group = obj.meta_data[mixscape_class].reindex(cells).astype(str).to_numpy()
+        ko_name = f"{target_gene_ident} {prtb_type}"
+        np_name = f"{target_gene_ident} NP"
+        classes = [nt_name, np_name, ko_name]
+        colours = {
+            nt_name: _r_colour("grey49"),
+            np_name: _r_colour("grey79"),
+            ko_name: col,
+        }
+
+    if split_by is None:
+        facets = [(None, np.arange(len(cells)))]
+    else:
+        if split_by not in obj.meta_data.columns:
+            raise KeyError(f"split_by column {split_by!r} not found in meta_data.")
+        split_vals = obj.meta_data[split_by].reindex(cells).astype(str).to_numpy()
+        facets = [
+            (lvl, np.where(split_vals == lvl)[0])
+            for lvl in sorted(set(split_vals))
+        ]
+
+    nrow, ncol = _subplot_grid(len(facets))
+    if figsize is None:
+        figsize = (5.5 * ncol, 4.0 * nrow)
+    fig, axes = plt.subplots(nrow, ncol, figsize=figsize, squeeze=False)
+    axes_flat = axes.ravel()
+    rng = np.random.default_rng(seed)
+
+    for ax, (level, idx) in zip(axes_flat, facets):
+        sub_p, sub_g = pvec[idx], group[idx]
+
+        # Densities first — their peak sets the band the jitter strip occupies,
+        # mirroring R's read of the built panel's y-range.
+        top = 0.0
+        curves = []
+        for cls in classes:
+            vals = sub_p[sub_g == cls]
+            if vals.size < 2 or np.ptp(vals) <= 0:
+                continue
+            grid = np.linspace(sub_p.min(), sub_p.max(), 256)
+            dens = gaussian_kde(vals)(grid)
+            curves.append((cls, grid, dens))
+            top = max(top, float(dens.max()))
+        for cls, grid, dens in curves:
+            ax.plot(grid, dens, color=colours[cls], linewidth=1.5, label=cls)
+
+        if top <= 0:
+            top = 1.0
+        band = top / 10.0
+        for cls in classes:
+            vals = sub_p[sub_g == cls]
+            if vals.size == 0:
+                continue
+            # Controls sit above the axis, the target gene's cells below.
+            if cls == nt_name:
+                y = rng.uniform(0.001, band, size=vals.size)
+            else:
+                y = rng.uniform(-band, 0.0, size=vals.size)
+            ax.scatter(vals, y, color=colours[cls], s=1.0, linewidths=0)
+
+        ax.axhline(0.0, color="black", linewidth=0.5)
+        ax.set_xlabel("perturbation score")
+        ax.set_ylabel("Cell density")
+        if level is not None:
+            ax.set_title(str(level), fontsize=11)
+        _strip_axes(ax)
+        ax.legend(frameon=False, fontsize=9)
+
+    for ax in axes_flat[len(facets):]:
+        ax.axis("off")
+
+    fig.suptitle(f"Perturbation score — {target_gene_ident}",
+                 fontsize=13, fontweight="bold")
+    fig.tight_layout()
+    return fig
+
+
+def mixscape_heatmap(
+    obj,
+    ident_1: str,
+    ident_2: Optional[str] = None,
+    balanced: bool = True,
+    logfc_threshold: float = 0.25,
+    assay: str = "RNA",
+    max_genes: int = 100,
+    test_use: str = "wilcox",
+    max_cells_group: Optional[int] = None,
+    order_by_prob: bool = True,
+    mixscape_class: str = "mixscape_class",
+    prtb_type: str = "KO",
+    fc_name: str = "avg_log2FC",
+    pval_cutoff: float = 0.05,
+    seed: int = 0,
+    **kwargs,
+) -> "plt.Figure":
+    """DE heatmap with cells ordered by knockout probability (``MixscapeHeatmap``).
+
+    Mirrors ``MixscapeHeatmap(object, ident.1 = "NT", ident.2 = "IFNGR2 KO",
+    balanced = TRUE, max.genes = 20)``. Where :func:`plot_perturb_score` shows the
+    one-dimensional score mixscape split on, this shows the genes underneath it:
+    the DE genes between the two classes, with every cell ordered left-to-right by
+    its knockout posterior. Read together with the class colour bar, a clean
+    screen shows the expression block turning on in step with the probability —
+    the escapers at the low-probability end still looking like control.
+
+    ``ident_1`` / ``ident_2`` are ``mixscape_class`` levels (e.g. ``"NT"``,
+    ``"IFNGR2 KO"``, ``"IFNGR2 NP"``), which :func:`run_mixscape` also leaves as
+    the active identity.
+
+    Parameters
+    ----------
+    ident_1, ident_2 : the two classes to contrast (``ident_2=None`` → all others).
+    balanced         : take up to ``max_genes`` genes from *each* direction of the
+                       fold change; otherwise only up-regulated ones.
+    max_genes        : cap on DE genes per direction.
+    max_cells_group  : downsample each class to this many cells.
+    order_by_prob    : order cells by ``<mixscape_class>_p_<type>``, highest first.
+                       If False, cells are shuffled (as R does).
+    mixscape_class   : metadata column of mixscape classifications; also names the
+                       posterior column read for the ordering.
+    prtb_type        : perturbation label used by :func:`run_mixscape` (``"KO"``).
+    fc_name          : fold-change column in the DE table (``"avg_log2FC"``).
+    seed             : random state for downsampling / shuffling (determinism).
+    **kwargs         : forwarded to :func:`do_heatmap`.
+
+    Returns
+    -------
+    matplotlib Figure
+    """
+    from .markers import find_markers
+    from .preprocessing import scale_data
+
+    if mixscape_class not in obj.meta_data.columns:
+        raise KeyError(
+            f"Column {mixscape_class!r} not in meta_data — run run_mixscape first."
+        )
+
+    # find_markers resolves ident_1/ident_2 against the active identity, so drive
+    # the DE off the mixscape classes — restored afterwards.
+    saved_ident = pd.Categorical(list(obj.idents))
+    obj.idents = list(obj.meta_data[mixscape_class].astype(str))
+    try:
+        markers = find_markers(
+            obj,
+            ident_1=ident_1,
+            ident_2=ident_2,
+            assay=assay,
+            test_use=test_use,
+            only_pos=False,
+            logfc_threshold=logfc_threshold,
+        )
+    finally:
+        obj.idents = saved_ident
+
+    if markers.empty or fc_name not in markers.columns:
+        raise ValueError(
+            f"No DE genes between {ident_1!r} and {ident_2 or 'the rest'!r}; "
+            "nothing to plot."
+        )
+
+    sig = markers[markers["p_val"] < pval_cutoff]
+    pos = list(sig.index[sig[fc_name] > logfc_threshold])[:max_genes]
+    neg = list(sig.index[sig[fc_name] < -logfc_threshold])[:max_genes] if balanced else []
+    marker_list = pos + neg
+    if not marker_list:
+        raise ValueError(
+            f"No DE genes passed p_val < {pval_cutoff} and "
+            f"|{fc_name}| > {logfc_threshold}; nothing to plot."
+        )
+
+    idents = [ident_1] + ([ident_2] if ident_2 is not None else [])
+    klass = obj.meta_data[mixscape_class].astype(str)
+    if ident_2 is None:
+        keep = list(obj.meta_data.index[klass == ident_1])
+        keep += list(obj.meta_data.index[klass != ident_1])
+    else:
+        keep = list(obj.meta_data.index[klass.isin(idents)])
+    if not keep:
+        raise ValueError(f"No cells in classes {idents}.")
+
+    sub = obj.subset(cells=keep)
+    rng = np.random.default_rng(seed)
+
+    if max_cells_group is not None:
+        sub_klass = sub.meta_data[mixscape_class].astype(str)
+        picked: list[str] = []
+        for lvl in sorted(set(sub_klass)):
+            lvl_cells = list(sub.meta_data.index[sub_klass == lvl])
+            if len(lvl_cells) > max_cells_group:
+                lvl_cells = list(rng.choice(lvl_cells, max_cells_group, replace=False))
+            picked += lvl_cells
+        sub = sub.subset(cells=picked)
+
+    scale_data(sub, features=marker_list, assay=assay)
+
+    if order_by_prob:
+        p_col = f"{mixscape_class}_p_{prtb_type.lower()}"
+        if p_col not in sub.meta_data.columns:
+            raise KeyError(
+                f"Posterior column {p_col!r} not in meta_data — run run_mixscape "
+                f"with prtb_type={prtb_type!r}, or pass order_by_prob=False."
+            )
+        # NT cells carry no posterior; R initialises the column to 0, so they sort
+        # to the low-probability end rather than dropping out.
+        probs = sub.meta_data[p_col].to_numpy(dtype=float)
+        probs = np.nan_to_num(probs, nan=0.0)
+        order = np.argsort(-probs, kind="stable")
+    else:
+        order = rng.permutation(len(sub.cell_names()))
+    ordered_cells = [sub.cell_names()[i] for i in order]
+
+    return do_heatmap(
+        sub,
+        features=marker_list,
+        group_by=mixscape_class,
+        assay=assay,
+        cells=ordered_cells,
+        **kwargs,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -1389,4 +1781,6 @@ __all__ = [
     "image_feature_plot",
     "spatial_dim_plot",
     "spatial_feature_plot",
+    "plot_perturb_score",
+    "mixscape_heatmap",
 ]

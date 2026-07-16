@@ -49,7 +49,10 @@ Results are written to ``obj.meta_data`` under Seurat's names: ``mixscape_class`
 identity; ``mixscape_class.global`` (``"KO"`` / ``"NP"`` / ``"NT"``); and a
 posterior column ``mixscape_class_p_<type>`` (default ``mixscape_class_p_ko``).
 Per-gene bookkeeping (DE-gene count, iterations, KO count) is stashed in
-``obj.misc["mixscape"]``.
+``obj.misc["mixscape"]``, along with a ``scores`` frame per gene holding that
+gene's perturbation score for its own cells and the NT cells — R keeps the same
+thing in the ``Tool(object, "RunMixscape")`` slot, and
+:func:`~shanuz.plotting.plot_perturb_score` reads it back to draw the density.
 
 **Visualization — :func:`mixscape_lda` (Seurat's ``MixscapeLDA``).** Where
 :func:`run_mixscape` asks *which cells are perturbed*, this asks *how do the guide
@@ -294,6 +297,7 @@ def run_mixscape(
 
             if gene_local.size < min_cells:
                 _assign(mixscape_class, global_class, gene_local, gene, "NP", prtb_type)
+                info["scores"] = None
                 bookkeeping[gene] = info
                 if verbose:
                     print(f"[mixscape] {gene}: {gene_local.size} cells < min_cells → NP")
@@ -306,17 +310,33 @@ def run_mixscape(
             info["n_de"] = len(de_genes)
             if len(de_genes) < min_de_genes:
                 _assign(mixscape_class, global_class, gene_local, gene, "NP", prtb_type)
+                info["scores"] = None
                 bookkeeping[gene] = info
                 if verbose:
                     print(f"[mixscape] {gene}: {len(de_genes)} DE genes < min → NP")
                 continue
 
             de_rows = [sig_feat_idx[g] for g in de_genes]
-            ko_pos, post, n_iter = _mixscape_em(
+            ko_pos, post, n_iter, score = _mixscape_em(
                 sig, de_rows, nt_idx, gene_local, iter_num, seed,
             )
             info["n_iter"] = n_iter
             info["n_ko"] = int(len(ko_pos))
+            # R's gv data.frame: one `pvec` column plus the guide-label column,
+            # indexed by cell — what PlotPerturbScore reads back out.
+            if score is None:
+                info["scores"] = None
+            else:
+                score_cells = [
+                    cells[i] for i in np.concatenate([nt_idx, gene_local])
+                ]
+                info["scores"] = pd.DataFrame(
+                    {
+                        "pvec": score,
+                        labels: [nt_class] * nt_idx.size + [gene] * gene_local.size,
+                    },
+                    index=score_cells,
+                )
 
             ko_set = set(int(p) for p in ko_pos)
             for pos, cell in enumerate(gene_local):
@@ -645,9 +665,15 @@ def _de_genes(
 def _mixscape_em(sig, de_rows, nt_idx, gene_local, iter_num, seed):
     """Iterative 2-component mixture split of one gene's cells into KO / NP.
 
-    Returns ``(ko_positions, posterior, n_iter)`` where ``ko_positions`` index
-    into ``gene_local`` (which cells are KO) and ``posterior`` is the KO-component
-    posterior for every gene cell (aligned to ``gene_local``).
+    Returns ``(ko_positions, posterior, n_iter, score)`` where ``ko_positions``
+    index into ``gene_local`` (which cells are KO), ``posterior`` is the
+    KO-component posterior for every gene cell (aligned to ``gene_local``), and
+    ``score`` is the *first-iteration* perturbation score for every cell in
+    ``concatenate([nt_idx, gene_local])`` — R's ``pvec``, kept for
+    :func:`~shanuz.plotting.plot_perturb_score`. R stores it under
+    ``if (n.iter == 0)``, i.e. from the round where the gene's cells are still
+    taken whole, before any KO/NP split feeds back into the vector; later rounds
+    would shift the axis and no longer match the published density plot.
     """
     from sklearn.mixture import GaussianMixture
 
@@ -661,6 +687,7 @@ def _mixscape_em(sig, de_rows, nt_idx, gene_local, iter_num, seed):
     post = np.full(n_gene, np.nan)
     nt_mean = dat[:, nt_cols].mean(axis=1)
     n_iter = 0
+    score = None
 
     for it in range(1, iter_num + 1):
         n_iter = it
@@ -668,6 +695,12 @@ def _mixscape_em(sig, de_rows, nt_idx, gene_local, iter_num, seed):
             break
         vec = dat[:, gene_cols[ko_pos]].mean(axis=1) - nt_mean
         proj = (vec @ dat).astype(float)        # perturbation score per local cell
+        if it == 1:
+            # R's ProjectVec is (v1 %*% v2) / (v2 %*% v2); the denominator is one
+            # positive constant across cells, so the mixture split is unchanged by
+            # it — but the score is a plotted axis, so scale it as R does.
+            denom = float(vec @ vec)
+            score = proj / denom if denom > 0 else proj.copy()
         if np.ptp(proj) <= 0:
             break
         try:
@@ -688,7 +721,7 @@ def _mixscape_em(sig, de_rows, nt_idx, gene_local, iter_num, seed):
 
     if np.all(np.isnan(post)):
         post = np.zeros(n_gene)
-    return ko_pos, post, n_iter
+    return ko_pos, post, n_iter, score
 
 
 def _lda_guide_block(sig, de_rows, nt_idx, gene_local, npcs, scale_max, seed):
