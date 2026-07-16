@@ -314,16 +314,20 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 
 Steps 2–7 cluster on **RNA alone** and read protein on top. WNN (Hao et al.,
 *Cell* 2021) goes further: it learns, **per cell**, how much to trust each
-modality and clusters on a *joint* graph, so a cell whose lineage is crisp in
-protein space (the CD4/CD8 T split) can be weighted toward ADT while one the
-13-protein panel doesn't cover (platelets, erythroid, pDC) is weighted toward
-RNA. On this dataset the learned weights sit close to 0.5 — both modalities
-carry usable signal for most cells — with only modest per-cell tilts; the value
-of WNN here is a *joint* embedding and clustering rather than a dramatic
-reweighting.
+modality and clusters on a *joint* graph. A cell whose lineage is crisp in
+protein space — the CD4/CD8 T split, which the transcriptome resolves poorly —
+is weighted toward ADT; a cell the antibody panel can say nothing useful about
+is weighted toward RNA.
+
+Crucially the weights are **decisive, not hedged**: they use the full 0–1 range,
+and most cells commit to one modality rather than sitting at 0.5. That is by
+design — the modality score is clipped at 200 before the softmax, so a cell with
+a clear preference saturates. Which cells end up on which side is an empirical
+result, not something you can read off the panel design, and the table below has
+at least one case that defies the obvious guess.
 
 The protein modality first gets its own reduction (`"apca"`); then
-`find_multi_modal_neighbors` builds the weighted `wknn`/`wsnn` graphs and writes
+`find_multi_modal_neighbors` builds the joint `wknn`/`wsnn` graphs and writes
 a per-cell weight for each modality. Clustering and UMAP then run **on the joint
 graph** instead of the RNA PCA.
 
@@ -376,18 +380,102 @@ run_umap(obj, graph="wsnn", reduction_name="wnn_umap", seed=42)
 </table>
 
 Because the ADT panel has only 13 proteins, `apca` keeps every informative
-component (`n_pcs ≤ 12`). You can inspect the learned weights by grouping
-`ADT.weight` by the Step-7 labels — on this dataset they cluster tightly around
-0.5 (roughly 0.51–0.52 for the antibody-targeted lineages), a gentle tilt rather
-than a clean split, reflecting that both modalities inform most cells:
+component (`n_pcs ≤ 12`). Inspect the learned weights by grouping `ADT.weight`
+by the Step-7 labels:
 
 ```python
 obj.meta_data.groupby("protein_celltype")["ADT.weight"].mean().sort_values(ascending=False)
 ```
 
+The lineages the antibody panel targets head-on lean on protein, and the
+ordering broadly tracks how well the panel covers each type. Seurat's numbers on
+the same data are alongside — the two agree on the ordering far more than on the
+absolute level:
+
+| Cell type | Shanuz `ADT.weight` | R Seurat | in the panel? |
+|-----------|--------------------|----------|---------------|
+| CD4 T | 0.74 | 0.64 | CD4 — and CD4/CD8 is a protein call, not an RNA one |
+| NK | 0.66 | 0.65 | CD16 + CD56 |
+| B | 0.62 | 0.54 | CD19 |
+| Erythroid | 0.62 | 0.40 | ✗ |
+| CD14+ Mono | 0.60 | 0.49 | CD14 |
+| CD8 T | 0.56 | 0.38 | CD8 |
+| Platelet | 0.53 | 0.30 | ✗ |
+| Progenitor | 0.44 | 0.29 | CD34 only |
+| DC / Mono | 0.10 | 0.21 | ✗ — no clean DC probe |
+
+`DC / Mono` is the case worth dwelling on, and both implementations agree on it:
+protein tells WNN almost nothing about those cells, so nearly all the weight
+goes to RNA. A weighting pinned near 0.5 could never express that.
+
+**Erythroid and platelet are the honest wrinkle.** Neither has an antibody in
+the panel, so the naive expectation is that both fall back to RNA — which is
+what R does (0.40 and 0.30). Shanuz puts them on the protein side instead (0.62
+and 0.53). A plausible reading is that these cells are uniformly negative across
+all 13 proteins, and after CLR centering that flat-negative profile is itself a
+consistent signature, so ADT neighbours predict them well — informative in the
+negative rather than the positive. That would be a real effect, and the exact
+neighbour search here may pick it up where R's approximate one blurs it. But it
+is an inference, not something this tutorial establishes, and it is the largest
+shanuz-vs-Seurat gap in the table. Treat those two rows with suspicion.
+
+### Reading the plots
+
+`08_wnn_umap_clusters.png` is the joint embedding. The comparison that matters
+is `09_wnn_vs_rna_umap.png` — the *same cells with the same labels*, embedded on
+RNA alone (left) and on the joint graph (right):
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td><img src="figures_multimodal/r_09_wnn_vs_rna_umap.png" width="420"/></td>
+<td><img src="figures_multimodal/09_wnn_vs_rna_umap.png" width="420"/></td>
+</tr>
+</table>
+
+UMAP has no canonical rotation, so don't read the orientation — read which
+populations form their own islands. Both sides resolve CD4 T, CD14+ Mono, NK and
+B as separate territories, with erythroid/platelet/progenitor grouped away from
+the immune lineages.
+
+`10_adt_weight_by_celltype.png` plots the weights themselves. The violins are
+**bimodal against the 0 and 1 rails** rather than a bump at 0.5 — individual
+cells commit, and the per-type mean is a summary of that split, not a
+description of a typical cell:
+
+<table>
+<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr>
+<td><img src="figures_multimodal/r_10_adt_weight_by_celltype.png" width="420"/></td>
+<td><img src="figures_multimodal/10_adt_weight_by_celltype.png" width="420"/></td>
+</tr>
+</table>
+
+> `ADT.weight` is a metadata column, not a gene, but `vln_plot` resolves it the
+> same way Seurat's `VlnPlot` does — hence the generic `Expression` y-axis label.
+
 > The whole flow is wrapped as `run_wnn(obj)` in
 > [`cbmc_citeseq_tutorial.py`](cbmc_citeseq_tutorial.py); `run_full()` prints the
 > WNN cluster count and the mean modality weights per cell type.
+
+### How close is this to Seurat?
+
+Both WNN stages are ported from the R/C++ source, so the weights are comparable
+rather than merely correlated: the per-cell-type ordering matches R almost
+exactly — B, CD8 T, platelet, progenitor and DC/Mono hold identical ranks, and
+only the adjacent NK/CD4 T and erythroid/CD14 pairs swap — over a 0.10–0.74
+range against R's 0.21–0.65. The absolute levels sit higher here, and erythroid
+and platelet land on the other side of 0.5 entirely.
+
+Two caveats on that table. Each side groups by *its own* `annotate_cells`
+output, and the R thresholds were retuned for Seurat's CLR scale (see
+[`cbmc_citeseq_verify.R`](cbmc_citeseq_verify.R)), so "CD4 T" is not quite the
+same set of cells in both columns. And cluster counts differ (17 here, 21 in R
+at `resolution = 0.6`): the neighbour search is exact here and approximate
+(annoy) in R, and the two Louvain implementations are not the same code.
+
+Expect the same structure and the same story — not identical numbers, and not
+identical labels.
 
 ---
 

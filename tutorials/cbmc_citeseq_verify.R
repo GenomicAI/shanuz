@@ -2,10 +2,11 @@
 # R Seurat reference for the multimodal CITE-seq tutorial (multimodal_citeseq.md).
 #
 # Mirrors cbmc_citeseq_tutorial.py / generate_multimodal_plots.py: builds the
-# RNA object, attaches the CLR-normalised ADT assay, runs the RNA workflow, and
-# annotates clusters by surface protein (annotate_cells ported to R). Writes the
-# R-side figures for the side-by-side tables into tutorials/figures_multimodal/:
-#   * r_01_rna_umap_clusters.png ... r_07_adt_scatter_CD19_CD3.png
+# RNA object, attaches the CLR-normalised ADT assay, runs the RNA workflow,
+# annotates clusters by surface protein (annotate_cells ported to R), and runs
+# WNN joint clustering. Writes the R-side figures for the side-by-side tables
+# into tutorials/figures_multimodal/:
+#   * r_01_rna_umap_clusters.png ... r_10_adt_weight_by_celltype.png
 #
 # Data: reads the same cache the Python tutorial downloads to. Run
 #   python tutorials/cbmc_citeseq_tutorial.py   # downloads ~15 MB first
@@ -127,6 +128,27 @@ Idents(obj) <- obj$rna_clusters
 obj <- RenameIdents(obj, anno)
 obj$protein_celltype <- Idents(obj)
 
+# ---- 4. Weighted Nearest Neighbor (mirrors run_wnn in the Python tutorial) ---
+# The ADT panel is 13 proteins, so apca must stay under that: npcs = 12, and
+# approx = FALSE because irlba needs npcs well below the feature count.
+DefaultAssay(obj) <- "ADT"
+VariableFeatures(obj) <- rownames(obj[["ADT"]])
+obj <- ScaleData(obj, verbose = FALSE)
+obj <- RunPCA(obj, reduction.name = "apca", reduction.key = "apca_",
+              npcs = 12, approx = FALSE, verbose = FALSE)
+obj <- FindMultiModalNeighbors(obj, reduction.list = list("pca", "apca"),
+                               dims.list = list(1:15, 1:12), k.nn = 20, verbose = FALSE)
+obj <- FindClusters(obj, graph.name = "wsnn", resolution = 0.6, verbose = FALSE)
+obj$wnn_clusters <- Idents(obj)
+obj <- RunUMAP(obj, nn.name = "weighted.nn", reduction.name = "wnn.umap",
+               reduction.key = "wnnUMAP_", verbose = FALSE)
+DefaultAssay(obj) <- "RNA"
+Idents(obj) <- obj$protein_celltype   # FindClusters left the WNN ids active
+cat(sprintf("WNN clusters (res=0.6): %d | mean weight RNA %.2f | ADT %.2f\n",
+            length(unique(obj$wnn_clusters)), mean(obj$RNA.weight), mean(obj$ADT.weight)))
+cat("Mean ADT weight by protein cell type:\n")
+print(round(sort(tapply(obj$ADT.weight, obj$protein_celltype, mean), decreasing = TRUE), 3))
+
 # ============================ FIGURES =======================================
 sv <- function(p, name, w = 8, h = 6.5)
   ggsave(file.path(FIG, name), p, width = w, height = h, dpi = 150, bg = "white")
@@ -169,5 +191,22 @@ sv(titled(FeatureScatter(obj, "adt_CD4", "adt_CD8", group.by = "protein_celltype
           "R Seurat - ADT CD4 vs CD8"), "r_06_adt_scatter_CD4_CD8.png", 7, 5.5)
 sv(titled(FeatureScatter(obj, "adt_CD19", "adt_CD3", group.by = "protein_celltype"),
           "R Seurat - ADT CD19 vs CD3"), "r_07_adt_scatter_CD19_CD3.png", 7, 5.5)
+
+# 08 WNN joint clusters on the joint embedding
+sv(titled(DimPlot(obj, reduction = "wnn.umap", group.by = "wnn_clusters", label = TRUE),
+          "R Seurat - WNN joint clusters"), "r_08_wnn_umap_clusters.png")
+
+# 09 RNA-only vs joint embedding, same cells and labels
+sv(brand((DimPlot(obj, reduction = "umap", group.by = "protein_celltype", label = TRUE) +
+            ggtitle("RNA-only UMAP") + NoLegend()) |
+           (DimPlot(obj, reduction = "wnn.umap", group.by = "protein_celltype", label = TRUE) +
+              ggtitle("WNN joint UMAP")),
+         "R Seurat - RNA-only vs WNN joint embedding"),
+   "r_09_wnn_vs_rna_umap.png", 14, 6.5)
+
+# 10 learned per-cell modality weights
+sv(titled(VlnPlot(obj, features = "ADT.weight", group.by = "protein_celltype",
+                  pt.size = 0, sort = FALSE) + NoLegend(),
+          "R Seurat - ADT weight by cell type"), "r_10_adt_weight_by_celltype.png", 9, 5)
 
 cat("\nAll R-side multimodal figures written to", FIG, "\n")
