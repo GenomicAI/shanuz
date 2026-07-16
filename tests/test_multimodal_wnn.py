@@ -25,7 +25,15 @@ from shanuz.preprocessing import (  # noqa: E402
 from shanuz.reduction import run_pca  # noqa: E402
 from shanuz.neighbors import find_neighbors  # noqa: E402
 from shanuz.clustering import find_clusters  # noqa: E402
-from shanuz.multimodal import find_multi_modal_neighbors  # noqa: E402
+from shanuz.neighbors import _build_knn  # noqa: E402
+from shanuz.multimodal import (  # noqa: E402
+    find_multi_modal_neighbors,
+    _impute_dist,
+    _l2_norm,
+    _modality_weights,
+    _multi_modal_nn,
+    _snn_bandwidth,
+)
 
 pytest.importorskip("sklearn")
 from sklearn.metrics import adjusted_rand_score  # noqa: E402
@@ -124,3 +132,142 @@ def test_wnn_requires_two_reductions():
     obj, _ = _complementary_object()
     with pytest.raises(ValueError):
         find_multi_modal_neighbors(obj, reduction_list=["pca"])
+
+
+def test_wnn_rejects_k_nn_above_cell_count():
+    obj, labels = _complementary_object()
+    with pytest.raises(ValueError, match="smaller than the number of cells"):
+        find_multi_modal_neighbors(
+            obj, reduction_list=["pca", "apca"], k_nn=len(labels) + 1,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Modality weights (R: FindModalityWeights)
+# ---------------------------------------------------------------------------
+
+def test_weights_follow_the_informative_modality():
+    """A is separable only in RNA, C only in ADT — the weights must say so.
+
+    This is the behaviour the exponential kernel + softmax buys. A linear
+    distance ratio gets the direction right but compresses every cell to ~0.5,
+    which is indistinguishable from "no preference".
+    """
+    obj, labels = _complementary_object()
+    find_multi_modal_neighbors(
+        obj, reduction_list=["pca", "apca"],
+        dims_list=[range(15), range(10)], k_nn=20,
+    )
+    rna_w = obj.meta_data["RNA.weight"].to_numpy()
+    adt_w = obj.meta_data["ADT.weight"].to_numpy()
+
+    assert rna_w[labels == "A"].mean() > adt_w[labels == "A"].mean()
+    assert adt_w[labels == "C"].mean() > rna_w[labels == "C"].mean()
+
+
+def test_weights_span_a_real_range():
+    """Regression guard: weights must not collapse into a band around 0.5.
+
+    The pre-port approximation returned d_cross / (d_same + d_cross), whose
+    two-modality softmax sat inside ~0.46-0.53 on real data and hid which
+    modality actually drove each cell.
+    """
+    obj, _ = _complementary_object()
+    find_multi_modal_neighbors(
+        obj, reduction_list=["pca", "apca"],
+        dims_list=[range(15), range(10)], k_nn=20,
+    )
+    adt_w = obj.meta_data["ADT.weight"].to_numpy()
+    assert adt_w.max() - adt_w.min() > 0.3
+    assert np.isfinite(adt_w).all()
+
+
+def test_l2_norm_unit_rows_and_zero_safety():
+    mat = np.array([[3.0, 4.0], [0.0, 0.0], [1.0, 0.0]])
+    out = _l2_norm(mat)
+    assert np.allclose(out[0], [0.6, 0.8])
+    assert np.allclose(out[1], [0.0, 0.0])      # zero row must not become NaN
+    assert np.allclose(np.linalg.norm(out[[0, 2]], axis=1), 1.0)
+
+
+def test_impute_dist_subtracts_nearest_and_floors_at_zero():
+    x = np.array([[0.0, 0.0], [0.0, 0.0]])
+    y = np.array([[3.0, 4.0], [0.6, 0.8]])      # raw distances 5.0 and 1.0
+    out = _impute_dist(x, y, nearest_dist=np.array([2.0, 4.0]))
+    assert np.allclose(out, [3.0, 0.0])         # second is ReLU'd, not negative
+
+
+def test_snn_bandwidth_uses_the_smallest_weight_edges():
+    """Bandwidth reads the *least* similar SNN partners, not the nearest ones."""
+    # Cell 0 shares edges with 1 (strong/near) and 2 (weak/far).
+    snn = sp.csc_matrix(np.array([
+        [1.0, 0.9, 0.1],
+        [0.9, 1.0, 0.0],
+        [0.1, 0.0, 1.0],
+    ]))
+    emb = np.array([[0.0, 0.0], [1.0, 0.0], [10.0, 0.0]])
+    nearest = np.zeros(3)
+
+    # k=1 → only the single weakest edge of cell 0, which is cell 2 at d=10.
+    out = _snn_bandwidth(snn, emb, k=1, nearest_dist=nearest)
+    assert np.isclose(out[0], 10.0)
+
+    # nearest_dist is subtracted off, ReLU'd.
+    out2 = _snn_bandwidth(snn, emb, k=1, nearest_dist=np.array([4.0, 0.0, 0.0]))
+    assert np.isclose(out2[0], 6.0)
+
+
+def test_snn_bandwidth_includes_ties_then_keeps_largest():
+    """Ties at the k-th weight all enter; the k largest distances then win."""
+    # Cell 0 has three edges all of equal weight, at distances 1, 2 and 9.
+    snn = sp.csc_matrix(np.array([
+        [1.0, 0.5, 0.5, 0.5],
+        [0.5, 1.0, 0.0, 0.0],
+        [0.5, 0.0, 1.0, 0.0],
+        [0.5, 0.0, 0.0, 1.0],
+    ]))
+    emb = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [9.0, 0.0]])
+    # k=1, but the three-way tie pulls all three in; the largest (9) survives.
+    out = _snn_bandwidth(snn, emb, k=1, nearest_dist=np.zeros(4))
+    assert np.isclose(out[0], 9.0)
+
+
+# ---------------------------------------------------------------------------
+# Joint neighbour search (R: MultiModalNN)
+# ---------------------------------------------------------------------------
+
+def test_joint_graph_is_symmetric_and_binary():
+    obj, labels = _complementary_object()
+    find_multi_modal_neighbors(
+        obj, reduction_list=["pca", "apca"],
+        dims_list=[range(15), range(10)], k_nn=20,
+    )
+    wknn = obj.graphs["wknn"].tocsr()
+    assert (abs(wknn - wknn.T) > 1e-9).nnz == 0     # union symmetrisation
+    assert set(np.unique(wknn.data)) <= {1.0}       # binary adjacency
+    assert np.allclose(wknn.diagonal(), 1.0)        # self included
+
+
+def test_joint_neighbours_beat_either_modality_alone():
+    """The joint ranking must not just reproduce one modality's neighbours."""
+    obj, labels = _complementary_object()
+    embs = [
+        _l2_norm(obj.reductions["pca"].cell_embeddings[:, :15]),
+        _l2_norm(obj.reductions["apca"].cell_embeddings[:, :10]),
+    ]
+    n = embs[0].shape[0]
+    weights, sigmas, nearest = _modality_weights(
+        embs, k_nn=20, sd_scale=1.0, cross_constant=1e-4, smooth=False, seed=42,
+    )
+    joint = _multi_modal_nn(embs, weights, sigmas, nearest, k_nn=20,
+                            knn_range=50, seed=42)
+
+    assert joint.shape == (n, 20)
+    assert (joint != np.arange(n)[:, None]).all()   # self is never a neighbour
+
+    # Joint neighbours should share a label more often than RNA's do, since RNA
+    # alone cannot tell B from C.
+    rna_only, _ = _build_knn(embs[0], 21, 42)
+    same_joint = (labels[joint] == labels[:, None]).mean()
+    same_rna = (labels[rna_only[:, 1:]] == labels[:, None]).mean()
+    assert same_joint > same_rna

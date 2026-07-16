@@ -132,27 +132,60 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
 > **Why:** shanuz already stores RNA + ADT assays; WNN is the natural joint
 > analysis step for CITE-seq data and is well-scoped.
 
-### `FindMultiModalNeighbors` — ✅ delivered
+### `FindMultiModalNeighbors` — ✅ delivered (full port)
 - Implemented as `find_multi_modal_neighbors(...)` in `shanuz/multimodal.py`.
-  Per-cell modality weights use the sanctioned scale-invariant approximation
-  (own- vs cross-modality reconstruction distance); stores `wknn`/`wsnn` graphs
+  Both WNN stages are ported from the R/C++ source; stores `wknn`/`wsnn` graphs
   and `<assay>.weight` columns. Verified on synthetic complementary-modality
   data to recover structure RNA alone cannot (`tests/test_multimodal_wnn.py`).
 - **R:** `FindMultiModalNeighbors(obj, reduction.list = list("pca","apca"), dims.list = list(1:30, 1:18))`
-- **Plan:**
-  1. For each modality: compute KNN graph and within-modality prediction error
-     (how well each cell's neighbours can predict its own embedding)
-  2. Cell-specific modality weights: `w_RNA[i] = 1 - err_RNA[i] / (err_RNA[i] + err_ADT[i])`
-     (Seurat's formula; approximated with local k-NN reconstruction error)
-  3. Build weighted SNN: `SNN_wnn = w * SNN_RNA + (1-w) * SNN_ADT` per cell row
-  4. Store as `"wknn"` and `"wsnn"` graphs; store per-cell weights in `meta_data`
+- **Stage 1 — `FindModalityWeights`** (`_modality_weights`): L2-normalise each
+  embedding; impute each cell from its own modality's neighbours and from the
+  other's; `d = ||x - x_hat|| - d(nearest neighbour)`, ReLU'd; per-cell kernel
+  bandwidth from the SNN graph; `exp(-d / sigma)`; score
+  `within / (cross + 1e-4)` **clipped to [0, 200]**; softmax across modalities.
+- **Stage 2 — `MultiModalNN`** (`_multi_modal_nn`): each modality nominates
+  `knn_range = 200` candidates, they are **unioned** per cell, and each is
+  scored by `sum_r exp(-d_r / sigma_r) * weight_r`. The top `k_nn` become the
+  cell's joint neighbours; `wknn`/`wsnn` are built from *that* ranking.
 - **Tests:** WNN clusters CBMC data closer to protein-defined ground truth than RNA alone
 
-### WNN UMAP + clustering — ✅ delivered (tutorial pending)
+#### Superseded: the earlier weighting approximation
+The first implementation approximated stage 1 with a linear distance ratio,
+`theta_m = d_cross / (d_same + d_cross)`, normalised across modalities — and
+skipped stage 2 entirely, blending per-modality SNN graphs as
+`SNN_wnn = w * SNN_RNA + (1-w) * SNN_ADT` instead. It was monotone in the right
+quantity, so the *direction* was right, but the linear ratio has no dynamic
+range: on CBMC every cell landed in 0.46–0.53, versus R's 0.21–0.65. A weight
+pinned near 0.5 cannot say "this cell is decided by protein", which is the one
+thing WNN exists to say. The exponential kernel plus the clipped softmax is what
+supplies the range, and the joint neighbour search is what turns it into a
+graph. Caught by putting the shanuz and Seurat weight violins side by side in
+Tutorial 3 — the tutorial figure was the test.
+
+Four details in the R source that the natural reading gets wrong, all load-bearing:
+- `FindMultiModalNeighbors` never passes `prune.SNN` down to `FindModalityWeights`,
+  so the **bandwidth's SNN graph uses `prune = 0`**, not `1/15`.
+- `SNN_SmallestNonzero_Dist` (`src/snn.cpp`) averages distances to the
+  **least**-similar SNN partners, and on ties at the k-th weight keeps the
+  **k largest** distances.
+- `PredictAssay` silently drops the self column, so imputation averages
+  `k_nn - 1` neighbours.
+- R requests `k.nn` neighbours **including** self, not `k.nn + 1`.
+
+- **Known scaling limit:** `_multi_modal_nn` loops per cell over the unioned
+  candidate pool. Fine at CBMC's ~8.6k cells (Tutorial 3 runs end to end in
+  ~58s), but it is the bottleneck if WNN is pointed at a much larger dataset.
+  Vectorising it is the obvious follow-on if that comes up.
+
+### WNN UMAP + clustering — ✅ delivered
 - `find_clusters(graph_name="wsnn")` already routed correctly; `run_umap` now
   accepts a `graph=` kwarg that embeds a precomputed graph via UMAP's
   `simplicial_set_embedding` (`tests/test_reductions_extra.py`).
-- **Still open:** extend the CBMC CITE-seq tutorial (Tutorial 3) with a WNN section.
+- CBMC CITE-seq tutorial (Tutorial 3) Step 8 covers WNN end to end, with R-side
+  figures for the joint embedding and the modality weights.
+- **Departure from R:** cluster counts differ (17 vs 21 at `resolution = 0.6`).
+  shanuz's neighbour search is exact where R's is approximate (annoy), and the
+  Louvain implementations differ. Structure matches; labels don't.
 
 ---
 
@@ -699,7 +732,7 @@ Optional deps go in a new `[spatial]`, `[integration]`, or `[all]` extra in
 If milestones are too large, these are the highest-value individual items:
 
 1. ~~**Harmony** (`v0.2.0`)~~ — ✅ delivered (`run_harmony` / `integrate_layers`)
-2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); CBMC tutorial section still open
+2. ~~**WNN** (`v0.4.0`)~~ — ✅ delivered (`find_multi_modal_neighbors` + `run_umap(graph=)`); full two-stage port, CBMC tutorial section complete
 3. ~~**GitHub Actions CI** (`v0.10.0`)~~ — ✅ delivered
 4. ~~**`FindTransferAnchors` / `TransferData` / `MapQuery` / `ProjectUMAP`**~~ ✅
    (`v0.3.0`) — `shanuz/transfer.py` (`find_transfer_anchors` pcaproject/cca +

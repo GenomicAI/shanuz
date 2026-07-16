@@ -11,7 +11,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 |---|----------|---------|--------------|-----------|
 | 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers | Beginner |
 | 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation | Intermediate |
-| 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison | Advanced |
+| 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison · WNN joint clustering | Advanced |
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize | Advanced |
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
 
@@ -134,8 +134,11 @@ python tutorials/generate_multimodal_plots.py # writes tutorials/figures_multimo
   where the encoding mRNA is sparse
 - Annotate cells with a protein-priority gating strategy + RNA fallback for populations
   the 13-protein panel cannot resolve (platelets, erythroid, pDC, cycling cells)
+- Cluster both modalities jointly with WNN, and read the per-cell modality weights
+  to see which lineages are decided by protein and which fall back to RNA
 
-**Key output figures** (in `tutorials/figures_multimodal/`):
+**Key output figures** (in `tutorials/figures_multimodal/`). Each has an `r_`-prefixed
+R Seurat counterpart for the side-by-side comparisons in the walkthrough:
 
 | Figure | Description |
 |--------|-------------|
@@ -146,6 +149,9 @@ python tutorials/generate_multimodal_plots.py # writes tutorials/figures_multimo
 | `05_adt_ridgeplots.png` | ADT ridge plots by cell type |
 | `06_adt_scatter_CD4_CD8.png` | CD4 vs CD8 protein scatter |
 | `07_adt_scatter_CD19_CD3.png` | CD19 vs CD3 protein scatter |
+| `08_wnn_umap_clusters.png` | WNN joint clusters on the joint embedding |
+| `09_wnn_vs_rna_umap.png` | Same cells and labels — RNA-only vs WNN joint UMAP |
+| `10_adt_weight_by_celltype.png` | Learned per-cell ADT weight, by cell type |
 
 ---
 

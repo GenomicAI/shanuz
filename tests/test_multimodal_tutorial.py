@@ -1,12 +1,15 @@
-"""Tests for the multimodal CITE-seq tutorial's cell annotation.
+"""Tests for the multimodal CITE-seq tutorial's cell annotation and WNN section.
 
 Builds a tiny synthetic two-assay (RNA + ADT) object with cleanly-separated
 signal and checks the combined protein-priority / RNA-fallback gating in
-annotate_cells(). Network-free.
+annotate_cells(), the run_wnn() joint-clustering flow, and the figures the
+walkthrough's Step 8 embeds. Network-free.
 """
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")
 import numpy as np
 import scipy.sparse as sp
 
@@ -18,7 +21,9 @@ from shanuz.preprocessing import (  # noqa: E402
     normalize_data, find_variable_features, scale_data,
 )
 from shanuz.reduction import run_pca  # noqa: E402
+from shanuz.plotting import dim_plot, vln_plot  # noqa: E402
 from tutorials.cbmc_citeseq_tutorial import annotate_cells, run_wnn  # noqa: E402
+from tutorials.generate_multimodal_plots import _group_panel  # noqa: E402
 
 
 def _two_assay_object(rna_levels, adt_levels, n=6):
@@ -149,3 +154,54 @@ def test_run_wnn_builds_joint_graphs_umap_and_weights():
     w = obj.meta_data[["RNA.weight", "ADT.weight"]].to_numpy()
     assert np.all(w >= 0) and np.all(w <= 1)
     assert np.allclose(w.sum(axis=1), 1.0, atol=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Step 8 figures (generate_multimodal_plots)
+# ---------------------------------------------------------------------------
+
+def test_wnn_umap_plots_on_the_joint_embedding():
+    """Figure 08 — dim_plot has to accept the joint reduction, not just "umap"."""
+    obj, _ = _wnn_ready_object()
+    run_wnn(obj, rna_dims=range(10), resolution=1.0)
+    fig = dim_plot(obj, reduction="wnn_umap", group_by="wnn_clusters", label=True)
+    assert fig.axes and fig.axes[0].collections
+
+
+def test_modality_weight_plots_as_a_metadata_feature():
+    """Figure 10 — ADT.weight is a metadata column, not a gene.
+
+    Seurat's VlnPlot resolves features against metadata; shanuz's vln_plot does
+    the same via _get_expression, and that fallback is what the figure rides on.
+    """
+    obj, n = _wnn_ready_object()
+    run_wnn(obj, rna_dims=range(10), resolution=1.0)
+    obj.meta_data["ct"] = ["x" if i < n // 2 else "y" for i in range(n)]
+    fig = vln_plot(obj, "ADT.weight", group_by="ct")
+    assert fig.axes
+    # The violin must span the real weight spread, not collapse to a point.
+    lo, hi = fig.axes[0].get_ylim()
+    assert hi > lo
+
+
+def test_group_panel_colours_labels_consistently():
+    """Figure 09 draws two embeddings; a cell type must keep its colour."""
+    import matplotlib.pyplot as plt
+
+    emb = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]])
+    labels = np.array(["B", "A", "A", "B"])
+    fig, axes = plt.subplots(1, 2)
+    _group_panel(axes[0], emb, labels, "left")
+    _group_panel(axes[1], emb[::-1], labels[::-1], "right", legend=True)
+
+    # One collection per group, in sorted-label order, matching colours across
+    # panels even though the second panel sees the cells in reverse.
+    assert len(axes[0].collections) == len(axes[1].collections) == 2
+    for left, right in zip(axes[0].collections, axes[1].collections):
+        assert np.allclose(left.get_facecolor(), right.get_facecolor())
+    assert axes[0].get_title() == "left"
+
+    # The legend is the reliable key when a centroid label lands off-cluster.
+    assert axes[0].get_legend() is None
+    assert [t.get_text() for t in axes[1].get_legend().get_texts()] == ["A", "B"]
+    plt.close(fig)
