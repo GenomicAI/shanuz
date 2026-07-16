@@ -534,7 +534,8 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
 
 ### Mixscape (pooled CRISPR screen analysis) — ✅ delivered
 - **R:** `CalcPerturbSig(obj, ...)` → `RunMixscape(obj, labels, nt.class.name)` →
-  `MixscapeLDA(obj, labels, nt.label)`
+  `MixscapeLDA(obj, labels, nt.label)`; plots `PlotPerturbScore(obj,
+  target.gene.ident)` and `MixscapeHeatmap(obj, ident.1, ident.2)`
 - **`calc_perturb_sig` — ✅ delivered** (`shanuz/mixscape.py`): Seurat's
   `CalcPerturbSig`. For every cell, the mean expression of its `num_neighbors`
   (20) nearest **non-targeting (NT)** control cells — in the first `ndims` of a
@@ -580,7 +581,51 @@ brute-force loop over every cell pair (`tests/test_markvariogram.py`).
   loadings — the same map, `scale_max=10` clip included); and MASS's leave-one-out
   CV posterior (`lda(..., CV = TRUE)`, stashed in `misc` by R and read by nothing)
   is not computed, only the resubstitution assignment and posterior.
-- **Still open:** a dedicated mixscape violin/heatmap plot is not ported.
+- **`plot_perturb_score` — ✅ delivered** (`shanuz/plotting.py`): Seurat's
+  `PlotPerturbScore`. The diagnostic for *why* mixscape split a guide the way it
+  did — the perturbation score is the one axis the mixture is fit on, and the plot
+  overlays the NT control density against the guide's own. A guide with a real
+  effect is bimodal: one lobe on the NT curve (the escapers), one shifted away
+  (the knockouts). `before_mixscape=False` (default) colours by `mixscape_class`
+  (NT / `"<gene> NP"` / `"<gene> KO"`, i.e. where mixscape drew the line);
+  `before_mixscape=True` colours by the raw guide label, the pre-mixscape view.
+  Cells are also drawn as a jittered strip (controls above the axis, target gene
+  below), and `split_by` facets a multi-cell-type screen. Densities via
+  `scipy.stats.gaussian_kde` (R uses `geom_density`) — no new dep.
+- **The perturbation score is now persisted** (`shanuz/mixscape.py`):
+  `run_mixscape` previously computed the score and discarded it. R keeps it in the
+  `Tool(object, "RunMixscape")` slot precisely so `PlotPerturbScore` can read it
+  back, so it is now stored per gene under `obj.misc["mixscape"][assay]["genes"]`
+  as a `scores` frame (a `pvec` column plus the guide-label column, indexed by
+  cell — R's `gv` data.frame). Two details are faithful to R's source rather than
+  to the obvious reading: the score is kept from the **first** iteration
+  (R's `if (n.iter == 0)`), before any KO/NP split feeds back into the
+  perturbation vector — a later round would shift the axis; and it is normalised
+  by `vec · vec` (R's `ProjectVec` divides by `v2 %*% v2`), which the classifier
+  never needed (a positive constant cannot move the split) but a plotted axis does.
+  Genes that short-circuit to NP without a mixture fit store `scores = None`.
+- **`mixscape_heatmap` — ✅ delivered** (`shanuz/plotting.py`): Seurat's
+  `MixscapeHeatmap`. The genes underneath the score: DE genes between two
+  `mixscape_class` levels (e.g. `"NT"` vs `"IFNGR2 KO"`), with every cell ordered
+  left-to-right by its knockout posterior, so the expression block is seen turning
+  on in step with the probability. `balanced=True` takes up to `max_genes` from
+  each fold-change direction; `max_cells_group` downsamples per class;
+  `order_by_prob=False` shuffles instead (as R does). Delegates to `do_heatmap`
+  exactly as R delegates to `DoHeatmap`.
+- **`do_heatmap` gained R's `cells` argument** to support that ordering (restrict
+  to those cells *and* plot them in that exact order). Two latent bugs surfaced
+  and were fixed with it: a `scale.data` layer scaled over a feature subset
+  (`scale_data(obj, features = [...])`) has fewer rows than the assay has
+  features, so indexing rows by the assay's full feature list read the wrong
+  genes — layer-aware resolution now goes through `_resolve_layer`; and the
+  group-label pass assumed each group was one contiguous block, which an explicit
+  `cells` order interleaves, so it now walks runs.
+- **Departure from R:** the R colour names in the signatures (`col = "orange2"`,
+  and the fixed `grey49` / `grey79` for controls and escapers) are kept so the
+  call reads like the R one, and translated to hex for matplotlib.
+- **Still open:** `DEenrichRPlot` (mixscape's third plot) is not ported — it calls
+  the enrichR web service for pathway enrichment, which would put a live network
+  dependency in the test path.
 
 ---
 

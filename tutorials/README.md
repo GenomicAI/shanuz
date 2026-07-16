@@ -269,6 +269,8 @@ same caveat as the other tutorials.
 | Perturbation signature | `CalcPerturbSig(obj, gd.class="gene", nt.cell.class="NT")` | `calc_perturb_sig(obj, labels="gene", nt_class="NT")` |
 | Mixscape (CRISPR KO calls) | `RunMixscape(obj, labels="gene", nt.class.name="NT")` | `run_mixscape(obj, labels="gene", nt_class="NT")` |
 | Mixscape LDA (guide separation) | `MixscapeLDA(obj, labels="gene", nt.label="NT")` | `mixscape_lda(obj, labels="gene", nt_class="NT")` |
+| Mixscape perturbation score | `PlotPerturbScore(obj, target.gene.ident="IFNGR2")` | `plot_perturb_score(obj, target_gene_ident="IFNGR2")` |
+| Mixscape DE heatmap | `MixscapeHeatmap(obj, ident.1="NT", ident.2="IFNGR2 KO")` | `mixscape_heatmap(obj, ident_1="NT", ident_2="IFNGR2 KO")` |
 | Markers | `FindMarkers(pbmc, ident.1)` | `find_markers(pbmc, ident_1)` |
 | All markers | `FindAllMarkers(pbmc, only.pos, logfc.threshold)` | `find_all_markers(pbmc, only_pos, logfc_threshold)` |
 | Conserved markers | `FindConservedMarkers(pbmc, ident.1, grouping.var)` | `find_conserved_markers(pbmc, ident_1, grouping_var)` |
@@ -694,6 +696,52 @@ bar, `mixscape_lda` raises and you should lower `npcs`. Because the grouping is 
 guide rather than by mixscape class, NP escapers stay in their guide's group — and,
 being control-like, they generally land on top of the NT cloud, which is itself a
 useful read on how much of a guide escaped.
+
+#### Checking the calls — `plot_perturb_score` and `mixscape_heatmap`
+
+Mixscape's KO/NP split is a threshold on one number per cell: the perturbation
+score, each cell's projection onto its guide's response axis. `plot_perturb_score`
+(Seurat's `PlotPerturbScore`) draws that axis, overlaying the NT control density
+against the guide's own — the single most useful check that a guide worked.
+
+```python
+from shanuz import plot_perturb_score, mixscape_heatmap
+
+fig = plot_perturb_score(obj, target_gene_ident="IFNGR2")
+fig.savefig("perturb_score.png", dpi=150, bbox_inches="tight")
+```
+
+A guide with a real effect is **bimodal**: one lobe sitting on the NT curve (the
+escapers) and one shifted away from it (the knockouts) — exactly the structure the
+mixture model is asked to find. A guide that simply did not work is one curve on
+top of the controls, and no threshold will rescue it. By default the curves are
+coloured by `mixscape_class`, so you see where mixscape actually drew the line;
+pass `before_mixscape=True` for the raw guide label instead, which is the view you
+would have had without mixscape at all. For a screen spanning several cell types,
+`split_by="celltype"` facets it.
+
+`mixscape_heatmap` (Seurat's `MixscapeHeatmap`) then shows the genes underneath
+that score — the DE genes between two classes, with every cell ordered by its
+knockout probability:
+
+```python
+fig = mixscape_heatmap(obj, ident_1="NT", ident_2="IFNGR2 KO",
+                       max_genes=20, balanced=True)
+```
+
+Read with the class colour bar along the top, a clean screen shows the expression
+block turning on in step with the probability, the low-probability escapers at one
+end still looking like control. `ident_1` / `ident_2` are `mixscape_class` levels
+(`"NT"`, `"IFNGR2 KO"`, `"IFNGR2 NP"`), which `run_mixscape` also leaves as the
+active identity. `balanced=True` takes up to `max_genes` from each direction of
+the fold change rather than only the up-regulated ones, and `max_cells_group`
+downsamples each class for a large screen.
+
+Both plots read the perturbation score that `run_mixscape` stores in
+`obj.misc["mixscape"]["PRTB"]["genes"]`, so they need `run_mixscape` to have run —
+unlike `mixscape_lda`, which needs only `calc_perturb_sig`. A guide whose cells
+were called NP without a mixture fit (too few cells, or too few DE genes) has no
+score axis, and `plot_perturb_score` says so rather than drawing an empty panel.
 
 ### Pseudobulk & conserved markers
 
