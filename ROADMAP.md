@@ -749,28 +749,75 @@ regime. Don't "simplify" them.
 ## v0.10.0 — Package Infrastructure
 
 ### PyPI publication — ✅ delivered
-- `pip install shanuz` works: published as [`shanuz` v0.1.1](https://pypi.org/project/shanuz/)
-  (`build` + `twine` added to `[dev]` extras; published to TestPyPI then PyPI;
-  verified with a clean-venv install + import + mini-pipeline smoke test)
-- Still open: replace the hard-coded `__version__` string in `shanuz/__init__.py`
-  with an `importlib.metadata.version("shanuz")` lookup, so the version is
-  defined in exactly one place (`pyproject.toml`)
+- `pip install shanuz` works: published as [`shanuz`](https://pypi.org/project/shanuz/),
+  currently 0.2.0 (`build` + `twine` added to `[dev]` extras; published to
+  TestPyPI then PyPI; verified with a clean-venv install + import + mini-pipeline
+  smoke test)
+- ~~Still open: replace the hard-coded `__version__` string~~ — ✅ delivered:
+  `shanuz/__init__.py` reads `importlib.metadata.version("shanuz")`, with a
+  PEP 440-valid `0.0.0+unknown` fallback for a source tree that has no installed
+  distribution. `pyproject.toml` is now the only place the version is written.
+  **Tradeoff worth knowing:** that lookup resolves through the *install-time*
+  `dist-info` snapshot, so an editable install keeps reporting the old version
+  after a bump until it is reinstalled — a way to be wrong that the hard-coded
+  string did not have. `tests/test_packaging.py::test_version_matches_pyproject`
+  exists to make it loud rather than silent.
+- **Still open — cut a release.** The tags stop at 0.2.0 (2026-07-05) while
+  milestones v0.3.0–v0.9.0 have all landed on `main`, so `pip install shanuz`
+  currently ships almost none of the README's feature list: of 22 advertised
+  entry points sampled, 19 are absent from the published wheel (reference
+  mapping, sketching, `LazyMatrix`, hashing, Mixscape, `run_spca`/`glm_pca`,
+  pseudobulk DE, MERSCOPE/Visium). The README now says so out loud, but the real
+  fix is a release. This is the highest-value remaining infra item.
 
 ### GitHub Actions CI — ✅ delivered
 - **File:** `.github/workflows/ci.yml`
 - **Matrix:** Python 3.10, 3.11, 3.12 on ubuntu-latest, via `astral-sh/setup-uv`
-- **Jobs:** `ruff check shanuz/` (advisory — pre-existing lint debt not yet
-  cleared, so it doesn't gate the build) and `pytest tests/ -q`
 - **Triggers:** push to `main`, all PRs
-- Still open: a dedicated `build` job (`python -m build`, verifies the wheel
-  itself builds cleanly) and coverage reporting (`--cov=shanuz --cov-report=xml`)
+- **`test` job:** `ruff check shanuz` and `mypy`, both advisory (pre-existing debt
+  not yet cleared, so neither gates the build), then `pytest tests/ -q` with
+  `--cov=shanuz` (80%); the coverage XML is uploaded as an artifact from the 3.12
+  leg rather than sent to a third-party service
+- ~~Still open: a dedicated `build` job and coverage reporting~~ — ✅ delivered:
+  the **`build` job** runs `uv build` (sdist + wheel), `twine check` on both, then
+  installs the wheel into a clean venv and imports it **from outside the source
+  tree**, asserting `__version__` matches `pyproject.toml`. That last step covers
+  two things the `test` job structurally cannot: the test job installs `-e .[all]`,
+  so it never proves the *wheel* is complete or that a plain `pip install shanuz`
+  works without the optional scientific stack; and `__version__` now comes from
+  installed metadata, which only a real non-editable install exercises.
 
 ### Type annotations
+- ~~Add `mypy` to the CI lint job~~ — ✅ delivered: advisory, on the same footing
+  as ruff. `[tool.mypy]` in `pyproject.toml` pins `files = ["shanuz"]` so a bare
+  `mypy` checks exactly what CI checks (ruff takes its scope from the command
+  line, where `ruff check shanuz` = 75 and `ruff check .` = 163 are both correct
+  and easy to confuse), and `ignore_missing_imports` silences the stub-less
+  scientific stack — without it the run is 222 errors, 139 of them purely
+  "this third party has no stubs".
+- **Baseline to work down:** ~80 errors in 15 modules on default settings, ~540
+  in 47 under `--strict`. Neither is a fixed target: both drift with the
+  interpreter and with the dependency versions each resolves against the `>=`
+  floors in `pyproject.toml` (the CI matrix spans 81–85 on default settings), so
+  read them as a scale rather than a score. The package already ships `py.typed`,
+  so these annotations are what a downstream `mypy` trusts.
+- **Start here — 21 of the 81 are `[name-defined]`,** and they are real rather
+  than pedantic: string annotations naming symbols that are never in module scope
+  (`-> "plt.Figure"` across 17 plotting functions where `plt` is only imported
+  inside function bodies; `graph.py`/`neighbor.py` annotating each other's
+  classes to dodge a circular import). Runtime is unaffected — string annotations
+  are never evaluated, which is why 444 tests pass — but `typing.get_type_hints()`
+  raises `NameError` on them, which **blocks the documentation site below**, since
+  mkdocstrings resolves annotations. Fix with `if TYPE_CHECKING:` imports; keep
+  the lazy runtime imports exactly as they are (they keep matplotlib optional and
+  the import graph acyclic).
 - Add `from __future__ import annotations` to all modules (already done on some)
 - Annotate all public function signatures (`mypy --strict` clean)
-- Add `mypy` to the CI lint job
 
 ### Documentation site
+- **Do the type annotations first.** mkdocstrings resolves annotations, and
+  `typing.get_type_hints()` currently raises `NameError` on the plotting and
+  `graph`/`neighbor` signatures — the site would hit that on day one.
 - **Tool:** MkDocs + mkdocstrings (Material theme)
 - **Structure:**
   ```
@@ -783,10 +830,22 @@ regime. Don't "simplify" them.
   ```
 - **Deploy:** GitHub Actions → GitHub Pages on every push to `main`
 
-### Changelog
-- **File:** `CHANGELOG.md` at repo root
-- Follow [Keep a Changelog](https://keepachangelog.com) format
-- Populate retroactively for v0.1.0 from git log
+### Changelog — ✅ delivered
+- **File:** [`CHANGELOG.md`](CHANGELOG.md) at repo root, in
+  [Keep a Changelog](https://keepachangelog.com) format
+- Populated retroactively for 0.1.0, 0.1.1 and 0.2.0 — but deliberately **not**
+  straight from the git log as this item originally said: there is a
+  `chore: bump version to 0.1.2` commit, yet 0.1.2 was never tagged and never
+  reached PyPI, so it is not a release and gets no entry. Taking the log at face
+  value would have documented a version that never existed. (0.1.0 was tagged but
+  never published; 0.1.1 was the first release on PyPI.)
+- Carries a standing note that the milestones on this page are **not** releases,
+  because the two sequences have diverged far enough to mislead: the tags stop at
+  0.2.0 while the milestones run to v0.9.0, and a milestone can straddle releases
+  (v0.7.0's spatial loaders shipped in 0.1.1; the rest of v0.7.0 has not shipped).
+- Everything since 0.2.0 sits under `[Unreleased]`, including the three entries
+  queued by earlier PRs: #32's `BREAKING` CLR margin fix, #33's clara
+  cross-architecture caveat, and #34's `hto_demux` default change.
 
 ---
 
