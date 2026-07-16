@@ -25,10 +25,10 @@ Rscript tutorials/cbmc_citeseq_verify.R       # writes figures_multimodal/r_*  (
 > **About the figures.** Each step shows a genuine **side-by-side comparison**:
 > the **left** image is real **R Seurat** output (`cbmc_citeseq_verify.R`, titled
 > *"R Seurat – …"*) and the **right** image is **Shanuz**
-> (`generate_multimodal_plots.py`). Both run the identical RNA workflow and the
-> same protein-gated annotation on the same data. Clustering is stochastic and
-> the two CLR implementations differ in absolute scale (the R annotation
-> thresholds are calibrated to Seurat's CLR), so compare the *structure*, not
+> (`generate_multimodal_plots.py`). Both run the identical RNA workflow, the same
+> CLR transform, and the same protein-gated annotation — with the same
+> thresholds — on the same data. Clustering is still stochastic and the two
+> Louvain implementations are not the same code, so compare the *structure*, not
 > exact positions or cluster numbers.
 
 ---
@@ -118,8 +118,8 @@ run_umap(obj, dims=range(15), seed=42)
 ## Step 3 · Add the protein (ADT) assay & CLR-normalise
 
 The antibody counts become a **second assay**. Proteins are normalised with the
-centered-log-ratio transform across cells (`margin = 2`), the recommended setting
-for small ADT panels.
+centered-log-ratio transform, applied per cell across the 13-protein panel
+(`margin = 2`) — the recommended setting for small ADT panels.
 
 <table>
 <tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
@@ -149,9 +149,13 @@ normalize_data(obj, assay="ADT", normalization_method="CLR", margin=2)
 </td></tr>
 </table>
 
-> Shanuz's `normalize_data(..., margin=2)` was added for this tutorial — CLR can
-> now center each protein across cells (margin 2) or each cell across features
-> (margin 1, the default).
+> `margin` means exactly what it means in Seurat, axis included: Seurat's
+> `CustomNormalize` runs `apply(data, MARGIN = margin, clr_function)`, and R's
+> `apply` treats `MARGIN = 1` as rows and `MARGIN = 2` as columns. So with counts
+> stored features × cells, **`margin = 1` normalises each protein across cells**
+> (Seurat's default) and **`margin = 2` normalises each cell across its
+> proteins** (what ADT panels want). Shanuz had these two swapped until the fix
+> described at the end of Step 8.
 
 ---
 
@@ -315,16 +319,20 @@ dim_plot(obj, reduction="umap", group_by="protein_celltype", label=True)
 Steps 2–7 cluster on **RNA alone** and read protein on top. WNN (Hao et al.,
 *Cell* 2021) goes further: it learns, **per cell**, how much to trust each
 modality and clusters on a *joint* graph. A cell whose lineage is crisp in
-protein space — the CD4/CD8 T split, which the transcriptome resolves poorly —
-is weighted toward ADT; a cell the antibody panel can say nothing useful about
-is weighted toward RNA.
+protein space is weighted toward ADT; a cell the antibody panel can say nothing
+useful about is weighted toward RNA.
 
 Crucially the weights are **decisive, not hedged**: they use the full 0–1 range,
 and most cells commit to one modality rather than sitting at 0.5. That is by
 design — the modality score is clipped at 200 before the softmax, so a cell with
-a clear preference saturates. Which cells end up on which side is an empirical
-result, not something you can read off the panel design, and the table below has
-at least one case that defies the obvious guess.
+a clear preference saturates.
+
+Which cells end up on which side is an empirical result, not something you can
+read off the panel design. Mostly the table below tracks the panel, but not
+everywhere: **CD8 T leans on RNA (0.37) even though CD8 is one of the 13
+antibodies**, while CD4 T leans the other way at 0.64. Seurat says the same
+(0.38 / 0.64), so it is a property of the data and the method rather than of
+this port — but this tutorial does not explain it.
 
 The protein modality first gets its own reduction (`"apca"`); then
 `find_multi_modal_neighbors` builds the joint `wknn`/`wsnn` graphs and writes
@@ -337,12 +345,16 @@ graph** instead of the RNA PCA.
 
 ```r
 DefaultAssay(cbmc) <- "ADT"
+VariableFeatures(cbmc) <- rownames(cbmc[["ADT"]])
 cbmc <- ScaleData(cbmc)
-cbmc <- RunPCA(cbmc, reduction.name = "apca")
+# 13 proteins, so npcs must stay well under that; irlba needs
+# the gap, hence approx = FALSE
+cbmc <- RunPCA(cbmc, reduction.name = "apca", reduction.key = "apca_",
+               npcs = 12, approx = FALSE)
 
 cbmc <- FindMultiModalNeighbors(
   cbmc, reduction.list = list("pca", "apca"),
-  dims.list = list(1:15, 1:18)
+  dims.list = list(1:15, 1:12), k.nn = 20
 )
 cbmc <- FindClusters(cbmc, graph.name = "wsnn", resolution = 0.6)
 cbmc <- RunUMAP(cbmc, nn.name = "weighted.nn",
@@ -388,36 +400,34 @@ obj.meta_data.groupby("protein_celltype")["ADT.weight"].mean().sort_values(ascen
 ```
 
 The lineages the antibody panel targets head-on lean on protein, and the
-ordering broadly tracks how well the panel covers each type. Seurat's numbers on
-the same data are alongside — the two agree on the ordering far more than on the
-absolute level:
+ordering tracks how well the panel covers each type. Seurat's numbers on the
+same data are alongside:
 
 | Cell type | Shanuz `ADT.weight` | R Seurat | in the panel? |
 |-----------|--------------------|----------|---------------|
-| CD4 T | 0.74 | 0.64 | CD4 — and CD4/CD8 is a protein call, not an RNA one |
-| NK | 0.66 | 0.65 | CD16 + CD56 |
-| B | 0.62 | 0.54 | CD19 |
-| Erythroid | 0.62 | 0.40 | ✗ |
-| CD14+ Mono | 0.60 | 0.49 | CD14 |
-| CD8 T | 0.56 | 0.38 | CD8 |
-| Platelet | 0.53 | 0.30 | ✗ |
-| Progenitor | 0.44 | 0.29 | CD34 only |
-| DC / Mono | 0.10 | 0.21 | ✗ — no clean DC probe |
+| NK | 0.65 | 0.65 | CD16 + CD56 |
+| CD4 T | 0.64 | 0.64 | CD4 — and CD4/CD8 is a protein call, not an RNA one |
+| B | 0.55 | 0.54 | CD19 |
+| CD14+ Mono | 0.49 | 0.49 | CD14 |
+| Erythroid | 0.38 | 0.40 | ✗ |
+| CD8 T | 0.37 | 0.38 | CD8 |
+| Progenitor | 0.35 | 0.29 | CD34 only |
+| Platelet | 0.29 | 0.30 | ✗ |
+| DC / Mono | 0.21 | 0.21 | ✗ — no clean DC probe |
 
-`DC / Mono` is the case worth dwelling on, and both implementations agree on it:
-protein tells WNN almost nothing about those cells, so nearly all the weight
-goes to RNA. A weighting pinned near 0.5 could never express that.
+The panel's targets sit at the top and the populations it cannot see sit at the
+bottom, which is the result you would hope for. `DC / Mono` is the case worth
+dwelling on: protein tells WNN almost nothing about those cells, so nearly all
+the weight goes to RNA. A weighting pinned near 0.5 could never express that.
+Erythroid and platelet carry no antibody either, and both duly fall back toward
+RNA.
 
-**Erythroid and platelet are the honest wrinkle.** Neither has an antibody in
-the panel, so the naive expectation is that both fall back to RNA — which is
-what R does (0.40 and 0.30). Shanuz puts them on the protein side instead (0.62
-and 0.53). A plausible reading is that these cells are uniformly negative across
-all 13 proteins, and after CLR centering that flat-negative profile is itself a
-consistent signature, so ADT neighbours predict them well — informative in the
-negative rather than the positive. That would be a real effect, and the exact
-neighbour search here may pick it up where R's approximate one blurs it. But it
-is an inference, not something this tutorial establishes, and it is the largest
-shanuz-vs-Seurat gap in the table. Treat those two rows with suspicion.
+**Progenitor is the one row that does not line up** — 0.35 here against R's 0.29,
+where every other type agrees to 0.02. It is a 146-cell population, and the two
+sides do not cut quite the same cells into it (R's progenitor cluster carries
+mean CD34 1.31, Shanuz's 1.5), so this looks like small-population clustering
+noise rather than a difference in the WNN maths. That is a reading, not
+something this tutorial establishes.
 
 ### Reading the plots
 
@@ -460,22 +470,34 @@ description of a typical cell:
 
 ### How close is this to Seurat?
 
-Both WNN stages are ported from the R/C++ source, so the weights are comparable
-rather than merely correlated: the per-cell-type ordering matches R almost
-exactly — B, CD8 T, platelet, progenitor and DC/Mono hold identical ranks, and
-only the adjacent NK/CD4 T and erythroid/CD14 pairs swap — over a 0.10–0.74
-range against R's 0.21–0.65. The absolute levels sit higher here, and erythroid
-and platelet land on the other side of 0.5 entirely.
+Close. Both WNN stages are ported from the R/C++ source and both sides run the
+same CLR, so the weights are comparable rather than merely correlated: eight of
+the nine cell types agree with Seurat to **0.02 or better**, with progenitor
+(0.06, discussed above) the exception. Both sides find 16 RNA clusters and 21
+WNN clusters at `resolution = 0.6`, and both resolve the same nine lineages with
+the same multiplicities — three CD4 T clusters, five CD14+ Mono, two erythroid,
+one each of the rest.
 
-Two caveats on that table. Each side groups by *its own* `annotate_cells`
-output, and the R thresholds were retuned for Seurat's CLR scale (see
-[`cbmc_citeseq_verify.R`](cbmc_citeseq_verify.R)), so "CD4 T" is not quite the
-same set of cells in both columns. And cluster counts differ (17 here, 21 in R
-at `resolution = 0.6`): the neighbour search is exact here and approximate
-(annoy) in R, and the two Louvain implementations are not the same code.
+The remaining gaps are real but small. The neighbour search is exact here and
+approximate (annoy) in R, and the two Louvain implementations are not the same
+code, so cluster boundaries differ slightly and small populations feel it most.
+Each side still groups by *its own* `annotate_cells` output — but the thresholds
+are now identical between the two scripts, so the labels describe the same cells.
 
-Expect the same structure and the same story — not identical numbers, and not
-identical labels.
+> **This table used to look much worse, and the cause was not in the WNN code.**
+> Shanuz's CLR had its `margin` flag inverted relative to Seurat: `margin=2`
+> computed what Seurat's `margin=1` computes and vice versa, so the protein
+> matrix feeding `apca` — and therefore every weight — was the wrong transform.
+> The published numbers ran 0.10–0.74 against R's 0.21–0.65, and erythroid and
+> platelet sat at 0.62/0.53 against R's 0.40/0.30, on the *protein* side despite
+> having no antibody in the panel. That inversion is fixed; the annotation
+> thresholds in [`cbmc_citeseq_tutorial.py`](cbmc_citeseq_tutorial.py) and
+> [`cbmc_citeseq_verify.R`](cbmc_citeseq_verify.R) had been retuned around it and
+> are now shared verbatim. The bug survived because its unit test verified the
+> CLR kernel but derived the axis mapping in Python rather than checking it
+> against R — right formula, assumed axis. The guard that replaces it
+> (`test_clr_margin_matches_r_ground_truth`) pins both margins to fixed output
+> from a real Seurat run.
 
 ---
 

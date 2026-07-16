@@ -177,15 +177,55 @@ Four details in the R source that the natural reading gets wrong, all load-beari
   ~58s), but it is the bottleneck if WNN is pointed at a much larger dataset.
   Vectorising it is the obvious follow-on if that comes up.
 
+#### Fixed: CLR's `margin` flag was inverted against Seurat
+Not a WNN bug, but found through WNN and worth recording next to it. Seurat's
+`CustomNormalize` applies the CLR kernel via
+`apply(data, MARGIN = margin, clr_function)`, and R's `apply` treats `MARGIN = 1`
+as rows and `MARGIN = 2` as columns. With counts stored features × cells that
+makes Seurat's `margin=1` **per-feature across cells** (its default) and
+`margin=2` **per-cell across features** (what ADT panels want).
+`_clr_normalize` had the two swapped, so `normalize_data(..., margin=2)` computed
+what Seurat's `margin=1` computes. The per-vector kernel was always exact,
+including Seurat's quirk of summing `log1p` over non-zero entries while dividing
+by the full length — only the axis was wrong.
+
+Consequences, all now resolved: the ADT matrix feeding `apca` was the wrong
+transform, so every `ADT.weight` was off (erythroid 0.62 vs Seurat's 0.40,
+platelet 0.53 vs 0.30, and the whole table biased high); and the annotation
+thresholds in `cbmc_citeseq_verify.R` had been retuned around the discrepancy and
+documented as a CLR "scale" difference between the languages, which it was not.
+Both scripts now share one set of thresholds.
+
+`hto_demux` and `multiseq_demux` were **accidentally correct** — they passed
+`margin=2` and, under the inverted code, got per-hashtag-across-cells, which is
+numerically what Seurat's hashing vignette does at its default `margin=1`. Their
+defaults moved 2 → 1 in the same change so their behaviour is unchanged; that
+coupling is the trap in this fix.
+
+It survived because `test_clr_matches_seurat_formula` verified the kernel but
+derived the axis mapping in Python, restating the same inverted assumption it
+was meant to check — right formula, assumed axis, exactly the failure mode of the
+superseded weighting above. `test_clr_margin_matches_r_ground_truth` replaces
+that with fixed output captured from a real Seurat 5.5.1 run; the old
+implementation fails it on both margins.
+
+**Breaking:** any caller passing `margin` explicitly to `normalize_data`,
+`hto_demux` or `multiseq_demux` gets different output than before. Callers who
+relied on the defaults are unaffected.
+
 ### WNN UMAP + clustering — ✅ delivered
 - `find_clusters(graph_name="wsnn")` already routed correctly; `run_umap` now
   accepts a `graph=` kwarg that embeds a precomputed graph via UMAP's
   `simplicial_set_embedding` (`tests/test_reductions_extra.py`).
 - CBMC CITE-seq tutorial (Tutorial 3) Step 8 covers WNN end to end, with R-side
   figures for the joint embedding and the modality weights.
-- **Departure from R:** cluster counts differ (17 vs 21 at `resolution = 0.6`).
-  shanuz's neighbour search is exact where R's is approximate (annoy), and the
-  Louvain implementations differ. Structure matches; labels don't.
+- **Agreement with R:** both sides find 16 RNA clusters and 21 WNN clusters at
+  `resolution = 0.6` and resolve the same nine lineages with the same
+  multiplicities. Eight of nine per-cell-type `ADT.weight` means match Seurat to
+  0.02 or better; progenitor is the exception at 0.06, on a 146-cell population
+  the two sides do not cut identically. shanuz's neighbour search is exact where
+  R's is approximate (annoy) and the Louvain implementations differ, so cluster
+  boundaries still move slightly — small populations feel it most.
 
 ---
 

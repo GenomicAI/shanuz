@@ -71,12 +71,10 @@ cat(sprintf("RNA clusters (res=0.6): %d\n", length(levels(obj))))
 }
 
 # ---- 3. Annotate by surface protein (annotate_cells ported from Python) -----
-# Same protein-gated priority logic as cbmc_citeseq_tutorial.py, but the CLR
-# thresholds are calibrated to *Seurat's* CLR output scale: Seurat CLR (margin=2)
-# puts T clusters at CD3~1.5-2.3 and non-T at ~0.3-0.75, so Shanuz's absolute
-# cut-offs (cd3>0.5, cd8>cd4, cd14>0.5) don't transfer — they would fold the CD8
-# T, Progenitor and DC clusters into CD4 T / Mono. The re-tuned cut-offs recover
-# the same nine lineages a Seurat analyst would read off the per-cluster table.
+# Same protein-gated priority logic and the same CLR cut-offs as
+# cbmc_citeseq_tutorial.py. Seurat CLR (margin=2) puts T clusters at CD3~1.5-2.3
+# and non-T at ~0.3-0.75; Shanuz reproduces that transform exactly, so the
+# thresholds are shared verbatim between the two scripts.
 RNA_FALLBACK <- list(Platelet = c("PPBP","PF4"), Erythroid = c("HBB","HBA1"),
                      pDC = c("IGJ","PLD4","SERPINF1"), Cycling = c("STMN1","MKI67","TUBB"))
 annotate_cells <- function(obj) {

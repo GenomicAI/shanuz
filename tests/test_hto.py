@@ -167,7 +167,7 @@ def test_init_overrides_center_count():
 
 def test_normalize_false_uses_data_layer():
     obj, truth = _hashing_object()
-    normalize_data(obj, normalization_method="CLR", margin=2, assay="HTO")
+    normalize_data(obj, normalization_method="CLR", margin=1, assay="HTO")
     hto_demux(obj, normalize=False)
     gclass = obj.meta_data["HTO_classification.global"].to_numpy()
     singlet = np.isin(truth, TAGS)

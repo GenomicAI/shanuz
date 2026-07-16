@@ -156,8 +156,10 @@ def test_vst_clipping_suppresses_single_cell_outliers():
 # ---------------------------------------------------------------------------
 # CLR normalization (multimodal / ADT support). Seurat's clr_function is
 #   log1p(x / exp(sum(log1p(x[x>0])) / length(x)))
-# applied along the chosen margin. margin=1 normalizes each cell across
-# features; margin=2 normalizes each feature across cells.
+# applied via CustomNormalize as apply(data, MARGIN = margin, clr_function).
+# R's apply MARGIN=1 is rows and MARGIN=2 is columns, so with counts stored
+# features x cells: margin=1 normalizes each FEATURE across cells (Seurat's
+# default), margin=2 normalizes each CELL across its features (ADT panels).
 # ---------------------------------------------------------------------------
 
 def _seurat_clr_vector(x):
@@ -165,6 +167,41 @@ def _seurat_clr_vector(x):
     x = np.asarray(x, dtype=float)
     denom = np.exp(np.sum(np.log1p(x[x > 0])) / len(x))
     return np.log1p(x / denom)
+
+
+# Ground truth captured from R, not re-derived in Python:
+#   m <- matrix(c(10,0,3, 1,5,0, 0,2,8, 7,1,1), nrow = 4, byrow = TRUE)
+#   NormalizeData(as.sparse(m), normalization.method = "CLR", margin = <m>)
+# Seurat 5.5.1. The matrix is asymmetric so row-wise and column-wise CLR
+# cannot coincide.
+_R_CLR_INPUT = np.array([[10., 0., 3.],
+                         [1., 5., 0.],
+                         [0., 2., 8.],
+                         [7., 1., 1.]])
+_R_CLR_MARGIN1 = np.array([[1.34354, 0.00000, 0.61506],
+                           [0.36241, 1.15812, 0.00000],
+                           [0.00000, 0.51083, 1.29928],
+                           [1.16467, 0.27382, 0.27382]])
+_R_CLR_MARGIN2 = np.array([[1.32056, 0.00000, 0.70798],
+                           [0.24259, 1.11227, 0.00000],
+                           [0.00000, 0.59691, 1.32078],
+                           [1.07222, 0.34235, 0.29513]])
+
+
+def test_clr_margin_matches_r_ground_truth():
+    """The margin flag must mean what it means in Seurat, axis included.
+
+    Regression guard. The formula test below checks the per-vector kernel but
+    derives the axis mapping in Python, so it passes just as happily when the
+    two margins are swapped. Only fixed output from a real R run pins the axis.
+    """
+    got1 = _clr_normalize(_R_CLR_INPUT, margin=1)
+    got2 = _clr_normalize(_R_CLR_INPUT, margin=2)
+    assert np.allclose(got1, _R_CLR_MARGIN1, atol=1e-5)
+    assert np.allclose(got2, _R_CLR_MARGIN2, atol=1e-5)
+    # ...and specifically not the other way round.
+    assert not np.allclose(got1, _R_CLR_MARGIN2, atol=1e-3)
+    assert not np.allclose(got2, _R_CLR_MARGIN1, atol=1e-3)
 
 
 def test_clr_matches_seurat_formula():
@@ -175,15 +212,15 @@ def test_clr_matches_seurat_formula():
     mat[0, 0] = 0.0
     mat[2, 3] = 0.0  # exercise the x>0 geometric-mean path
 
-    # margin=2 → per feature (row), geometric mean across cells
-    r2 = _clr_normalize(mat, margin=2)
-    ref2 = np.vstack([_seurat_clr_vector(mat[i, :]) for i in range(mat.shape[0])])
-    assert np.allclose(r2, ref2, atol=1e-12)
-
-    # margin=1 → per cell (column), geometric mean across features
+    # margin=1 → per feature (row), geometric mean across cells
     r1 = _clr_normalize(mat, margin=1)
-    ref1 = np.column_stack([_seurat_clr_vector(mat[:, j]) for j in range(mat.shape[1])])
+    ref1 = np.vstack([_seurat_clr_vector(mat[i, :]) for i in range(mat.shape[0])])
     assert np.allclose(r1, ref1, atol=1e-12)
+
+    # margin=2 → per cell (column), geometric mean across features
+    r2 = _clr_normalize(mat, margin=2)
+    ref2 = np.column_stack([_seurat_clr_vector(mat[:, j]) for j in range(mat.shape[1])])
+    assert np.allclose(r2, ref2, atol=1e-12)
 
     # The two margins differ, and CLR is non-negative (log1p of a ratio ≥ 0).
     assert not np.allclose(r1, r2)
@@ -204,7 +241,8 @@ def test_clr_margin_routed_through_normalize_data():
     dense = data.toarray() if sp.issparse(data) else np.asarray(data)
 
     counts_dense = counts.toarray()
-    ref = np.vstack([_seurat_clr_vector(counts_dense[i, :]) for i in range(counts_dense.shape[0])])
+    ref = np.column_stack([_seurat_clr_vector(counts_dense[:, j])
+                           for j in range(counts_dense.shape[1])])
     assert np.allclose(dense, ref, atol=1e-12)
 
 

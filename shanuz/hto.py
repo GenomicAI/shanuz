@@ -71,7 +71,7 @@ def hto_demux(
     nstarts: int = 10,
     kfunc: str = "kmeans",
     normalize: bool = True,
-    margin: int = 2,
+    margin: int = 1,
     seed: int = 42,
     verbose: bool = False,
 ):
@@ -101,8 +101,9 @@ def hto_demux(
     normalize         : CLR-normalize the counts internally for clustering and
                         margins (default). Set False to use the assay's existing
                         ``data`` layer (e.g. a prior ``normalize_data(method="CLR")``).
-    margin            : CLR margin when ``normalize`` is True — 2 (per hashtag
-                        across cells, recommended for small panels) or 1.
+    margin            : CLR margin when ``normalize`` is True — 1 (per hashtag
+                        across cells; Seurat's default, and what the hashing
+                        vignette normalizes with) or 2 (per cell across hashtags).
     seed              : random seed for k-means.
     verbose           : print each hashtag's learned cutoff.
 

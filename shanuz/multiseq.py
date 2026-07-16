@@ -14,7 +14,7 @@ of each barcode's distribution:
 
 1. **Normalize.** Barcode counts are compositional, so they are centered-log-ratio
    (CLR) normalized — the same transform :func:`shanuz.normalize_data` applies with
-   ``method="CLR"`` (margin 2, per barcode across cells, for small panels). As with
+   ``method="CLR"`` (margin 1, per barcode across cells, as Seurat's default does). As with
    :func:`shanuz.hto_demux`, ``normalize=True`` (default) recomputes this from the
    raw counts so the function works straight after object creation; ``normalize=False``
    uses the assay's existing ``data`` layer, matching Seurat's expectation that you
@@ -67,7 +67,7 @@ def multiseq_demux(
     maxiter: int = 5,
     qrange: Optional[Sequence[float]] = None,
     normalize: bool = True,
-    margin: int = 2,
+    margin: int = 1,
     verbose: bool = False,
 ):
     """Demultiplex pooled samples from barcode counts (Seurat's ``MULTIseqDemux``).
@@ -97,8 +97,8 @@ def multiseq_demux(
     normalize  : CLR-normalize the counts internally (default). Set False to use the
                  assay's existing ``data`` layer (e.g. a prior
                  ``normalize_data(method="CLR")``).
-    margin     : CLR margin when ``normalize`` is True — 2 (per barcode across cells,
-                 recommended for small panels) or 1.
+    margin     : CLR margin when ``normalize`` is True — 1 (per barcode across cells;
+                 Seurat's default) or 2 (per cell across barcodes).
     verbose    : print each auto-threshold round's chosen quantile.
 
     Returns

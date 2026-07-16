@@ -129,7 +129,8 @@ python tutorials/generate_multimodal_plots.py # writes tutorials/figures_multimo
 **What you'll learn:**
 - Load and align RNA + ADT matrices (handles the mouse spike-in gene prefix)
 - Attach a second `ADT` assay to the Shanuz object
-- CLR-normalize the surface protein counts (`margin=2` centers per-protein across cells)
+- CLR-normalize the surface protein counts (`margin=2` centers each cell across the
+  protein panel, matching Seurat's flag exactly — axis included)
 - Overlay protein expression on the RNA UMAP — protein gives smooth, high-SNR signal
   where the encoding mRNA is sparse
 - Annotate cells with a protein-priority gating strategy + RNA fallback for populations

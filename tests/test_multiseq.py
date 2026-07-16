@@ -165,7 +165,7 @@ def test_autothresh_recovers_singlets():
 
 def test_normalize_false_uses_data_layer():
     obj, truth = _hashing_object()
-    normalize_data(obj, normalization_method="CLR", margin=2, assay="HTO")
+    normalize_data(obj, normalization_method="CLR", margin=1, assay="HTO")
     multiseq_demux(obj, normalize=False)
     call = obj.meta_data["MULTI_ID"].to_numpy()
     singlet = np.isin(truth, TAGS)
