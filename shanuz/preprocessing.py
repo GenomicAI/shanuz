@@ -132,9 +132,10 @@ def normalize_data(
     Parameters
     ----------
     normalization_method : 'LogNormalize', 'CLR', or 'RC'
-    margin               : for CLR only — normalize across features within each
-                           cell (1, default) or across cells within each feature
-                           (2). ADT/CITE-seq panels typically use margin=2.
+    margin               : for CLR only, and matching Seurat's flag exactly —
+                           normalize each feature across cells (1, Seurat's
+                           default) or each cell across its features (2).
+                           ADT/CITE-seq panels typically use margin=2.
     """
     assay_name = assay or seurat.active_assay
     assay_obj = seurat.assays[assay_name]
@@ -180,10 +181,12 @@ def _clr_normalize(counts, margin: int = 1):
 
     i.e. the geometric-mean denominator sums log1p over the *non-zero* entries
     but divides by the full length (zeros included). ``counts`` is
-    features × cells; ``margin`` selects the direction:
-      * 1 — normalize each cell across its features (denominator over a column).
-      * 2 — normalize each feature across all cells (denominator over a row).
-            Recommended for small ADT panels.
+    features × cells; ``margin`` selects the direction, matching the axis R's
+    ``CustomNormalize`` passes to ``apply(data, MARGIN = margin, clr_function)``:
+      * 1 — normalize each feature across all cells (denominator over a row).
+            R's ``apply`` MARGIN=1 is rows. Seurat's default.
+      * 2 — normalize each cell across its features (denominator over a column).
+            R's ``apply`` MARGIN=2 is columns. Recommended for small ADT panels.
     """
     if sp.issparse(counts):
         counts = counts.toarray().astype(float)
@@ -192,13 +195,13 @@ def _clr_normalize(counts, margin: int = 1):
 
     log1p_pos = np.where(counts > 0, np.log1p(counts), 0.0)
     if margin == 2:
-        # per-feature (row): length = number of cells
-        length = counts.shape[1]
-        geo = np.exp(log1p_pos.sum(axis=1, keepdims=True) / length)
-    else:
         # per-cell (column): length = number of features
         length = counts.shape[0]
         geo = np.exp(log1p_pos.sum(axis=0, keepdims=True) / length)
+    else:
+        # per-feature (row): length = number of cells
+        length = counts.shape[1]
+        geo = np.exp(log1p_pos.sum(axis=1, keepdims=True) / length)
     # geo >= 1 always (log1p >= 0), so the division is always well-defined.
     return np.log1p(counts / geo)
 

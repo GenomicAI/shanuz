@@ -85,8 +85,6 @@ def test_annotate_cells_protein_then_rna_fallback():
 
 
 def test_annotate_cells_cd8_split():
-    # A non-T cluster ("b") is needed so CD3 (margin=2 CLR) is actually
-    # discriminative — otherwise a uniformly-high protein centers to ~0.
     obj = _two_assay_object(
         rna_levels={"cd4": {}, "cd8": {}, "b": {}},
         adt_levels={

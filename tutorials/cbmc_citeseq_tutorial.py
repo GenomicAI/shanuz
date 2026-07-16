@@ -8,7 +8,7 @@ both the transcriptome and 13 surface proteins.
 It demonstrates Shanuz's multi-assay support:
   * build the object from RNA and run the standard clustering workflow,
   * attach the antibody-capture counts as a second ("ADT") assay,
-  * CLR-normalise the proteins (margin=2, per-protein across cells),
+  * CLR-normalise the proteins (margin=2, per-cell across the panel),
   * visualise protein levels on the RNA-derived UMAP, comparing each protein
     to its encoding gene, and
   * jointly cluster both modalities with Weighted Nearest Neighbor (WNN)
@@ -84,7 +84,7 @@ def load_object(data_dir=None, clr_margin=2):
     obj.assays["ADT"] = create_assay5_object(
         counts=adt_aligned, feature_names=proteins, cell_names=kept, key="adt_",
     )
-    # CLR across cells per protein (Seurat's recommended ADT margin).
+    # CLR per cell across the protein panel (Seurat's recommended ADT margin).
     normalize_data(obj, assay="ADT", normalization_method="CLR", margin=clr_margin)
     return obj
 
@@ -149,10 +149,13 @@ def annotate_cells(obj):
 
     CITE-seq proteins are cleaner lineage markers, so immune lineages are gated
     on the ADT assay in priority order — T (CD3) split into CD4/CD8, then NK
-    (CD16 & CD56 high, CD3-), B (CD19), monocytes (CD14), DC (CD11c),
-    progenitors (CD34). Populations outside the 13-protein panel (platelets,
-    erythroid, pDC, cycling) carry no ADT signal, so they are resolved from RNA
-    markers — the same protein+RNA reasoning the Seurat vignette uses by eye.
+    (CD16 & CD56 high), B (CD19), progenitors (CD34), monocytes (CD14), DC
+    (CD11c). Populations outside the 13-protein panel (platelets, erythroid,
+    pDC, cycling) carry no ADT signal, so they are resolved from RNA markers —
+    the same protein+RNA reasoning the Seurat vignette uses by eye.
+
+    The CLR cut-offs match cbmc_citeseq_verify.R exactly: both sides run the
+    same transform, so the same thresholds read the same lineages.
     """
     idents = np.array([str(i) for i in obj.idents])
     clusters = sorted(set(idents), key=lambda x: int(x) if x.isdigit() else x)
@@ -182,7 +185,7 @@ def annotate_cells(obj):
     assignment = {}
     for c in clusters:
         mask = idents == c
-        cd3, cd4, cd8 = pm("CD3", mask), pm("CD4", mask), pm("CD8", mask)
+        cd3, cd8 = pm("CD3", mask), pm("CD8", mask)
         cd19, cd14 = pm("CD19", mask), pm("CD14", mask)
         cd16, cd56, cd11c, cd34 = pm("CD16", mask), pm("CD56", mask), pm("CD11c", mask), pm("CD34", mask)
         # Unambiguous RNA-only lineages (no protein in the panel) take priority.
@@ -190,18 +193,18 @@ def annotate_cells(obj):
             assignment[c] = "Platelet"
         elif rmean(["HBB", "HBA1"], mask) > 2.5:
             assignment[c] = "Erythroid"
-        elif cd3 > 0.5:
-            assignment[c] = "CD8 T" if cd8 > cd4 else "CD4 T"
-        elif cd16 > 0.8 and cd56 > 0.8 and cd3 < 0.5:
+        elif cd3 > 1.0:
+            assignment[c] = "CD8 T" if cd8 > 1.0 else "CD4 T"
+        elif cd16 > 0.8 and cd56 > 0.8:
             assignment[c] = "NK"
-        elif cd19 > 1.0 and cd3 < 0.5:
+        elif cd19 > 1.5:
             assignment[c] = "B"
-        elif cd14 > 0.5:
-            assignment[c] = "CD14+ Mono"
-        elif cd11c > 0.8 and cd3 < 0.5:
-            assignment[c] = "DC / Mono"
-        elif cd34 > 0.8:
+        elif cd34 > 1.0:
             assignment[c] = "Progenitor"
+        elif cd14 > 0.9:
+            assignment[c] = "CD14+ Mono"
+        elif cd11c > 1.0:
+            assignment[c] = "DC / Mono"
         else:
             assignment[c] = rna_fallback(mask)
     return assignment
