@@ -52,6 +52,9 @@ dev = [
     "mypy",
     "build",
     "twine",
+    # tomllib is stdlib from 3.11; without this the 3.10 leg skips
+    # test_version_matches_pyproject instead of running it.
+    "tomli>=2.0 ; python_version < '3.11'",
 ]
 all = ["shanuz[analysis,anndata,integration,deseq2,dev]"]
 
@@ -72,13 +75,20 @@ line-length = 100
 target-version = "py310"
 
 [tool.mypy]
-python_version = "3.10"
-# Pinned here, not just in CI's command, so a bare `mypy` checks exactly what CI
-# checks. `ruff` takes its scope from the command line, where `ruff check shanuz`
-# (75 errors) and `ruff check .` (163) are both correct and easy to confuse.
+# Deliberately no `python_version`. Pinning it to our 3.10 floor also makes mypy
+# parse every *followed* import as 3.10, third-party source included — and
+# `anndata>=0.10` resolves to 0.13.2 on Python 3.12, which uses PEP 695
+# `def _reduce[T](...)` syntax. mypy then aborts the whole run with "errors
+# prevented further checking" and silently checks nothing, while `|| true` keeps
+# CI green. Each leg targets its own interpreter instead; the 3.10 leg is what
+# proves the package still supports 3.10.
+#
+# Scope is pinned here rather than only in CI's command, so a bare `mypy` checks
+# exactly what CI checks. `ruff` takes its scope from the command line, where
+# `ruff check shanuz` (75 errors) and `ruff check .` (163) are both correct and
+# easy to confuse.
 files = ["shanuz"]
 # The scientific stack (scipy, sklearn, numba, umap-learn, igraph, anndata, ...)
-# ships no type information. Without this the run is 222 errors, of which 139 are
-# only "this third party has no stubs" — silencing them leaves 81 that are about
-# our own code.
+# ships no type information. Without this, ~140 errors saying only "this third
+# party has no stubs" drown the ~80 that are about our own code.
 ignore_missing_imports = true

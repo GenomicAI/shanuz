@@ -795,9 +795,12 @@ regime. Don't "simplify" them.
   and easy to confuse), and `ignore_missing_imports` silences the stub-less
   scientific stack — without it the run is 222 errors, 139 of them purely
   "this third party has no stubs".
-- **Baseline to work down:** 81 errors in 15 modules on default settings; 676 in
-  47 under `--strict`. The package already ships `py.typed`, so these annotations
-  are what a downstream `mypy` trusts.
+- **Baseline to work down:** ~80 errors in 15 modules on default settings, ~540
+  in 47 under `--strict`. Neither is a fixed target: both drift with the
+  interpreter and with the dependency versions each resolves against the `>=`
+  floors in `pyproject.toml` (the CI matrix spans 81–85 on default settings), so
+  read them as a scale rather than a score. The package already ships `py.typed`,
+  so these annotations are what a downstream `mypy` trusts.
 - **Start here — 21 of the 81 are `[name-defined]`,** and they are real rather
   than pedantic: string annotations naming symbols that are never in module scope
   (`-> "plt.Figure"` across 17 plotting functions where `plt` is only imported

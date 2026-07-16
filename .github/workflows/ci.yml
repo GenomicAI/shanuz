@@ -14,6 +14,12 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Tags, not just the tip. tests/test_packaging.py cross-checks the
+          # release tags against CHANGELOG.md, and the default depth-1 clone
+          # fetches no tags at all — so that test skipped silently here, inert in
+          # the one place it should catch a tag nobody wrote an entry for.
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -32,11 +38,15 @@ jobs:
         run: uv run ruff check shanuz || true
 
       - name: Type check (mypy, advisory)
-        # Same footing as ruff, and for the same reason: 81 pre-existing errors
-        # across 15 modules. `mypy --strict` clean is a v0.10.0 goal (676 errors
-        # away), not today's state, so this reports without gating. Scope and
-        # settings come from [tool.mypy] in pyproject.toml, so this bare `mypy`
-        # and a developer's bare `mypy` check the identical file set.
+        # Same footing as ruff, and for the same reason: ~80 pre-existing errors
+        # across 15 modules, several hundred more under --strict. Clean is a
+        # v0.10.0 goal, not today's state, so this reports without gating. Scope
+        # and settings come from [tool.mypy] in pyproject.toml, so this bare
+        # `mypy` and a developer's bare `mypy` check the same file set.
+        #
+        # The count differs per leg (81-85) because each resolves its own
+        # dependency versions against the `>=` floors in pyproject. Read it as a
+        # scale, not a score; only a jump is worth chasing.
         run: uv run mypy || true
 
       - name: Run tests

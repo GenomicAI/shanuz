@@ -19,6 +19,11 @@ from packaging.version import InvalidVersion, Version
 
 import shanuz
 
+try:  # stdlib from 3.11; `tomli` backfills 3.10 via the [dev] extra
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - only on Python 3.10
+    import tomli as tomllib
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
@@ -67,7 +72,6 @@ def test_version_matches_pyproject():
     hard-coded string this replaced could not drift this way, so the single
     source of truth is only worth having if something checks it is still single.
     """
-    tomllib = pytest.importorskip("tomllib")  # stdlib on 3.11+; the 3.10 leg skips
     declared = tomllib.loads(PYPROJECT.read_text())["project"]["version"]
     assert shanuz.__version__ == declared, (
         f"__version__ is {shanuz.__version__!r} but pyproject.toml declares "
