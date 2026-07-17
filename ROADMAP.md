@@ -854,17 +854,24 @@ regime. Don't "simplify" them.
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
   counts exactly), and the R deps (`SeuratData` + `harmony`).
 - **Wave 1 — in progress.**
-  - **T7 cell hashing — ✅ delivered (this PR).** `hto_demux` / `multiseq_demux`
+  - **T7 cell hashing — ✅ delivered (#39).** `hto_demux` / `multiseq_demux`
     on GSE108313 (`hashing_vignette.md`). Result: `HTODemux` is **99.81 %**
     call-concordant with Seurat on identical input — the first real-data
     confirmation of the CLR fix (#32) and `clara` default (#34). `MULTIseqDemux`
     lands at 94.67 %; the gap is a real KDE-implementation difference (scipy
     `gaussian_kde` vs R `density()` — bandwidth *and* grid), logged not papered
     over. No defect found — the demuxers hold up.
-  - Remaining: T6 integration (ifnb), T8 reference mapping (panc8), T9 Mixscape
-    (GSE153056).
+  - **T9 Mixscape — ✅ delivered (this PR).** `calc_perturb_sig` / `run_mixscape`
+    / `mixscape_lda` on GSE153056 (`mixscape_vignette.md`). On a shared
+    variable-feature basis, per-cell class concordance is **97.45 %** (KO/NP/NT and
+    the full `<gene> KO`/`NP` class) — all NT cells agree, the same 14 guides read
+    zero-effect on both sides, strong IFN-γ hits ≥97 %. Divergence is isolated to
+    the weak boundary guides (MYC/SPI1/BRD4/CUL3) where the EM mixture is
+    init-sensitive — a real method-level residual on a far more stochastic pipeline
+    than the demuxers, not a bug. No defect found.
+  - Remaining: T6 integration (ifnb), T8 reference mapping (panc8).
 - **Expect bugs, and read a mismatch as a bug report.** Going 2-for-2 before Wave 1
-  (T7 then made it 2-for-3 clean), the later tutorials may still surface real
+  (T7 then T9 made it 2-for-4 clean), the later tutorials may still surface real
   defects. The known-good tolerance is narrow — deterministic values match exactly,
   Louvain cluster counts drift ±1 — so anything outside that band gets investigated,
   not written up as an expected difference. This repo has twice let a real defect

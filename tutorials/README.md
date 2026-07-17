@@ -15,6 +15,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize | Advanced |
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
 | 6 | [Cell Hashing — Demultiplexing](hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 (human+mouse) | Hashtag assay · CLR (margin 1) · `HTODemux` ↔ `hto_demux` · `MULTIseqDemux` ↔ `multiseq_demux` · cross-species doublet ground truth — **99.81 %** call-concordant with R | Advanced |
+| 7 | [Mixscape — Pooled CRISPR Screen](mixscape_vignette.md) | 20,729 cells · 25 guides + NT · GSE153056 (THP-1 ECCITE-seq) | Perturbation signature (`CalcPerturbSig`) · KO-vs-escaper mixture (`RunMixscape`) · guide-separating LDA (`MixscapeLDA`) · `PlotPerturbScore` / `MixscapeHeatmap` — **97.45 %** per-cell call-concordant with R | Advanced |
 
 ---
 
@@ -338,6 +339,59 @@ difference in the KDE step (scipy `gaussian_kde` vs R `density()` — bandwidth
 *and* grid, not a single knob), documented rather than smoothed over. Because
 these are raw unfiltered barcodes, the Negative rate is high (~42 %) and the
 totals do **not** match the vignette's pre-filtered PBMC headline — by design.
+
+---
+
+## Tutorial 7 — Mixscape Pooled CRISPR Screen (R vs Python)
+
+> **Walkthrough:** [`mixscape_vignette.md`](mixscape_vignette.md)
+
+A port of Seurat's [Mixscape vignette](https://satijalab.org/seurat/articles/mixscape_vignette):
+the THP-1 ECCITE-seq screen (**GSE153056**, Papalexi et al. 2021), 20,729 cells
+each carrying one guide against one of 25 immune-regulatory genes. Mixscape solves
+the problem that **carrying a guide is not the same as being perturbed** — it
+separates true knockouts (KO) from non-perturbed escapers (NP) that look like
+controls. Run against the R reference on the same GEO bytes and a shared
+variable-feature basis.
+
+```bash
+python tutorials/thp1_mixscape_tutorial.py    # downloads ~66 MB, writes HVGs, prints the report
+Rscript tutorials/thp1_mixscape_verify.R      # Seurat reference → r_calls.csv + r_*.png
+python tutorials/thp1_mixscape_tutorial.py    # re-run → prints the R-vs-Python concordance
+python tutorials/generate_mixscape_plots.py   # Shanuz figures → figures_mixscape/py_*.png
+```
+
+**What you'll learn:**
+- `calc_perturb_sig` — Seurat's `CalcPerturbSig`: subtract each cell's nearest-NT
+  mean (over 40 PCs, within replicate) to leave the local perturbation signature
+- `run_mixscape` — Seurat's `RunMixscape`: an iterative two-component Gaussian
+  mixture per guide, splitting KO from NP by perturbation score
+- `mixscape_lda` — Seurat's `MixscapeLDA`: a supervised map of the guide populations
+- Reading a per-guide **knockout rate** — which edits actually took, and why the
+  checkpoint genes read as zero at the RNA level (their effect is on protein)
+
+**Key output figures** (in `tutorials/figures_mixscape/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_perturb_score.png` | IFNGR2 perturbation-score density — the KO/NP/NT split |
+| `py_02_lda.png` | MixscapeLDA map, coloured by global class |
+| `py_03_heatmap.png` | DE heatmap, NT vs IFNGR2 KO, cells ordered by KO probability |
+| `py_04_ko_rate.png` | Per-guide knockout rate — the headline result |
+
+**Accuracy vs R** (call-for-call on shared input + shared HVG basis, 20,729 cells):
+
+| Comparison | Agreement |
+|---|---:|
+| Mixscape global class (KO/NP/NT) | **97.45 %** (528 cells differ) |
+| Mixscape full class (`<gene> KO`/`NP`) | **97.45 %** |
+
+Both tools agree on all 2,386 NT cells, sort the same 14 guides to a flat-zero
+knockout rate, and rank the strong interferon-γ hits identically (`STAT1` 98.6 %,
+`JAK2` 97.8 %, `IFNGR2` 97.7 % per-cell concordant). The disagreement concentrates
+in the **weak, boundary guides** (`MYC`, `SPI1`, `BRD4`, `CUL3`) whose score sits
+close to the NT mode — a genuine method-level difference in the EM mixture and the
+per-gene DE, not a bug. No defect found.
 
 ---
 

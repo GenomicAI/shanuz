@@ -36,6 +36,7 @@ TUTORIALS = [
     ("cbmc_citeseq_tutorial.py", "cbmc"),
     ("pbmc3k_sctransform_tutorial.py", "pbmc3k"),
     ("pbmc_hashing_tutorial.py", "pbmc_hashing"),
+    ("thp1_mixscape_tutorial.py", "thp1_eccite"),
 ]
 
 pytestmark = pytest.mark.skipif(
