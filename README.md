@@ -19,7 +19,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Shanuz object** — mirrors the R `Seurat` S4 class with `__slots__`-based Python classes
 - **Assay5** — sparse-matrix-backed multi-layer assay (counts, data, scale.data)
 - **Preprocessing** — `normalize_data`, `find_variable_features` (VST), `scale_data`, `percentage_feature_set`
-- **SCTransform** — `sctransform` (regularized negative-binomial Pearson residuals)
+- **SCTransform** — `sctransform` (regularized negative-binomial Pearson residuals; `vst_flavor="v2"` by default, as Seurat 5, or `"v1"` for the 2019 model)
 - **Signature scoring** — `add_module_score`, `cell_cycle_scoring` (S/G2M + Phase)
 - **Dimensionality reduction** — `run_pca`, `run_spca` (supervised, off a cell graph), `run_ica`, `run_tsne`, `glm_pca` (Poisson or negative binomial, straight on counts)
 - **Batch correction / integration** — `run_harmony` (via harmonypy), CCA/RPCA anchors (`find_integration_anchors` + `integrate_data`), and the `integrate_layers` dispatcher (`method="harmony"|"cca"|"rpca"`)
@@ -323,7 +323,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 460 tests pass.
+All 480 tests pass.
 
 Five further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
