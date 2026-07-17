@@ -37,6 +37,8 @@ shanuz_data/
 
 # Regenerable tutorial intermediates (kept out of the repo; figures are committed)
 tutorials/figures_hashing/r_calls.csv
+tutorials/figures_mixscape/r_calls.csv
+tutorials/figures_mixscape/hvg_features.txt
 
 # OS
 .DS_Store

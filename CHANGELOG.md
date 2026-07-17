@@ -23,6 +23,28 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Mixscape tutorial — `CalcPerturbSig` + `RunMixscape` + `MixscapeLDA`, side by side with R Seurat (#40)*
+
+- `tutorials/mixscape_vignette.md` with `thp1_mixscape_tutorial.py`,
+  `thp1_mixscape_verify.R`, and `generate_mixscape_plots.py` — the pooled-CRISPR
+  Mixscape workflow (`calc_perturb_sig` / `run_mixscape` / `mixscape_lda`) on the
+  THP-1 ECCITE-seq screen (GSE153056), compared call-for-call against Seurat on the
+  same GEO bytes and a shared variable-feature basis.
+- **First real-data fidelity result for the Mixscape features** (all of which
+  landed after PR #10 with only synthetic-fixture tests): per-cell class
+  concordance is **97.45 %** for both the global class (KO/NP/NT) and the full
+  `<gene> KO`/`NP` class. All NT cells agree, the same 14 guides read zero-effect on
+  both sides, and the strong interferon-γ hits agree ≥97 %; the residual is
+  isolated to the weak boundary guides (MYC/SPI1/BRD4/CUL3) where the EM mixture is
+  init-sensitive — a genuine method-level difference (scipy `GaussianMixture` vs R
+  `mixtools`, plus per-gene DE tie-breaking), documented in the walkthrough. No
+  defect found on a far more stochastic pipeline than the hashing demuxers.
+- Added to the opt-in tutorial smoke suite (`SHANUZ_TUTORIAL_SMOKE=1`) and covered
+  by `tests/test_mixscape_tutorial.py` (network-free: the perturbation-table /
+  concordance helpers and the load→signature→classify→LDA path on a synthetic screen
+  with known KO truth). Suite 496 → 507. No new `pip` dependencies (the R reference
+  adds the `mixtools` CRAN package for `RunMixscape`).
+
 *Cell-hashing tutorial — `HTODemux` + `MULTIseqDemux`, side by side with R Seurat (#39)*
 
 - `tutorials/hashing_vignette.md` with `pbmc_hashing_tutorial.py`,
