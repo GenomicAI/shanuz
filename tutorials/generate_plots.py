@@ -152,11 +152,14 @@ def main(data_dir=None):
           "09b_marker_violins_counts.png")
 
     # 10. DoHeatmap — top 5 markers per cluster
-    top_genes = (
-        all_markers.groupby("cluster", group_keys=False)
-        .apply(lambda x: x.nlargest(5, "avg_log2FC"))
-        ["gene"].tolist()
-    )
+    # Iterate the groups rather than `.apply(...)`: pandas 3 stops passing the
+    # grouping column into the callable, and the heatmap needs the genes in
+    # cluster-major order, which a flat sort/head would scramble.
+    top_genes = [
+        gene
+        for _, group in all_markers.groupby("cluster", sort=True)
+        for gene in group.nlargest(5, "avg_log2FC")["gene"]
+    ]
     top_genes = list(dict.fromkeys(top_genes))
     pbmc.rename_idents({v: k for k, v in CELL_TYPE_MAP.items()})  # restore cluster numbers
     _save(do_heatmap(pbmc, top_genes, figsize=(14, min(10, max(5, len(top_genes) * 0.2)))),

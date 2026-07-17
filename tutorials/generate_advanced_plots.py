@@ -38,11 +38,14 @@ def _save(fig, name):
 
 
 def _top_genes(markers, n):
-    genes = (
-        markers.groupby("cluster", group_keys=False)
-        .apply(lambda x: x.nlargest(n, "avg_log2FC"))
-        ["gene"].tolist()
-    )
+    # Iterate the groups rather than `.apply(...)`: pandas 3 stops passing the
+    # grouping column into the callable, and the heatmap needs the genes in
+    # cluster-major order, which a flat sort/head would scramble.
+    genes = [
+        gene
+        for _, group in markers.groupby("cluster", sort=True)
+        for gene in group.nlargest(n, "avg_log2FC")["gene"]
+    ]
     return list(dict.fromkeys(genes))
 
 

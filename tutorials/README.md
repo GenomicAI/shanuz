@@ -31,6 +31,24 @@ uv pip install -e ".[analysis]"
 Each tutorial has a **Python script** that runs the analysis and prints validation output,
 and a **figure-generation script** that writes plots to a `figures_*/` subfolder.
 
+The datasets download automatically on first run, to `~/.shanuz_data/` (~200 MB
+across all five tutorials).
+
+### Checking the tutorials still run
+
+Two layers, because the fast one cannot reach everything:
+
+```bash
+pytest tests/test_tutorial_marker_tables.py      # fast, no data, runs in CI
+SHANUZ_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v   # real runs, needs the cached data
+```
+
+The first covers the presentation helpers with synthetic frames. The second
+actually executes each tutorial and takes a few minutes; it is opt-in rather than
+"skip when the data is missing", so a skip always means nobody asked for it and
+never that it passed. **Run the second before cutting a release** — the unit
+suite passing tells you nothing about whether these scripts still work end to end.
+
 ---
 
 ## Tutorial 1 — PBMC 3k Guided Clustering
