@@ -265,8 +265,10 @@ def run_full(data_dir=None, verbose=True):
     cells = pbmc.cell_names()
     lymphoid_cells = [c for c, g in zip(cells, global_idents) if g in set(lymphoid_clusters)]
     if verbose:
-        print(f"  Global clusters {sorted(lymphoid_clusters, key=int)} "
-              f"-> {len(lymphoid_cells)} T/NK cells")
+        # map(str, ...) because these labels come back as numpy str_, whose repr
+        # would render the list as [np.str_('1'), np.str_('2'), ...].
+        labels = ", ".join(sorted(map(str, lymphoid_clusters), key=int))
+        print(f"  Global clusters {labels} -> {len(lymphoid_cells)} T/NK cells")
 
     sub = pbmc.subset(cells=lymphoid_cells)
     # Re-analyse from counts; data layer is already normalised, so skip renorm.

@@ -125,6 +125,28 @@ on `main`; none of it is on PyPI.
   This was the sole cause of the CBMC tutorial's `ADT.weight` gap against
   Seurat; eight of nine cell types now match to 0.02 or better. (#32)
 
+- `tutorials/pbmc3k_tutorial.py` — the tutorial the README sends new users to
+  first — crashed with `KeyError: 'cluster'` on every fresh install. pandas 3
+  stopped passing the grouping column into the callable of
+  `groupby(...).apply(...)`, so the top-markers table came back without the
+  column the next line filtered on. It now builds the table per cluster and runs
+  on pandas 2.0 through 3.x. (#36)
+
+  *Why it went unseen:* the old code works on pandas 2, `pyproject` declares
+  `pandas>=2.0`, and no test executed a tutorial — so a developer venv holding
+  pandas 2 passed while a fresh `pip install` resolved pandas 3 and broke. The
+  full suite passed on the very install where the tutorial died. Tutorials now
+  have execution coverage: `tests/test_tutorial_marker_tables.py` runs in CI, and
+  `tests/test_tutorial_smoke.py` runs each tutorial end-to-end behind
+  `SHANUZ_TUTORIAL_SMOKE=1`.
+
+  Note for anyone touching the plot generators: they use the same
+  `groupby(...).apply(...)` idiom and were **not** affected — they never read the
+  dropped column. They were rewritten to match anyway, preserving output exactly.
+  The obvious rewrite (`sort_values(...).groupby(...).head(n)`) is wrong there: it
+  returns the same genes interleaved across clusters, silently scrambling
+  `DoHeatmap`'s per-cluster blocks. `test_top_genes_is_cluster_major` pins it.
+
 ### Documentation
 
 - CBMC CITE-seq tutorial: Step 8's WNN section written against real figures for

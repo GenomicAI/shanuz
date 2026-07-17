@@ -762,6 +762,25 @@ regime. Don't "simplify" them.
   after a bump until it is reinstalled — a way to be wrong that the hard-coded
   string did not have. `tests/test_packaging.py::test_version_matches_pyproject`
   exists to make it loud rather than silent.
+- **Still open — decide what the `>=` dependency floors mean.** `pyproject`
+  declares only lower bounds (`pandas>=2.0`, `numpy>=1.24`, `anndata>=0.10`,
+  `umap-learn>=0.5`, `scikit-learn>=1.3`, …), so a fresh install resolves to
+  whatever shipped this week and no two installs need agree. This has now caused
+  four distinct failures, none of them theoretical:
+  1. tutorial figures drifting against the committed R panels;
+  2. `mypy` aborting on `anndata` 0.13.2's PEP 695 syntax and silently checking
+     nothing (fixed by dropping `python_version`);
+  3. the mypy baseline spanning 81–85 across the CI matrix, because each leg
+     resolves different versions;
+  4. **pandas 3 crashing `pbmc3k_tutorial.py` on every fresh install** while a
+     developer venv pinned at pandas 2 stayed green (#36).
+  Note the asymmetry that makes this expensive: the *maintainer* never sees it.
+  Existing venvs hold old versions; only new users get the break. Pinning upper
+  bounds is not obviously right either — it locks users out of new releases and
+  ages badly. The decision to make is which of {upper bounds, a tested lockfile
+  for CI, a scheduled "resolve latest" CI leg} this project wants; the status quo
+  is "find out from a user".
+
 - **Still open — cut a release.** The tags stop at 0.2.0 (2026-07-05) while
   milestones v0.3.0–v0.9.0 have all landed on `main`, so `pip install shanuz`
   currently ships almost none of the README's feature list: of 22 advertised

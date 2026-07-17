@@ -104,6 +104,22 @@ def section(title: str) -> None:
     print(f"{'=' * 60}")
 
 
+def top_markers_per_cluster(all_markers, n: int = 3) -> dict:
+    """Map each cluster to its `n` most significant marker genes.
+
+    Filters per cluster rather than grouping: `groupby(...).apply(...)` stopped
+    passing the grouping column into the callable in pandas 3, which silently
+    drops `cluster` from the result instead of raising. Mirrors
+    `pbmc8k_subclustering_tutorial.top_markers_table`.
+    """
+    return {
+        cluster: all_markers[all_markers["cluster"] == cluster]
+        .nsmallest(n, "p_val")["gene"]
+        .tolist()
+        for cluster in sorted(all_markers["cluster"].unique(), key=int)
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main tutorial
 # ---------------------------------------------------------------------------
@@ -264,16 +280,9 @@ def run_tutorial(data_dir: str | None = None) -> None:
         pbmc, only_pos=True, min_pct=0.25, logfc_threshold=0.25
     )
     print(f"  Total marker genes: {len(all_markers)}  ({time.time() - t0:.1f}s)")
-    top_per_cluster = (
-        all_markers.groupby("cluster")
-        .apply(lambda x: x.nsmallest(3, "p_val"))
-        .reset_index(drop=True)
-    )
     print("\n  Top 3 markers per cluster:")
-    for cluster in sorted(all_markers["cluster"].unique(), key=lambda x: int(x)):
-        sub = top_per_cluster[top_per_cluster["cluster"] == cluster]
-        genes_str = ", ".join(sub["gene"].tolist())
-        print(f"    Cluster {cluster}: {genes_str}")
+    for cluster, genes in top_markers_per_cluster(all_markers, n=3).items():
+        print(f"    Cluster {cluster}: {', '.join(genes)}")
 
     # -----------------------------------------------------------------------
     section("14. Validate Canonical Marker Expression")

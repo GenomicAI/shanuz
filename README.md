@@ -323,7 +323,18 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 156 unit tests pass.
+All 460 tests pass.
+
+Five further tests run the tutorials end-to-end against real data. They are opt-in
+— they need the cached datasets (~200 MB) and take minutes, so they do not run in
+CI:
+
+```bash
+SHANUZ_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v
+```
+
+Worth running before cutting a release: a green suite says nothing about the
+tutorials on its own.
 
 ---
 
