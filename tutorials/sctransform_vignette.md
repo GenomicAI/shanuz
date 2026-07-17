@@ -87,11 +87,15 @@ sctransform(pbmc, vars_to_regress=["percent.mt"], n_features=3000)
 </td></tr>
 </table>
 
-> Shanuz's `sctransform` fits the model with a vectorised per-gene Poisson IRLS,
-> a moment estimate of the NB dispersion, and LOESS regularization of the
-> parameters across genes — the same algorithm as the R/C++ `sctransform`, in
-> pure NumPy. `scale.data` holds the clipped Pearson residuals for the 3,000
-> variable features (a genuine feature-subset layer).
+> Shanuz's `sctransform` follows R's algorithm step for step, in pure NumPy: a
+> vectorised per-gene GLM, `theta.ml` for the NB dispersion, and regularization
+> of the parameters across genes by Nadaraya–Watson smoothing against the log10
+> **geometric** mean, with a Sheather–Jones bandwidth. Like Seurat 5 it defaults
+> to `vst.flavor="v2"` (`vst_flavor="v2"`) — depth slope fixed at `log(10)`,
+> non-overdispersed genes modelled as pure Poisson, and a variance floor — with
+> `vst_flavor="v1"` available for the original 2019 model. `scale.data` holds the
+> clipped Pearson residuals for the 3,000 variable features (a genuine
+> feature-subset layer).
 
 ---
 
@@ -225,11 +229,10 @@ vln_plot(pbmc, ["CD8A","GZMK","CCL5","S100A4","ANXA1","CCR7","ISG15","CD3D"],
 > `VlnPlot` default for an SCT assay — with cells jittered over each violin. The
 > distributions track gene-for-gene: `CD8A`/`GZMK` spike on the cytotoxic CD8
 > cluster, `CCL5` across the CD8/NK end, `CD3D` over all T clusters, `CCR7` low
-> and naive-restricted. The **x-axes differ in length** — Shanuz resolves **9
-> clusters (0–8)** here versus the vignette's **12 (0–11)** — so a given cluster
-> number is *not* the same population across the two plots; compare the
-> per-gene shapes, not column positions. (See the accuracy note below on why the
-> exact cluster count differs.)
+> and naive-restricted. The **x-axes differ by one column** — Shanuz resolves
+> **13 clusters (0–12)** here versus the vignette's **12 (0–11)** — and cluster
+> numbering is not shared across the two plots anyway, so compare the per-gene
+> shapes, not column positions. (See the accuracy note below.)
 
 ---
 
@@ -264,20 +267,39 @@ of the resolution difference:
 | Major populations | T, NK, B, 2× Mono, DC, platelet | all recovered | ✅ |
 | CD8 effector split (CCL5/GZMK) from CD4 | yes | yes | ✅ |
 | Naive vs memory CD4 (CCR7 vs S100A4) | yes | yes | ✅ |
-| Clusters at resolution 0.8 | sharper / more than std | 9 (vs 11 for log-norm here) | ⚠️ |
+| `vst.flavor` default | v2 | v2 | ✅ |
+| Resolves more than log-norm | yes (the vignette's claim) | yes — 13 vs 11 | ✅ |
+| Clusters at resolution 0.8 | 12 (live run; vignette prints none) | 13 | ⚠️ ±1 |
+| Variable features shared with R | 3,000 | 2,913 (97.1%) | ✅ |
+| Regularized theta vs R (Spearman) | — | 0.96 | ✅ |
+| Residual variance vs R (Spearman) | — | 0.9986 | ✅ |
 
 **Where it matches.** The model, the 3,000 variable features, the 30-PC
 embedding, and the **biology** all reproduce: the CD8-effector / CD4 / NK split
-and the marker patterns the vignette highlights are all recovered.
+and the marker patterns the vignette highlights are all recovered. Against a live
+Seurat 5.5.1 / sctransform 0.4.3 run on the same cells, the regularized intercept
+matches at Spearman 1.0000, theta at 0.96, and residual variance at 0.9986 —
+Shanuz's top variable features are R's list, in R's order. Run with
+`vst_flavor="v1"`, Shanuz and R land on **13 clusters each**.
 
-**Where it differs — and why.** The exact cluster *count* is not a fixed target
-(the vignette reports none) and is implementation-dependent. Shanuz's
-`sctransform` is a faithful re-implementation of the algorithm but **not
-bit-identical** to the C++/R version (LOESS and `theta.ml` internals differ),
-and clustering/UMAP use different libraries (python-igraph / umap-learn vs
-SLM / uwot). As in the PBMC 3k and 8k tutorials, this shifts cluster boundaries
-and numbering without changing the recovered cell types. Cluster granularity is
-tunable via `resolution`.
+**Where it differs — and why.** At the v2 default Shanuz resolves 13 clusters
+where R resolves 12. R is stable at 12 across seeds, so this is a real
+one-cluster difference rather than sampling noise, and it comes from the two
+places the implementations cannot line up exactly: `vst` samples its 2,000
+step-1 genes at random, and clustering/UMAP use different libraries
+(python-igraph / umap-learn vs SLM / uwot). That is the same ±1 tolerance the
+PBMC 3k and 8k tutorials carry, and it shifts boundaries without changing the
+recovered cell types. Cluster granularity is tunable via `resolution`.
+
+> **This was wrong until recently.** Shanuz used to resolve **9** clusters here —
+> *fewer* than log-normalization's 11, which inverts the vignette's entire point.
+> A moment estimator stood in for `theta.ml`, the regularization smoothed against
+> the arithmetic rather than geometric gene mean and targeted `log(theta)` rather
+> than the overdispersion factor, and residual variance was computed from
+> residuals clipped at `sqrt(N/30)` instead of `sqrt(N)`. The result flattened
+> every residual: the regularized theta came out *anti*-correlated with R's
+> (Spearman −0.89) and only 414 of 3,000 variable features agreed. See the
+> CHANGELOG and `tests/test_sctransform_r_fidelity.py`.
 
 ---
 
@@ -286,9 +308,11 @@ tunable via `resolution`.
 | Task | R (Seurat) | Python (Shanuz) |
 |------|-----------|-----------------|
 | SCTransform | `SCTransform(obj, vars.to.regress="percent.mt")` | `sctransform(obj, vars_to_regress=["percent.mt"])` |
+| Model flavor | `SCTransform(obj, vst.flavor="v2")` (default) | `sctransform(obj, vst_flavor="v2")` (default) |
 | Use SCT assay | `DefaultAssay(obj) <- "SCT"` (automatic) | active assay set to `"SCT"` automatically |
 | Variable features | `VariableFeatures(obj)` | `obj.assays["SCT"].variable_features` |
 | Residuals | `GetAssayData(obj, "scale.data")` | `obj.assays["SCT"].layers["scale.data"]` |
+| Per-gene model fit | `SCTResults(obj, slot="feature.attributes")` | `obj.assays["SCT"].meta_data` (`theta`, `residual_variance`, `gmean`) |
 
 ---
 

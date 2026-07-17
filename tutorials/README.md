@@ -209,11 +209,14 @@ python tutorials/generate_sctransform_plots.py    # writes tutorials/figures_sct
 | `05_sct_violins.png` | Vignette marker violins per cluster |
 | `06_sct_vs_std_umap.png` | SCTransform vs LogNormalize, side by side |
 
-**Accuracy vs R:** exact match on the model, the **3,000 variable features**, the
-30-PC embedding, and the recovered biology (CD8-effector/CD4/NK split, marker
-patterns). Exact cluster count differs — `sctransform` is a faithful but not
-bit-identical reimplementation (LOESS/`theta.ml` differ) and clustering/UMAP use
-different libraries, the same caveat as the other tutorials.
+**Accuracy vs R:** verified against a live Seurat 5.5.1 / sctransform 0.4.3 run
+on the same cells — the regularized intercept matches at Spearman 1.0000, theta
+at 0.96, residual variance at 0.9986, and **2,913 of the 3,000 variable
+features** agree. Like Seurat 5, `sctransform` defaults to `vst_flavor="v2"`;
+under `vst_flavor="v1"` Python and R land on 13 clusters each. At the v2 default
+Shanuz resolves 13 where R resolves 12 — a genuine one-cluster difference (R is
+stable at 12 across seeds) from `vst`'s random step-1 gene sample and the
+different clustering libraries, the same ±1 caveat as the other tutorials.
 
 ---
 

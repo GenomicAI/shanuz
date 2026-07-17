@@ -125,6 +125,43 @@ on `main`; none of it is on PyPI.
   This was the sole cause of the CBMC tutorial's `ADT.weight` gap against
   Seurat; eight of nine cell types now match to 0.02 or better. (#32)
 
+- `sctransform`'s regularized NB model was wrong in four places, and the errors
+  compounded into a normalization that erased the fine cell subsets SCTransform
+  exists to resolve. A method-of-moments estimator stood in for `theta.ml`; the
+  regularization was smoothed against the **arithmetic** gene mean where R uses
+  the **geometric** mean, and targeted `log(theta)` rather than the
+  overdispersion factor; and residual variance — which ranks the variable
+  features — was computed from residuals clipped at `sqrt(N/30)` where Seurat
+  clips at `sqrt(N)`, applying the tighter clip only to the stored `scale.data`.
+  Verified against a live Seurat 5.5.1 / sctransform 0.4.3 run on PBMC 3k, the
+  regularized intercept now matches R at Spearman 1.0000, theta at 0.96, and
+  residual variance at 0.9986, with 2,913 of 3,000 variable features shared —
+  previously those were 1.0000, **−0.89**, **−0.07** and **414 of 3,000**. (#37)
+
+  *What it looked like:* the SCTransform tutorial resolved **9** clusters against
+  R's 12 — and, the real tell, *fewer* than the 11 from plain log-normalization,
+  inverting the vignette's whole claim that SCTransform resolves finer subsets.
+  It now resolves 13 with 4 T-cell subsets against log-normalization's 11 and 2,
+  recovering the pDC, CD8 naive/memory and interferon-response populations. The
+  Poisson GLM was never at fault — its intercept and slope always matched R
+  exactly; only what was built on top of it was wrong.
+
+  *Also:* `sctransform` now takes `vst_flavor`, defaulting to `"v2"` as Seurat 5
+  does (depth slope fixed at `log(10)`, non-overdispersed genes modelled as pure
+  Poisson, a variance floor), with `"v1"` for the original 2019 model. Under
+  `"v1"` Python and R both resolve 13 clusters; at the `"v2"` default Shanuz
+  resolves 13 to R's 12, a real one-cluster difference (R is stable at 12 across
+  seeds) left by `vst`'s random step-1 gene sample and the different clustering
+  libraries. The assay's `meta_data` now also carries `gmean`.
+
+  *Why it went unseen:* nothing compared the model against R. The tutorial's
+  cluster count was documented as an expected implementation difference and
+  carried a ⚠️ in `sctransform_vignette.md`, which made a real defect look like a
+  known caveat — and `tutorials/README.md` claimed an "exact match" on the 3,000
+  variable features when 13.8% of them agreed. `tests/test_sctransform_r_fidelity.py`
+  now pins each numerical primitive against R directly, including a port of
+  `bw.SJ` (Sheather–Jones; SciPy has no equivalent) that matches R to 3e-7.
+
 - `tutorials/pbmc3k_tutorial.py` — the tutorial the README sends new users to
   first — crashed with `KeyError: 'cluster'` on every fresh install. pandas 3
   stopped passing the grouping column into the callable of
