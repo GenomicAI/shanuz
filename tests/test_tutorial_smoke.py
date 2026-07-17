@@ -35,6 +35,7 @@ TUTORIALS = [
     ("pbmc8k_subclustering_tutorial.py", "pbmc8k"),
     ("cbmc_citeseq_tutorial.py", "cbmc"),
     ("pbmc3k_sctransform_tutorial.py", "pbmc3k"),
+    ("pbmc_hashing_tutorial.py", "pbmc_hashing"),
 ]
 
 pytestmark = pytest.mark.skipif(

@@ -14,6 +14,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison · WNN joint clustering | Advanced |
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize | Advanced |
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
+| 6 | [Cell Hashing — Demultiplexing](hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 (human+mouse) | Hashtag assay · CLR (margin 1) · `HTODemux` ↔ `hto_demux` · `MULTIseqDemux` ↔ `multiseq_demux` · cross-species doublet ground truth — **99.81 %** call-concordant with R | Advanced |
 
 ---
 
@@ -284,6 +285,59 @@ figures** — cell counts, all cell-type counts, nearest-neighbour distances, lo
 density, and the composition test (log2 ratios, Fisher p, BH padj, χ² p).
 Clustering / UMAP / niche layout are stochastic and agree in structure only, the
 same caveat as the other tutorials.
+
+---
+
+## Tutorial 6 — Cell Hashing Demultiplexing (R vs Python)
+
+> **Walkthrough:** [`hashing_vignette.md`](hashing_vignette.md)
+
+A port of Seurat's [hashing vignette](https://satijalab.org/seurat/articles/hashing_vignette):
+eight samples, each tagged with an antibody **hashtag** (HTO), pooled on one
+lane. Both of Shanuz's demultiplexers run against their R references on
+byte-identical GEO input (**GSE108313**, Stoeckius et al. 2018 — the original
+plain-text matrices, **not** the vignette's binary `.rds`). It is the first
+real-data check of the CLR-margin fix (#32) and the `clara` default (#34).
+
+```bash
+python tutorials/pbmc_hashing_tutorial.py     # downloads ~34 MB, prints the report
+Rscript tutorials/pbmc_hashing_verify.R       # Seurat reference → r_calls.csv + r_*.png
+python tutorials/pbmc_hashing_tutorial.py     # re-run → prints the R-vs-Python concordance
+python tutorials/generate_hashing_plots.py    # Shanuz figures → figures_hashing/py_*.png
+```
+
+**What you'll learn:**
+- Attach a hashtag panel as an `"HTO"` assay and CLR-normalise it (margin 1 — per
+  hashtag across cells, Seurat's default for hashing)
+- `hto_demux` — Seurat's `HTODemux`: a negative-binomial cutoff per hashtag,
+  learned from its background cluster
+- `multiseq_demux` — Seurat's `MULTIseqDemux`: a kernel-density cutoff instead,
+  and where the two methods diverge
+- Reading a **combined human+mouse** alignment as an independent cross-species
+  doublet signal the hashtags never saw
+
+**Key output figures** (in `tutorials/figures_hashing/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_ridge.png` | Hashtag CLR enrichment per assigned sample (the canonical QC read) |
+| `py_02_scatter.png` | Two hashtags, coloured by HTODemux global class |
+| `py_03_ncount_violin.png` | Total hashtag counts per global class |
+| `py_04_species_scatter.png` | Human vs mouse UMIs — the barnyard ground truth |
+
+**Accuracy vs R** (call-for-call on identical input, 39,842 cells):
+
+| Comparison | Agreement |
+|---|---:|
+| `HTODemux` global class & sample assignment | **99.81 %** (77 cells differ) |
+| `MULTIseqDemux` call (`MULTI_ID`) | **94.67 %** |
+
+HTODemux reproduces Seurat almost exactly — the 0.2 % residual is `clara`'s
+un-seedable sampling. MULTIseqDemux's larger gap is a genuine method-level
+difference in the KDE step (scipy `gaussian_kde` vs R `density()` — bandwidth
+*and* grid, not a single knob), documented rather than smoothed over. Because
+these are raw unfiltered barcodes, the Negative rate is high (~42 %) and the
+totals do **not** match the vignette's pre-filtered PBMC headline — by design.
 
 ---
 

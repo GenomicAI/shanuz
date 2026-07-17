@@ -35,6 +35,9 @@ htmlcov/
 shanuz_data/
 ~/.shanuz_data/
 
+# Regenerable tutorial intermediates (kept out of the repo; figures are committed)
+tutorials/figures_hashing/r_calls.csv
+
 # OS
 .DS_Store
 Thumbs.db

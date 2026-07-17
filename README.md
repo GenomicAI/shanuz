@@ -42,6 +42,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **PBMC 3k tutorial** — end-to-end validated against the official Seurat tutorial
 - **PBMC 8k advanced tutorial** — larger dataset + T/NK subclustering workflow
 - **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization and WNN joint clustering
+- **Cell-hashing tutorial** — `hto_demux` + `multiseq_demux` demultiplexing, 99.81% call-concordant with R Seurat's `HTODemux`
 - **Xenium spatial tutorial** — spatial neighbourhood/niche analysis, verified to 8 s.f. against R Seurat
 
 ---
@@ -133,9 +134,9 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Five end-to-end tutorials — from basic guided clustering through multimodal
-CITE-seq to Xenium spatial — each pairing R Seurat code side-by-side with the
-Python Shanuz equivalent.
+Six end-to-end tutorials — from basic guided clustering through multimodal
+CITE-seq and cell-hashing demultiplexing to Xenium spatial — each pairing R
+Seurat code side-by-side with the Python Shanuz equivalent.
 See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
@@ -145,6 +146,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 3 | [CBMC CITE-seq — Multimodal](https://github.com/GenomicAI/shanuz/blob/main/tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
 | 4 | [PBMC 3k — SCTransform](https://github.com/GenomicAI/shanuz/blob/main/tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
 | 5 | [Xenium — Spatial (R vs Python)](https://github.com/GenomicAI/shanuz/blob/main/tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
+| 6 | [Cell Hashing — Demultiplexing](https://github.com/GenomicAI/shanuz/blob/main/tutorials/hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -161,6 +163,9 @@ python tutorials/pbmc3k_sctransform_tutorial.py && python tutorials/generate_sct
 
 # Tutorial 5 — Xenium spatial (auto-downloads ~20 MB)
 python tutorials/generate_spatial_plots.py
+
+# Tutorial 6 — Cell hashing demultiplexing (auto-downloads ~34 MB)
+python tutorials/pbmc_hashing_tutorial.py && python tutorials/generate_hashing_plots.py
 ```
 
 ---
@@ -323,9 +328,9 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 489 tests pass.
+All 496 tests pass.
 
-Five further tests run the tutorials end-to-end against real data. They are opt-in
+Six further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
 CI:
 

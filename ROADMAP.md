@@ -849,15 +849,26 @@ regime. Don't "simplify" them.
   reference mapping (panc8), Mixscape (GSE153056). Later waves: spatial/scale, the
   DE-test suite, cell-cycle/module scores, the visualization gallery, dim-reduction
   extras, object internals.
-- **Wave 0 — ✅ delivered (this PR).** The data plumbing every side-by-side needs:
+- **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
   counts exactly), and the R deps (`SeuratData` + `harmony`).
-- **Expect bugs, and read a mismatch as a bug report.** Going 2-for-2, Wave 1 is
-  likely to surface real defects. The known-good tolerance is narrow — deterministic
-  values match exactly, Louvain cluster counts drift ±1 — so anything outside that
-  band gets investigated, not written up as an expected difference. This repo has
-  twice let a real defect hide behind a documented "language difference" caveat.
+- **Wave 1 — in progress.**
+  - **T7 cell hashing — ✅ delivered (this PR).** `hto_demux` / `multiseq_demux`
+    on GSE108313 (`hashing_vignette.md`). Result: `HTODemux` is **99.81 %**
+    call-concordant with Seurat on identical input — the first real-data
+    confirmation of the CLR fix (#32) and `clara` default (#34). `MULTIseqDemux`
+    lands at 94.67 %; the gap is a real KDE-implementation difference (scipy
+    `gaussian_kde` vs R `density()` — bandwidth *and* grid), logged not papered
+    over. No defect found — the demuxers hold up.
+  - Remaining: T6 integration (ifnb), T8 reference mapping (panc8), T9 Mixscape
+    (GSE153056).
+- **Expect bugs, and read a mismatch as a bug report.** Going 2-for-2 before Wave 1
+  (T7 then made it 2-for-3 clean), the later tutorials may still surface real
+  defects. The known-good tolerance is narrow — deterministic values match exactly,
+  Louvain cluster counts drift ±1 — so anything outside that band gets investigated,
+  not written up as an expected difference. This repo has twice let a real defect
+  hide behind a documented "language difference" caveat.
 
 ### Documentation site
 - **Do the type annotations first.** mkdocstrings resolves annotations, and
