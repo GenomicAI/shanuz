@@ -23,6 +23,22 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Tutorial data infrastructure — the R-side scaffolding for expanding tutorial coverage (#38)*
+
+- `shanuz.datasets.pbmc_hashing` (GSE108313) and `thp1_eccite` (GSE153056) —
+  loaders for the Cell-Hashing and ECCITE-seq/Mixscape datasets, parsed straight
+  from their original GEO plain-text files so R and Python read identical counts.
+  The ECCITE loader also returns the per-cell guide/replicate metadata, so a
+  Mixscape tutorial can start from the same annotated state as R's `thp1.eccite`.
+- `shanuz.datasets.ifnb` and `panc8`, with `tutorials/export_seuratdata.R` — a
+  one-time R bridge that exports the curated SeuratData objects (which have no
+  clean cross-language raw source) to a gzipped 10x folder that `read_10x` reads.
+  Verified end to end: R exported panc8 and Python read back **51,767,089**
+  nonzeros — matching R to the entry — with barcodes and metadata aligned.
+- No new `pip` dependencies (the loaders are pure pandas/scipy). R side adds
+  `SeuratData` + `harmony`. Very wide count tables are parsed once and memoised to
+  a `.npz` sidecar, so a repeat load is ~0.2s rather than minutes.
+
 *Reference mapping and label transfer (milestone v0.3.0)*
 
 - `find_transfer_anchors` and `transfer_data` — atlas-based annotation with

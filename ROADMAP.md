@@ -833,6 +833,32 @@ regime. Don't "simplify" them.
 - Add `from __future__ import annotations` to all modules (already done on some)
 - Annotate all public function signatures (`mypy --strict` clean)
 
+### Tutorial coverage — the R-fidelity net for everything after PR #10
+- **Why this matters most.** The two real defects ever found in this port — the
+  CLR margin inversion (#32) and the SCTransform model (#37) — were both caught by
+  a tutorial with an R side-by-side, *not* by the test suite, which was green
+  through both. Meanwhile 24 feature PRs landed after #10 (integration, reference
+  mapping, sketching, lazy matrices, HTO/MULTI-seq, Mixscape, spatial) and **none
+  of them has ever been compared to real Seurat** — their tests assert
+  self-consistency on synthetic `default_rng` fixtures. Of 103 public exports, 36
+  appear in a runnable tutorial; 67 do not. Closing that is the highest-leverage
+  correctness work left.
+- **Plan:** ~12 new side-by-side tutorials in four waves, one tutorial per PR, in
+  the existing shape (`<name>_tutorial.py` + `<name>_verify.R` + `<name>.md` +
+  `figures_<name>/`). Wave 1 = integration (ifnb), cell hashing (GSE108313),
+  reference mapping (panc8), Mixscape (GSE153056). Later waves: spatial/scale, the
+  DE-test suite, cell-cycle/module scores, the visualization gallery, dim-reduction
+  extras, object internals.
+- **Wave 0 — ✅ delivered (this PR).** The data plumbing every side-by-side needs:
+  `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
+  for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
+  counts exactly), and the R deps (`SeuratData` + `harmony`).
+- **Expect bugs, and read a mismatch as a bug report.** Going 2-for-2, Wave 1 is
+  likely to surface real defects. The known-good tolerance is narrow — deterministic
+  values match exactly, Louvain cluster counts drift ±1 — so anything outside that
+  band gets investigated, not written up as an expected difference. This repo has
+  twice let a real defect hide behind a documented "language difference" caveat.
+
 ### Documentation site
 - **Do the type annotations first.** mkdocstrings resolves annotations, and
   `typing.get_type_hints()` currently raises `NameError` on the plotting and

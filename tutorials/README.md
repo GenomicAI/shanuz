@@ -49,6 +49,30 @@ actually executes each tutorial and takes a few minutes; it is opt-in rather tha
 never that it passed. **Run the second before cutting a release** — the unit
 suite passing tells you nothing about whether these scripts still work end to end.
 
+### Dataset loaders and the R export bridge
+
+Every tutorial pairs R and Python on the **same counts**. Two ways that happens:
+
+- **Original public files** — `shanuz.datasets` downloads the dataset's own
+  GEO/10x files, which R and Python both read directly. This covers `pbmc3k`,
+  `pbmc8k`, `cbmc_citeseq`, `xenium_mouse_brain`, and the two hashing/perturbation
+  datasets, `pbmc_hashing` (GSE108313) and `thp1_eccite` (GSE153056). Nothing extra
+  to run — they cache to `~/.shanuz_data/` on first use.
+
+- **The R bridge** — a few datasets exist only as curated SeuratData `.rda`
+  objects with no clean cross-language raw source (`ifnb`, `panc8`). For those,
+  run the one-time export first, which writes a gzipped 10x folder both languages
+  read so the counts are byte-identical:
+
+  ```bash
+  Rscript tutorials/export_seuratdata.R ifnb     # ~394 MB, first run only
+  Rscript tutorials/export_seuratdata.R panc8    # ~117 MB
+  ```
+
+  Then `shanuz.datasets.ifnb()` / `panc8()` load that export in Python. (This is
+  the mirror of the `*_verify.R` scripts, where R instead depends on the Python
+  download.) Needs R with `Seurat` + `SeuratData`.
+
 ---
 
 ## Tutorial 1 — PBMC 3k Guided Clustering
