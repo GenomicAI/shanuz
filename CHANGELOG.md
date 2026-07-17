@@ -23,6 +23,24 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Cell-hashing tutorial — `HTODemux` + `MULTIseqDemux`, side by side with R Seurat (#39)*
+
+- `tutorials/hashing_vignette.md` with `pbmc_hashing_tutorial.py`,
+  `pbmc_hashing_verify.R`, and `generate_hashing_plots.py` — demultiplexing the
+  8-hashtag Cell-Hashing dataset (GSE108313) with `hto_demux` / `multiseq_demux`,
+  compared call-for-call against Seurat on byte-identical GEO input.
+- **First real-data fidelity result for the hashing features** (all of which
+  landed after PR #10 with only synthetic-fixture tests): `HTODemux` is **99.81 %**
+  call-concordant with Seurat for both the global class and the sample
+  assignment — confirming the CLR-margin fix (#32) and the `clara` default (#34).
+  `MULTIseqDemux` agrees on 94.67 %; the residual is a genuine KDE-implementation
+  difference (scipy `gaussian_kde` vs R `density()` — bandwidth *and* grid, which
+  a single `nrd0` swap makes worse, not better), documented in the walkthrough.
+- Added to the opt-in tutorial smoke suite (`SHANUZ_TUTORIAL_SMOKE=1`) and covered
+  by `tests/test_hashing_tutorial.py` (network-free: species/concordance helpers
+  and the load→demux→figure path on a synthetic barnyard). Suite 489 → 496. No new
+  `pip` dependencies.
+
 *Tutorial data infrastructure — the R-side scaffolding for expanding tutorial coverage (#38)*
 
 - `shanuz.datasets.pbmc_hashing` (GSE108313) and `thp1_eccite` (GSE153056) —
