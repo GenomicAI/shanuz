@@ -92,6 +92,24 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Guards against supported-Python drift (#47)*
+
+- Three tests in `tests/test_packaging.py` cross-checking the four places the
+  supported-version decision is written down — `requires-python`, the trove
+  classifiers, `[tool.ruff] target-version`, and the CI matrix. Nothing read
+  those together before, and each is quiet when wrong in a different way: a
+  stale classifier misinforms PyPI without breaking a build; a matrix that has
+  moved above the declared floor stops testing the floor, which is the version
+  most likely to break; a ruff target below the floor silently disables the lint
+  the floor just earned.
+- Mutation-tested in all four directions — drop a classifier, raise the floor,
+  revert the ruff target, drop the lowest matrix leg — each caught by the
+  specific guard(s) it should be, none firing indiscriminately.
+- The matrix is parsed from the workflow YAML with a regex rather than PyYAML:
+  PyYAML is not a declared dependency, so importing it would pass today and
+  begin silently skipping the day that transitive edge disappears — the exact
+  drift these tests exist to catch.
+
 *Leverage-score sketching tutorial — side by side with R Seurat (#46)*
 
 - `tutorials/sketch_vignette.md` with `ifnb_sketch_tutorial.py`,
@@ -312,6 +330,30 @@ on `main`; none of it is on PyPI.
   disagree with an arm64 R build, by design.
 
 ### Changed
+
+- **Supported Python is now 3.12–3.14; 3.10 and 3.11 are dropped.** The CI matrix
+  moves with it, and `requires-python` becomes `>=3.12`.
+
+  The floor tracks [SPEC 0](https://scientific-python.org/specs/spec-0000/) — the
+  three-years-past-release window numpy, scipy, pandas and scikit-learn keep for
+  themselves — rather than CPython's five-year EOL. By that rule 3.10 lapsed in
+  Oct 2024 and 3.11 in Oct 2025, both already past; going by EOL alone would have
+  held 3.11 until Oct 2027. Those four packages are what actually constrain this
+  library, so theirs is the calendar worth following.
+
+  Checked before committing to it, not after: all 91 resolved packages ship
+  native `cp313` **and** `cp314` manylinux x86-64 wheels — `numba` 0.66 /
+  `llvmlite` 0.48 included, historically the last to arrive — with `igraph` and
+  `leidenalg` on stable-ABI wheels. No leg builds from source. The full suite
+  passes identically on 3.12, 3.13 and 3.14, as do all 17 tutorial smoke tests on
+  3.14 against the real datasets.
+
+  **Nothing breaks retroactively.** `pip` on 3.10 or 3.11 resolves to 0.2.0, the
+  last release declaring `>=3.10`.
+
+  *Also removed:* the `tomli` dev dependency (`tomllib` is stdlib from 3.11) and
+  its import fallback in `tests/test_packaging.py` — the only version-gated code
+  in the repo. `[tool.ruff] target-version` moves to `py312`.
 
 - **`hto_demux` now defaults to `kfunc="clara"`**, matching Seurat; it first
   shipped defaulting to `"kmeans"`. Callers who never passed `kfunc` get

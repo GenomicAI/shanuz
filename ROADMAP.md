@@ -799,7 +799,21 @@ regime. Don't "simplify" them.
 
 ### GitHub Actions CI — ✅ delivered
 - **File:** `.github/workflows/ci.yml`
-- **Matrix:** Python 3.10, 3.11, 3.12 on ubuntu-latest, via `astral-sh/setup-uv`
+- **Matrix:** Python 3.12, 3.13, 3.14 on ubuntu-latest, via `astral-sh/setup-uv`
+  (was 3.10–3.12; moved to track [SPEC 0](https://scientific-python.org/specs/spec-0000/),
+  which had already retired 3.10 in Oct 2024 and 3.11 in Oct 2025). Verified before
+  the change rather than after: all 91 resolved packages have native `cp313`/`cp314`
+  manylinux wheels, `numba`/`llvmlite` included, so no leg builds from source.
+- **Open — the matrix no longer varies dependencies.** Dropping 3.10 removed
+  something nobody had written down: because the floors are `>=`, that leg was
+  resolving numpy 2.2.6 / scipy 1.15.3 / pandas 2.3.3 where the others got
+  2.4.6 / 1.18.0 / 3.0.3, so it was the *only* coverage of an older scientific
+  stack. All three legs now resolve one identical set — three interpreters, one
+  dependency version. This surfaced through `test_leverage_scores_are_not_flat`,
+  whose docstring had attributed its 3.10 failure to CPython when the real
+  variable was the resolved numpy. The fix is a dedicated oldest-supported-deps
+  leg (install against the declared floors, not the latest), not keeping an EOL
+  Python around as an accidental proxy for it.
 - **Triggers:** push to `main`, all PRs
 - **`test` job:** `ruff check shanuz` and `mypy`, both advisory (pre-existing debt
   not yet cleared, so neither gates the build), then `pytest tests/ -q` with

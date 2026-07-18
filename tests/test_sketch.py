@@ -124,10 +124,16 @@ def test_leverage_scores_are_not_flat():
         ================  ==========  ============
 
     An earlier version of this test asserted ``> 1.5``, which sat directly on the
-    fixed value and duly failed on Python 3.10 at 1.4956 while passing on 3.11
-    and 3.12 — the SVD drifts ~2 % across versions. 1.25 leaves ~20 % either way.
-    If this ever fails again, check that the *sum* test above still passes before
-    touching the number: a genuine regression shows up there first.
+    fixed value and duly failed at 1.4956 on what was then the Python 3.10 leg
+    while passing on 3.11 and 3.12. The cause was not the interpreter, as
+    originally recorded here: `>=` dependency floors let that leg resolve numpy
+    2.2.6 / scipy 1.15.3 where the others got 2.4.6 / 1.18.0, and the SVD differs
+    by ~2 % between them. Measured across the current 3.12-3.14 matrix, where all
+    three legs resolve identical versions, the value agrees to four decimals
+    (1.5246 everywhere) — so the margin buys nothing *today*. Keep it: the floors
+    are still `>=`, and the next leg to resolve something different will not
+    announce itself. If this ever fails, check that the *sum* test above still
+    passes before touching the number: a genuine regression shows up there first.
     """
     obj, _ = _clustered_object(sizes=(200, 200), G=600, nfeatures=400)
 

@@ -17,12 +17,20 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
-requires-python = ">=3.10"
+# Tracks SPEC 0, the support window the scientific stack itself follows: three
+# years past a Python release. That put 3.10 out in Oct 2024 and 3.11 in Oct
+# 2025 — both already past — while upstream EOL alone would have kept 3.11 until
+# Oct 2027. numpy/scipy/pandas/scikit-learn are the versions that actually
+# constrain us, so their calendar is the one worth tracking, not CPython's.
+#
+# Published releases stay installable on the versions they declared: a 3.11 user
+# resolves to 0.2.0, the last release with `>=3.10`. Nothing breaks retroactively.
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
@@ -52,9 +60,6 @@ dev = [
     "mypy",
     "build",
     "twine",
-    # tomllib is stdlib from 3.11; without this the 3.10 leg skips
-    # test_version_matches_pyproject instead of running it.
-    "tomli>=2.0 ; python_version < '3.11'",
 ]
 all = ["shanuz[analysis,anndata,integration,deseq2,dev]"]
 
@@ -72,16 +77,17 @@ addopts = "-v"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.mypy]
-# Deliberately no `python_version`. Pinning it to our 3.10 floor also makes mypy
-# parse every *followed* import as 3.10, third-party source included — and
-# `anndata>=0.10` resolves to 0.13.2 on Python 3.12, which uses PEP 695
-# `def _reduce[T](...)` syntax. mypy then aborts the whole run with "errors
+# Deliberately no `python_version`. Pinning it to our floor also makes mypy parse
+# every *followed* import at that version, third-party source included — and
+# `anndata>=0.10` resolves to 0.13.2, which uses PEP 695 `def _reduce[T](...)`
+# syntax. Under a pre-3.12 setting mypy aborts the whole run with "errors
 # prevented further checking" and silently checks nothing, while `|| true` keeps
-# CI green. Each leg targets its own interpreter instead; the 3.10 leg is what
-# proves the package still supports 3.10.
+# CI green. The floor is 3.12 now, so that particular trap is behind us, but the
+# shape of it is not: each leg targets its own interpreter instead, and the
+# lowest leg is what proves the package still supports the floor it declares.
 #
 # Scope is pinned here rather than only in CI's command, so a bare `mypy` checks
 # exactly what CI checks. `ruff` takes its scope from the command line, where
