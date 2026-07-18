@@ -21,7 +21,58 @@ Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
 spatial, scale, and the specialized assays — plus one breaking fix. All of it is
 on `main`; none of it is on PyPI.
 
+### Fixed
+
+*JackStraw: a mis-specified permutation null and the wrong significance test (#45)*
+
+- **`jack_straw` built its null against a fixed basis.** R's `JackRandom` permutes
+  the selected features and **re-runs the whole PCA**, taking the null loadings
+  from that refit basis; shanuz projected the permuted rows onto the *existing*
+  embedding. A fixed basis cannot rotate to absorb the scrambled signal, so the
+  permuted loadings came out too small and the null was far too tight. On pbmc3k's
+  pure-noise PCs 14-20 that put **109-203** of 2000 features below p ≤ 1e-5, where
+  R finds **0-5**. Now refits the PCA per replicate, as R does.
+- **`score_jackstraw` used a KS test instead of `prop.test`.** R's `ScoreJackStraw`
+  tests the count of features below `score.thresh` against the count expected under
+  a uniform null; shanuz ran a one-sided Kolmogorov-Smirnov test against
+  Uniform(0, 1), which on thousands of features is enormously more sensitive — its
+  **largest** score across all 20 pbmc3k PCs was `8.1e-112`, so no PC ever failed
+  the threshold. R's `prop.test` is now ported exactly (Yates-corrected two-sample
+  chi-square), reproducing R to nine significant figures from 1e-143 to 1.0.
+- **Net effect:** shanuz recommended keeping **all 20** PCs where Seurat keeps 13 —
+  the function could not do the one thing it exists for. Both now keep **13**. The
+  remaining spread is permutation scatter (13-15 across seeds; R fixes each
+  replicate's seed to its loop index and is therefore deterministic).
+- `JackStrawData.fake_reduction_scores` is now populated, as in R; `jack_straw`
+  takes the reduction's stored feature loadings as the observed statistic (matching
+  `Loadings(object[[reduction]], projected = FALSE)`) and raises if they are absent,
+  rather than silently re-deriving them.
+- Both defects were caught by the new R side-by-side, **not** by the test suite,
+  which was green throughout: its only JackStraw assertion was that signal features
+  score lower than noise features, which stayed true the whole time. Regression
+  tests now pin the null's calibration on noise PCs and the aggregation's ability
+  to reject, and both were mutation-tested against the old code.
+
 ### Added
+
+*Dimensional-reduction extras tutorial — side by side with R Seurat (#45)*
+
+- `tutorials/dimreduc_vignette.md` with `pbmc3k_dimreduc_tutorial.py`,
+  `pbmc3k_dimreduc_verify.R`, and `generate_dimreduc_plots.py` — `jack_straw` /
+  `score_jackstraw` (`JackStraw`/`ScoreJackStraw`), `run_ica` (`RunICA`) and
+  `run_tsne` (`RunTSNE`) on PBMC 3k, on a cell and feature basis shared byte-for-byte
+  with the R run.
+- **First real-data fidelity result for all four** (synthetic fixtures only before).
+  After the JackStraw fixes above, both tools keep **13 PCs**. ICA recovers the same
+  subspace — components are matched one-to-one by |Pearson r| with the Hungarian
+  algorithm, since they are defined only up to sign and order, giving **0.982** mean
+  matched |r|. t-SNE is compared on structure rather than coordinates (`Rtsne` is
+  Barnes-Hut, shanuz calls scikit-learn): each embedding retains **0.470** / **0.477**
+  of its PCA neighbourhoods.
+- The comparison reports where the two PCA bases stop matching *in order* (PC 15 on
+  pbmc3k) rather than a bare minimum correlation, so a permuted noise tail is not
+  mistaken for a disagreeing basis — and so a per-PC finding is only claimed over
+  the range where it is like-for-like.
 
 *Cell-cycle & module-score tutorial — side by side with R Seurat (#44)*
 

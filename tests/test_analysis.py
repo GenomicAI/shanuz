@@ -341,6 +341,107 @@ def test_jackstraw_separates_signal_from_noise():
     assert overall[0] < 0.05  # the structured PC1 is significant
 
 
+def _jackstraw_fixture():
+    """A small object with structure in PC1 only — the rest is noise."""
+    from shanuz.shanuz import create_shanuz_object
+    from shanuz.preprocessing import scale_data
+    from shanuz.reduction import run_pca
+
+    rng = np.random.default_rng(0)
+    base = rng.poisson(0.5, size=(150, 120)).astype(float)
+    base[:10, :60] += 6.0
+    obj = create_shanuz_object(
+        counts=sp.csc_matrix(base), assay="RNA",
+        feature_names=[f"g{i}" for i in range(150)],
+        cell_names=[f"c{i}" for i in range(120)],
+    )
+    normalize_data(obj)
+    find_variable_features(obj, nfeatures=150)
+    scale_data(obj)
+    run_pca(obj, n_pcs=15)
+    return obj
+
+
+def test_jackstraw_null_is_calibrated_on_noise_pcs():
+    """Regression: the null must come from a PCA refit, not a fixed projection.
+
+    JackStraw originally built its null by projecting the permuted rows onto the
+    *existing* embedding. A fixed basis cannot rotate to absorb the scrambled
+    signal, so the permuted loadings come out too small, the null is too tight,
+    and ordinary noise features look extreme against it. R's ``JackRandom``
+    re-runs the whole PCA per replicate instead.
+
+    The observable: on a PC carrying no structure, a correct permutation null
+    yields roughly uniform empirical p-values (median near 0.5). The fixed-basis
+    null crushed those medians to ~0.25 and pushed 8-13 % of features below
+    1e-5; the refit null gives medians ≥ 0.45 and under 2 %. On real pbmc3k data
+    the same defect put 109-203 features below threshold on PCs 14-20, where R
+    finds 0-5.
+    """
+    from shanuz.jackstraw import jack_straw
+
+    obj = _jackstraw_fixture()
+    emp = jack_straw(obj, dims=10, num_replicate=100, seed=0).empirical_p_values
+
+    noise = emp[:, 4:]                              # PC 5-10 carry no structure
+    medians = np.median(noise, axis=0)
+    frac_sig = (noise <= 1e-5).mean(axis=0)
+    assert medians.min() >= 0.40, f"null too tight, medians {medians}"
+    assert frac_sig.max() <= 0.05, f"too many significant noise features {frac_sig}"
+
+
+def test_jackstraw_stores_the_null_scores():
+    """``fake_reduction_scores`` was declared but never populated; R stores it."""
+    from shanuz.jackstraw import jack_straw
+
+    obj = _jackstraw_fixture()
+    js = jack_straw(obj, dims=5, num_replicate=10, seed=0)
+    # 10 replicates x max(3, floor(150 * 0.01)) = 3 permuted features per replicate.
+    assert js.fake_reduction_scores.shape == (30, 5)
+    assert np.isfinite(js.fake_reduction_scores).all()
+
+
+def test_score_jackstraw_does_not_flag_every_pc():
+    """Regression: the aggregation must be R's prop.test, not a KS test.
+
+    A one-sided KS test against Uniform(0, 1) is enormously more sensitive than
+    the proportion test ``ScoreJackStraw`` actually uses. With thousands of
+    features it returned ~1e-112 or smaller for *every* pbmc3k PC — including
+    pure noise — so no PC ever failed the threshold and the function could not
+    do the one job it exists for. Here only PC1 carries structure, so most of
+    the ten tested PCs must come back insignificant.
+    """
+    from shanuz.jackstraw import jack_straw, score_jackstraw
+
+    obj = _jackstraw_fixture()
+    jack_straw(obj, dims=10, num_replicate=100, seed=0)
+    scores = score_jackstraw(obj, dims=10)
+
+    assert scores[0] < 0.05                          # the real one still passes
+    assert (scores > 0.05).sum() >= 5, f"nothing is being rejected: {scores}"
+    assert scores.max() == pytest.approx(1.0)        # a PC with no hits scores 1
+
+
+@pytest.mark.parametrize("count,expected_p", [
+    # Verified against R: prop.test(x = c(count, 0), n = c(2000, 2000))$p.value,
+    # spanning the full range ScoreJackStraw produces on pbmc3k.
+    (558, 1.545300664068e-142),
+    (90, 2.337543460534e-21),
+    (17, 1.007234160653e-04),
+    (3, 2.480356409327e-01),
+    (1, 1.0),
+])
+def test_prop_test_matches_r(count, expected_p):
+    """The ported prop.test must reproduce R's p-value, not merely approximate it.
+
+    ``ScoreJackStraw``'s output *is* this p-value, so an approximation would
+    silently shift every PC cutoff.
+    """
+    from shanuz.jackstraw import _prop_test
+
+    assert _prop_test(count, 0, 2000, 2000) == pytest.approx(expected_p, rel=1e-9)
+
+
 def test_ridge_plot_labels_align_with_rows(small_seurat):
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
