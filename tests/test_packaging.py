@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import textwrap
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -19,14 +20,10 @@ from packaging.version import InvalidVersion, Version
 
 import shanuz
 
-try:  # stdlib from 3.11; `tomli` backfills 3.10 via the [dev] extra
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - only on Python 3.10
-    import tomli as tomllib
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 CHANGELOG = REPO_ROOT / "CHANGELOG.md"
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 FALLBACK_VERSION = "0.0.0+unknown"
 
@@ -176,3 +173,100 @@ def test_every_tagged_release_is_in_the_changelog():
     documented = {name for name, _ in _changelog_headings()}
     missing = sorted(tagged - documented)
     assert not missing, f"tagged but undocumented in CHANGELOG.md: {missing}"
+
+
+# ----------------------------------------------------------------------
+# Supported Python versions
+# ----------------------------------------------------------------------
+#
+# One decision — which Pythons we support — is written down in four places that
+# no other test reads together: `requires-python`, the trove classifiers,
+# ruff's `target-version`, and the CI matrix. Each is independently plausible
+# when wrong, and the failure modes are quiet in different directions.
+# Classifiers are pure metadata, so a stale one misinforms PyPI forever without
+# breaking a build. A CI matrix that has moved past the declared floor stops
+# testing the floor, which is the one version most likely to break. A ruff
+# target below the floor silently disables the modernisation lint the floor
+# just earned. Nothing here would have caught the 3.10/3.11 drop being applied
+# to three of the four.
+
+
+def _pyproject() -> dict:
+    return tomllib.loads(PYPROJECT.read_text())
+
+
+def _classifier_versions() -> list[Version]:
+    """Minor versions from the `Programming Language :: Python :: X.Y` trove tags."""
+    out = []
+    for entry in _pyproject()["project"]["classifiers"]:
+        match = re.fullmatch(r"Programming Language :: Python :: (\d+\.\d+)", entry)
+        if match:  # the bare `:: 3` tag carries no minor version, so it is skipped
+            out.append(Version(match.group(1)))
+    return sorted(out)
+
+
+def _requires_python_floor() -> Version:
+    spec = _pyproject()["project"]["requires-python"]
+    match = re.fullmatch(r">=\s*(\d+\.\d+)", spec.strip())
+    assert match, f"requires-python is {spec!r}; this test assumes a bare `>=X.Y` floor"
+    return Version(match.group(1))
+
+
+def _ci_matrix_versions() -> list[Version]:
+    """The `python-version:` matrix, read out of the workflow YAML.
+
+    Parsed with a regex rather than PyYAML deliberately: PyYAML is not a
+    declared dependency of this package. It arrives transitively today, so
+    importing it would pass now and start skipping this test the day that
+    transitive edge disappears — the exact silent-drift failure this section
+    exists to prevent.
+    """
+    text = CI_WORKFLOW.read_text()
+    match = re.search(r"^\s*python-version:\s*\[(.+?)\]\s*$", text, re.M)
+    assert match, "no `python-version: [...]` matrix found in ci.yml"
+    return sorted(Version(v.strip().strip("\"'")) for v in match.group(1).split(","))
+
+
+def test_classifiers_match_the_ci_matrix():
+    """Every version we claim to support is tested, and vice versa.
+
+    The two drift in opposite directions and both are quiet. A classifier with
+    no matrix leg is a support claim nothing backs; a matrix leg with no
+    classifier means PyPI under-sells what already works.
+    """
+    classifiers = _classifier_versions()
+    matrix = _ci_matrix_versions()
+    assert classifiers == matrix, (
+        f"pyproject classifiers list {[str(v) for v in classifiers]} but the CI "
+        f"matrix tests {[str(v) for v in matrix]}"
+    )
+
+
+def test_requires_python_floor_is_the_lowest_tested_version():
+    """The declared floor is exercised, not just asserted.
+
+    If the matrix moves above `requires-python`, pip still installs on the floor
+    while nothing runs there — the failure surfaces as a user's traceback rather
+    than a red build.
+    """
+    floor = _requires_python_floor()
+    lowest = _ci_matrix_versions()[0]
+    assert floor == lowest, (
+        f"requires-python declares >={floor} but the lowest CI leg is {lowest}; "
+        f"the floor is either untested or understated"
+    )
+
+
+def test_ruff_target_version_matches_the_floor():
+    """ruff's `target-version` is the same floor, spelled ruff's way.
+
+    Set below the floor it suppresses valid modernisation lint; above it, ruff
+    can suggest syntax that does not parse on a version we still ship to.
+    """
+    floor = _requires_python_floor()
+    target = _pyproject()["tool"]["ruff"]["target-version"]
+    expected = f"py{floor.major}{floor.minor}"
+    assert target == expected, (
+        f"requires-python declares >={floor} (ruff `{expected}`) but "
+        f"[tool.ruff] target-version is {target!r}"
+    )

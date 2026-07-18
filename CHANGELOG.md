@@ -92,6 +92,24 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Guards against supported-Python drift (#47)*
+
+- Three tests in `tests/test_packaging.py` cross-checking the four places the
+  supported-version decision is written down — `requires-python`, the trove
+  classifiers, `[tool.ruff] target-version`, and the CI matrix. Nothing read
+  those together before, and each is quiet when wrong in a different way: a
+  stale classifier misinforms PyPI without breaking a build; a matrix that has
+  moved above the declared floor stops testing the floor, which is the version
+  most likely to break; a ruff target below the floor silently disables the lint
+  the floor just earned.
+- Mutation-tested in all four directions — drop a classifier, raise the floor,
+  revert the ruff target, drop the lowest matrix leg — each caught by the
+  specific guard(s) it should be, none firing indiscriminately.
+- The matrix is parsed from the workflow YAML with a regex rather than PyYAML:
+  PyYAML is not a declared dependency, so importing it would pass today and
+  begin silently skipping the day that transitive edge disappears — the exact
+  drift these tests exist to catch.
+
 *Leverage-score sketching tutorial — side by side with R Seurat (#46)*
 
 - `tutorials/sketch_vignette.md` with `ifnb_sketch_tutorial.py`,
@@ -312,6 +330,37 @@ on `main`; none of it is on PyPI.
   disagree with an arm64 R build, by design.
 
 ### Changed
+
+- **Supported Python is now 3.12–3.13; 3.10 and 3.11 are dropped.** The CI matrix
+  moves with it, and `requires-python` becomes `>=3.12`.
+
+  The floor tracks [SPEC 0](https://scientific-python.org/specs/spec-0000/) — the
+  three-years-past-release window numpy, scipy, pandas and scikit-learn keep for
+  themselves — rather than CPython's five-year EOL. By that rule 3.10 lapsed in
+  Oct 2024 and 3.11 in Oct 2025, both already past; going by EOL alone would have
+  held 3.11 until Oct 2027. Those four packages are what actually constrain this
+  library, so theirs is the calendar worth following.
+
+  The full suite passes identically on both legs — 616 passed / 17 skipped — as
+  do all 17 tutorial smoke tests, which CI skips on every leg, run here against
+  the real datasets.
+
+  **Python 3.14 is not included, though it very nearly works.** Every package in
+  the set has a cp314 manylinux wheel except `harmonypy`, which publishes
+  cp39–cp313 only. Without a wheel, uv builds it from source, and that needs BLAS
+  plus a CMake-fetched armadillo `ubuntu-latest` does not have. Forcing a
+  wheels-only resolve is worse: it backtracks to `harmonypy` 0.2.0, which depends
+  on torch and pulls in triton and 24 `nvidia-*` packages. Dropping the
+  `integration` extra on a 3.14 leg does resolve clean (95 packages, wheels only)
+  but would leave 18 harmony tests unrun there. Deferred until `harmonypy` ships
+  a cp314 wheel; see `ROADMAP.md`.
+
+  **Nothing breaks retroactively.** `pip` on 3.10 or 3.11 resolves to 0.2.0, the
+  last release declaring `>=3.10`.
+
+  *Also removed:* the `tomli` dev dependency (`tomllib` is stdlib from 3.11) and
+  its import fallback in `tests/test_packaging.py` — the only version-gated code
+  in the repo. `[tool.ruff] target-version` moves to `py312`.
 
 - **`hto_demux` now defaults to `kfunc="clara"`**, matching Seurat; it first
   shipped defaulting to `"kmeans"`. Callers who never passed `kfunc` get
