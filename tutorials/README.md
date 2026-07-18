@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Three end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Eight end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -16,6 +16,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
 | 6 | [Cell Hashing — Demultiplexing](hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 (human+mouse) | Hashtag assay · CLR (margin 1) · `HTODemux` ↔ `hto_demux` · `MULTIseqDemux` ↔ `multiseq_demux` · cross-species doublet ground truth — **99.81 %** call-concordant with R | Advanced |
 | 7 | [Mixscape — Pooled CRISPR Screen](mixscape_vignette.md) | 20,729 cells · 25 guides + NT · GSE153056 (THP-1 ECCITE-seq) | Perturbation signature (`CalcPerturbSig`) · KO-vs-escaper mixture (`RunMixscape`) · guide-separating LDA (`MixscapeLDA`) · `PlotPerturbScore` / `MixscapeHeatmap` — **97.45 %** per-cell call-concordant with R | Advanced |
+| 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA match R; **caught two RPCA bugs** (a crash, fixed; an anchor-quality gap, tracked) | Advanced |
 
 ---
 
@@ -392,6 +393,59 @@ knockout rate, and rank the strong interferon-γ hits identically (`STAT1` 98.6 
 in the **weak, boundary guides** (`MYC`, `SPI1`, `BRD4`, `CUL3`) whose score sits
 close to the NT mode — a genuine method-level difference in the EM mixture and the
 per-gene DE, not a bug. No defect found.
+
+---
+
+## Tutorial 8 — Batch Integration (R vs Python)
+
+> **Walkthrough:** [`integration_vignette.md`](integration_vignette.md)
+
+A port of Seurat's [integration vignette](https://satijalab.org/seurat/articles/integration_introduction):
+the **ifnb** dataset (Kang et al. 2018), ~14,000 PBMCs split CTRL vs
+interferon-β-stimulated. Interferon drives a global response, so uncorrected the
+cells cluster by *condition* rather than *cell type* — the standard batch-effect
+benchmark. Runs all three of Shanuz's integration paths against Seurat on identical
+counts and a shared variable-feature basis.
+
+```bash
+Rscript tutorials/export_seuratdata.R ifnb        # one-time counts export (~394 MB pkg)
+python  tutorials/ifnb_integration_tutorial.py    # writes HVGs, prints the scoreboard
+Rscript tutorials/ifnb_integration_verify.R       # Seurat reference → r_calls.csv + r_*.png
+python  tutorials/ifnb_integration_tutorial.py    # re-run → prints the R-vs-Python concordance
+python  tutorials/generate_integration_plots.py   # Shanuz figures → figures_integration/py_*.png
+```
+
+**What you'll learn:**
+- `run_harmony` — Seurat's `RunHarmony`: correct the PCA embedding so batches mix
+- `integrate_layers(method="cca"/"rpca")` — Seurat's `IntegrateLayers`: anchor-based
+  correction in a shared CCA space, or reciprocal-PCA
+- Scoring an integration without coordinate-comparable embeddings: silhouette by
+  batch (mixing) and by cell type (preservation), and cluster ARI against the
+  annotations — all partition-based, so R and Python compare on identical terms
+
+**Key output figures** (in `tutorials/figures_integration/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_uncorrected_stim.png` | UMAP of raw PCA, by condition — the batch effect |
+| `py_02_harmony_stim.png` | UMAP after Harmony, by condition — now mixed |
+| `py_03_harmony_celltype.png` | Same map by cell type — the biology survived |
+| `py_04_scoreboard.png` | Batch mixing vs cell-type recovery, per method |
+
+**Accuracy vs R** (partition-based, 13,999 cells; `mix` = batch-mixing entropy):
+
+| method | py mix | R mix | py ARI→celltype | R ARI→celltype |
+|--------|---:|---:|---:|---:|
+| Harmony | **0.991** | **0.991** | 0.917 | 0.930 |
+| CCA | **0.990** | **0.991** | 0.867 | 0.873 |
+| RPCA | 0.222 | 0.914 | 0.444 | 0.735 |
+
+Harmony and CCA reproduce Seurat's integration to three decimals — the first
+real-data confirmation of `run_harmony` / `integrate_layers`. RPCA is where the
+tutorial earned its keep: it surfaced **two defects in `shanuz/anchors.py`** — a
+crash on unequal batch sizes (fixed in this PR, with regression tests) and a
+deeper anchor-quality gap that leaves it ~4× behind Seurat (tracked separately).
+On Shanuz, prefer Harmony or CCA until the RPCA fix lands.
 
 ---
 

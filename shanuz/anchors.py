@@ -387,8 +387,14 @@ def find_integration_anchors(
             query_in_ref = query_scaled.T @ load_ref
             ref_in_query = ref_scaled.T @ load_query
             query_in_query = query_scaled.T @ load_query
+            # Reciprocal search: find B(query)-neighbours of A(ref) in the query's
+            # PCA space, and A-neighbours of B in the ref's space. _mutual_nn wants
+            # (A-in-B, B-in-B, B-in-A, A-in-A) — args 1 & 4 are the reference
+            # (n_ref rows), args 2 & 3 the query (n_query rows). Passing them in a
+            # different order silently mismatches the index spaces and, when
+            # n_query > n_ref, indexes past the b_sets list (IndexError).
             pairs = _mutual_nn(
-                ref_in_ref, query_in_ref, ref_in_query, query_in_query, k_anchor
+                ref_in_query, query_in_query, query_in_ref, ref_in_ref, k_anchor
             )
             combined = np.vstack([ref_in_ref, query_in_ref])
             weight_emb = query_in_ref

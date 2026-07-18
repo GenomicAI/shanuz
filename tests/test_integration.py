@@ -215,6 +215,47 @@ def test_integrate_data_rpca_clusters_by_celltype():
     assert silhouette_score(emb, celltype) > silhouette_score(emb, batch)
 
 
+def _unequal_pair(n_ref=40, n_query=70, seed=0):
+    """A ref/query pair with DIFFERENT cell counts — the shape real batches have.
+
+    ``_object_pair`` builds 100 cells on each side; the balanced case never
+    exercises the code path where one dataset is larger than the other.
+    """
+    ref, ct_ref = _one_batch_object("1", seed=seed, n_per=n_ref)
+    query, ct_query = _one_batch_object("2", seed=seed + 1, n_per=n_query)
+    return [ref, query], np.concatenate([ct_ref, ct_query])
+
+
+def test_find_integration_anchors_rpca_handles_unequal_sizes():
+    """RPCA anchoring must not assume the reference and query are the same size.
+
+    Regression for an IndexError in the reciprocal-PCA branch: it searched for
+    query neighbours but indexed the result with reference-sized bounds, so any
+    pair with ``n_query > n_ref`` (every real dataset — ifnb is CTRL 6548 vs STIM
+    7451) walked off the end of the neighbour list. Balanced fixtures (equal
+    n_per) masked it, and even without the crash the anchors were degenerate.
+    ``cca`` is the sanity baseline on the identical objects.
+    """
+    for n_ref, n_query in ((40, 70), (70, 40)):   # both orderings
+        objs, _ = _unequal_pair(n_ref=n_ref, n_query=n_query)
+        assert len(objs[0]) != len(objs[1])
+        rpca = find_integration_anchors(objs, reduction="rpca", k_filter=0)
+        cca = find_integration_anchors(objs, reduction="cca", k_filter=0)
+        # Real mutual anchors, not a crash and not a near-empty degenerate set.
+        assert len(rpca.anchors) > 0
+        assert len(rpca.anchors) > 0.2 * len(cca.anchors)
+
+
+def test_integrate_data_rpca_unequal_sizes_clusters_by_celltype():
+    """End-to-end RPCA correction still works when the datasets differ in size."""
+    objs, celltype = _unequal_pair()
+    batch = np.array(["1"] * len(objs[0]) + ["2"] * len(objs[1]))
+    anchors = find_integration_anchors(objs, reduction="rpca")
+    merged = integrate_data(anchors)
+    emb = _integrated_pca(merged)
+    assert silhouette_score(emb, celltype) > silhouette_score(emb, batch)
+
+
 def test_integrate_data_leaves_the_reference_untouched():
     objs, _ = _object_pair()
     anchors = find_integration_anchors(objs, reduction="cca")

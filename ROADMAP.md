@@ -48,6 +48,12 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   query onto the reference with a Gaussian-weighted sum of anchor correction
   vectors and returns a merged object carrying an active `"integrated"` assay.
   Verified (`tests/test_integration.py`) to cluster by cell type, not batch.
+- **⚠️ RPCA caveat (found in T6, `integration_vignette.md`):** the `reduction="rpca"`
+  path has two real defects the synthetic tests missed — a crash on unequal batch
+  sizes (**fixed**, with regression tests) and an anchor-quality gap that leaves it
+  ~4× behind Seurat's RPCA on ifnb (batch-mix 0.222 vs 0.914, **tracked as its own
+  PR**). `reduction="cca"` and `run_harmony` both match Seurat to three decimals —
+  prefer them until the RPCA anchor fix lands.
 - **R:** `FindIntegrationAnchors(list, reduction="cca")` → `IntegrateData(anchors)`
 - **Implemented:**
   1. `find_integration_anchors(objects, reduction, dims, k_anchor, k_filter, k_score, reference)` → `IntegrationAnchors`
@@ -861,7 +867,7 @@ regime. Don't "simplify" them.
     lands at 94.67 %; the gap is a real KDE-implementation difference (scipy
     `gaussian_kde` vs R `density()` — bandwidth *and* grid), logged not papered
     over. No defect found — the demuxers hold up.
-  - **T9 Mixscape — ✅ delivered (this PR).** `calc_perturb_sig` / `run_mixscape`
+  - **T9 Mixscape — ✅ delivered (#40).** `calc_perturb_sig` / `run_mixscape`
     / `mixscape_lda` on GSE153056 (`mixscape_vignette.md`). On a shared
     variable-feature basis, per-cell class concordance is **97.45 %** (KO/NP/NT and
     the full `<gene> KO`/`NP` class) — all NT cells agree, the same 14 guides read
@@ -869,11 +875,24 @@ regime. Don't "simplify" them.
     the weak boundary guides (MYC/SPI1/BRD4/CUL3) where the EM mixture is
     init-sensitive — a real method-level residual on a far more stochastic pipeline
     than the demuxers, not a bug. No defect found.
-  - Remaining: T6 integration (ifnb), T8 reference mapping (panc8).
-- **Expect bugs, and read a mismatch as a bug report.** Going 2-for-2 before Wave 1
-  (T7 then T9 made it 2-for-4 clean), the later tutorials may still surface real
-  defects. The known-good tolerance is narrow — deterministic values match exactly,
-  Louvain cluster counts drift ±1 — so anything outside that band gets investigated,
+  - **T6 integration — ✅ delivered (this PR). First defects of the initiative.**
+    `run_harmony` / `integrate_layers` on ifnb (`integration_vignette.md`). Harmony
+    and CCA reproduce Seurat's batch mixing and cell-type recovery to **three
+    decimals** (batch-mixing entropy py/R 0.991 & 0.990/0.991). But investigating
+    RPCA surfaced **two real bugs in `shanuz/anchors.py`**: (1) a crash on unequal
+    batch sizes — the reciprocal-PCA MNN args were mis-ordered, `IndexError`
+    whenever n_query > n_ref, masked by the balanced synthetic test fixtures —
+    **fixed here** with unequal-size regression tests; (2) an anchor-quality gap
+    that leaves RPCA integrating ~4× worse than Seurat (batch-mix 0.222 vs 0.914),
+    traced to the reciprocal projection producing wrong pairs (quality, not count),
+    **tracked as its own PR** — a core-`anchors.py` change, not tutorial scope.
+  - Remaining: T8 reference mapping (panc8).
+- **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7 and T9
+  clean, then **T6 found the first two defects** — exactly the point: a green
+  synthetic suite (balanced batches, self-consistent fixtures) hid a crash and a
+  4× under-integration that one real Seurat comparison exposed immediately. The
+  known-good tolerance is narrow — deterministic values match exactly, Louvain
+  cluster counts drift ±1 — so anything outside that band gets investigated,
   not written up as an expected difference. This repo has twice let a real defect
   hide behind a documented "language difference" caveat.
 
