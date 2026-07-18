@@ -23,6 +23,27 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Integration tutorial — Harmony / CCA / RPCA, side by side with R Seurat (#41)*
+
+- `tutorials/integration_vignette.md` with `ifnb_integration_tutorial.py`,
+  `ifnb_integration_verify.R`, and `generate_integration_plots.py` — the three
+  batch-integration paths (`run_harmony` / `integrate_layers(method="cca"|"rpca")`)
+  on the ifnb IFN-β benchmark (Kang et al. 2018), compared against Seurat on
+  identical exported counts and a shared variable-feature basis. The concordance is
+  partition-based (cluster ARI, cell-type-recovery ARI, batch-mixing entropy) since
+  integration embeddings are not coordinate-comparable across tools.
+- **First real-data fidelity result for the integration features** (v0.2.0; only
+  synthetic-fixture tests before): Harmony and CCA reproduce Seurat's batch mixing
+  and cell-type recovery to three decimals (batch-mixing entropy py/R 0.991 and
+  0.990/0.991). **The first tutorial in the initiative to find real defects** —
+  see *Fixed* (the RPCA crash) and the walkthrough (the RPCA anchor-quality gap,
+  which under-integrates ~4× vs Seurat and is tracked as its own PR).
+- Added to the opt-in tutorial smoke suite (`SHANUZ_TUTORIAL_SMOKE=1`) and covered
+  by `tests/test_integration_tutorial.py` (network-free: the silhouette/ARI/entropy
+  helpers and the load→prep→integrate→score→concordance path on a synthetic
+  two-condition dataset with *unequal* batch sizes). Suite 507 → 522. No new `pip`
+  dependencies (the R reference uses the already-listed `harmony` package).
+
 *Mixscape tutorial — `CalcPerturbSig` + `RunMixscape` + `MixscapeLDA`, side by side with R Seurat (#40)*
 
 - `tutorials/mixscape_vignette.md` with `thp1_mixscape_tutorial.py`,
@@ -166,6 +187,19 @@ on `main`; none of it is on PyPI.
   Seurat's hashing vignette does at its own default. (#32)
 
 ### Fixed
+
+- `find_integration_anchors(reduction="rpca")` crashed with `IndexError` on any
+  pair of datasets with **unequal cell counts** — i.e. every real dataset (the
+  ifnb benchmark is CTRL 6,548 vs STIM 7,451). The reciprocal-PCA branch passed its
+  mutual-nearest-neighbour helper the reference/query projections in the wrong
+  order, so the query-neighbour list was sized to the reference and indexed past
+  its end whenever the query was larger. Balanced synthetic fixtures (equal batch
+  sizes) never tripped it. Fixed by restoring the argument order, with two
+  regression tests over unequal-size batches (both orderings). Found while building
+  the ifnb integration tutorial (#41). *A separate, deeper RPCA anchor-quality gap
+  — it under-integrates ~4× vs Seurat's RPCA — is documented in the tutorial and
+  tracked as its own PR; `reduction="cca"` and `run_harmony` are unaffected and
+  match Seurat.*
 
 - **BREAKING** — `normalize_data`'s CLR `margin` argument was inverted relative
   to Seurat. `margin=1` is now per-feature across cells (Seurat's default) and

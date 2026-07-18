@@ -44,6 +44,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization and WNN joint clustering
 - **Cell-hashing tutorial** — `hto_demux` + `multiseq_demux` demultiplexing, 99.81% call-concordant with R Seurat's `HTODemux`
 - **Mixscape tutorial** — pooled-CRISPR `calc_perturb_sig` + `run_mixscape` + `mixscape_lda`, 97.45% per-cell call-concordant with R Seurat on the THP-1 ECCITE-seq screen
+- **Integration tutorial** — `run_harmony` / `integrate_layers` on the ifnb IFN-β benchmark; Harmony and CCA match R Seurat's batch mixing and cell-type recovery to three decimals. The first tutorial to catch real defects: a crash in the RPCA path on unequal batch sizes (fixed) and an RPCA anchor-quality gap (tracked)
 - **Xenium spatial tutorial** — spatial neighbourhood/niche analysis, verified to 8 s.f. against R Seurat
 
 ---
@@ -135,9 +136,10 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Seven end-to-end tutorials — from basic guided clustering through multimodal
-CITE-seq, cell-hashing demultiplexing and pooled-CRISPR Mixscape to Xenium
-spatial — each pairing R Seurat code side-by-side with the Python Shanuz equivalent.
+Eight end-to-end tutorials — from basic guided clustering through multimodal
+CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape and batch
+integration to Xenium spatial — each pairing R Seurat code side-by-side with the
+Python Shanuz equivalent.
 See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
@@ -149,6 +151,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 5 | [Xenium — Spatial (R vs Python)](https://github.com/GenomicAI/shanuz/blob/main/tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
 | 6 | [Cell Hashing — Demultiplexing](https://github.com/GenomicAI/shanuz/blob/main/tutorials/hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 | Advanced |
 | 7 | [Mixscape — Pooled CRISPR Screen](https://github.com/GenomicAI/shanuz/blob/main/tutorials/mixscape_vignette.md) | 20,729 cells · 25 guides · GSE153056 | Advanced |
+| 8 | [Batch Integration — Harmony/CCA/RPCA](https://github.com/GenomicAI/shanuz/blob/main/tutorials/integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -171,6 +174,9 @@ python tutorials/pbmc_hashing_tutorial.py && python tutorials/generate_hashing_p
 
 # Tutorial 7 — Mixscape pooled-CRISPR screen (auto-downloads ~66 MB)
 python tutorials/thp1_mixscape_tutorial.py && python tutorials/generate_mixscape_plots.py
+
+# Tutorial 8 — Batch integration (needs a one-time `Rscript tutorials/export_seuratdata.R ifnb`)
+python tutorials/ifnb_integration_tutorial.py && python tutorials/generate_integration_plots.py
 ```
 
 ---
@@ -333,9 +339,9 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 507 tests pass.
+All 522 tests pass.
 
-Seven further tests run the tutorials end-to-end against real data. They are opt-in
+Eight further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
 CI:
 
