@@ -39,6 +39,7 @@ TUTORIALS = [
     ("thp1_mixscape_tutorial.py", "thp1_eccite"),
     ("ifnb_integration_tutorial.py", "ifnb"),
     ("panc8_reference_mapping_tutorial.py", "panc8"),
+    ("thp1_cellcycle_tutorial.py", "thp1_eccite"),
 ]
 
 pytestmark = pytest.mark.skipif(
@@ -121,6 +122,30 @@ def test_panc8_reference_mapping_recovers_celltype():
     assert summary["accuracy"] >= 0.9                        # observed 0.985
     assert len(anchors.anchors) > 500                        # observed ~3550
     assert summary["scoreboard"]["mean_score"].iloc[0] >= 0.9
+
+
+def test_thp1_cellcycle_recovers_phases():
+    """Cell-cycle scoring on real data: THP-1 must show real S/G2M populations.
+
+    THP-1 is a proliferating line, so cell_cycle_scoring should place a
+    substantial minority of cells in S and G2/M — not collapse everything to G1
+    (which a broken module score, e.g. all-zero, would do since G1 is the
+    both-scores-<=0 default). Also checks agreement with Papalexi's published
+    phase, a signal that the scoring is producing sensible values. Observed:
+    G1 0.72 / S 0.15 / G2M 0.13, published concordance 0.88.
+    """
+    if not (DATA_ROOT / "thp1_eccite").is_dir():
+        pytest.skip("dataset 'thp1_eccite' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.thp1_cellcycle_tutorial import run_full
+
+    _obj, summary = run_full(verbose=False)
+    dist = summary["phase_distribution"].set_index("phase")
+    assert dist.loc["S", "fraction"] >= 0.08            # observed 0.15
+    assert dist.loc["G2M", "fraction"] >= 0.06          # observed 0.13
+    assert dist.loc["G1", "fraction"] <= 0.90           # not collapsed to all-G1
+    assert summary["published_concordance"] >= 0.75     # observed 0.88
 
 
 @pytest.mark.parametrize("script,dataset", [TUTORIALS[0]])

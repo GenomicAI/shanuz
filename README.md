@@ -46,6 +46,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **Mixscape tutorial** — pooled-CRISPR `calc_perturb_sig` + `run_mixscape` + `mixscape_lda`, 97.45% per-cell call-concordant with R Seurat on the THP-1 ECCITE-seq screen
 - **Integration tutorial** — `run_harmony` / `integrate_layers` on the ifnb IFN-β benchmark; Harmony and CCA match R Seurat's batch mixing and cell-type recovery to three decimals. The first tutorial to catch real defects: two RPCA-path bugs, both fixed — a crash on unequal batch sizes and a 4× under-integration (per-object scaling + Seurat's reciprocal-embedding normalization, batch mixing 0.222 → 0.867)
 - **Reference mapping tutorial** — `find_transfer_anchors` / `transfer_data` / `map_query` on the panc8 cross-technology benchmark; label transfer is 98.71% per-cell concordant with R Seurat, both ~98.5% accurate against the held-out cell types
+- **Cell-cycle & module-score tutorial** — `cell_cycle_scoring` / `add_module_score` on the proliferating THP-1 line; per-cell phase is 96.6% concordant with R Seurat and the S/G2M/module scores correlate at Pearson ≥ 0.998 (residual is the control-gene RNG)
 - **Xenium spatial tutorial** — spatial neighbourhood/niche analysis, verified to 8 s.f. against R Seurat
 
 ---
@@ -137,10 +138,10 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Nine end-to-end tutorials — from basic guided clustering through multimodal
-CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration
-and reference mapping to Xenium spatial — each pairing R Seurat code side-by-side
-with the Python Shanuz equivalent.
+Ten end-to-end tutorials — from basic guided clustering through multimodal
+CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
+reference mapping and cell-cycle scoring to Xenium spatial — each pairing R Seurat
+code side-by-side with the Python Shanuz equivalent.
 See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
@@ -154,6 +155,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 7 | [Mixscape — Pooled CRISPR Screen](https://github.com/GenomicAI/shanuz/blob/main/tutorials/mixscape_vignette.md) | 20,729 cells · 25 guides · GSE153056 | Advanced |
 | 8 | [Batch Integration — Harmony/CCA/RPCA](https://github.com/GenomicAI/shanuz/blob/main/tutorials/integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
 | 9 | [Reference Mapping — Label Transfer](https://github.com/GenomicAI/shanuz/blob/main/tutorials/refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 | Advanced |
+| 10 | [Cell-cycle & Module Scoring](https://github.com/GenomicAI/shanuz/blob/main/tutorials/cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -182,6 +184,9 @@ python tutorials/ifnb_integration_tutorial.py && python tutorials/generate_integ
 
 # Tutorial 9 — Reference mapping (needs a one-time `Rscript tutorials/export_seuratdata.R panc8`)
 python tutorials/panc8_reference_mapping_tutorial.py && python tutorials/generate_refmap_plots.py
+
+# Tutorial 10 — Cell-cycle & module scoring (downloads ~66 MB, shared with Mixscape)
+python tutorials/thp1_cellcycle_tutorial.py && python tutorials/generate_cellcycle_plots.py
 ```
 
 ---
@@ -344,9 +349,9 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 536 tests pass.
+All 547 tests pass.
 
-Eleven further tests run the tutorials end-to-end against real data. They are opt-in
+Thirteen further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
 CI:
 
