@@ -58,3 +58,10 @@ tutorials/figures_dimreduc/r_ica.csv
 tutorials/figures_dimreduc/r_tsne.csv
 tutorials/figures_dimreduc/hvg_features.txt
 tutorials/figures_dimreduc/cells.txt
+tutorials/figures_sketch/r_leverage.csv
+tutorials/figures_sketch/r_sketch_composition.csv
+tutorials/figures_sketch/r_sketch_cells.csv
+tutorials/figures_sketch/r_projection.csv
+tutorials/figures_sketch/hvg_features.txt
+tutorials/figures_sketch/cells.txt
+tutorials/figures_sketch/ifnb_data.lazy
