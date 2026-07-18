@@ -149,11 +149,11 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Twelve end-to-end tutorials — from basic guided clustering through multimodal
+Thirteen end-to-end tutorials — from basic guided clustering through multimodal
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
-reference mapping, cell-cycle scoring, PC-significance testing and leverage-score
-sketching to Xenium spatial — each pairing R Seurat code side-by-side with the
-Python Shanuz equivalent.
+reference mapping, cell-cycle scoring, PC-significance testing, leverage-score
+sketching and the object model itself to Xenium spatial — each pairing R Seurat
+code side-by-side with the Python Shanuz equivalent.
 See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
@@ -170,6 +170,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 10 | [Cell-cycle & Module Scoring](https://github.com/GenomicAI/shanuz/blob/main/tutorials/cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 | Advanced |
 | 11 | [Dimensional-Reduction Extras](https://github.com/GenomicAI/shanuz/blob/main/tutorials/dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 | 12 | [Leverage-Score Sketching](https://github.com/GenomicAI/shanuz/blob/main/tutorials/sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
+| 13 | [The Object Model Itself](https://github.com/GenomicAI/shanuz/blob/main/tutorials/objects_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -201,6 +202,9 @@ python tutorials/panc8_reference_mapping_tutorial.py && python tutorials/generat
 
 # Tutorial 10 — Cell-cycle & module scoring (downloads ~66 MB, shared with Mixscape)
 python tutorials/thp1_cellcycle_tutorial.py && python tutorials/generate_cellcycle_plots.py
+
+# Tutorial 13 — The object model (downloads ~24 MB, shared with Tutorial 1)
+python tutorials/pbmc3k_objects_tutorial.py && python tutorials/generate_objects_plots.py
 ```
 
 ---

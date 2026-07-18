@@ -23,6 +23,52 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+*The object model, audited against Seurat 5.5.1 (#48)*
+
+Eleven fidelity defects, found by the first tutorial to compare the **container**
+rather than an algorithm. `join_layers` / `split_layers` had zero call sites and
+zero tests before this — the defining feature of the v5 object model, never once
+run.
+
+- **`split` / `JoinLayers` was not a round trip.** The join returned a layer
+  named `joined` (Seurat restores the original name) whose columns were in the
+  *split's* order rather than the assay's. The assay's own cell vector never
+  moves during a split, so the matrix came back **silently misaligned against
+  the metadata that indexes it** — ask for cell `c1`'s column, get `c2`'s. Every
+  shape, sum and checksum was intact, because every value was still present.
+  `join_layers()` with no arguments — the only call a real script makes — also
+  raised `ValueError` on any prepared assay, hstacking `counts`, `data` and a
+  variable-features-only `scale.data` together regardless of feature count. The
+  fix groups layers by the stem they were split from and records that provenance
+  at split time, because the name cannot be parsed back: Seurat's own
+  `scale.data` contains the separator. Split parts are now named `counts.batch1`,
+  Seurat's spelling, not `counts_batch1`.
+- **`shanuz.generics.split_layers` was declared but never registered** for any
+  type, so the documented generic raised `NotImplementedError` while the method
+  it should have dispatched to worked fine.
+- **`fetch_data` returned objects instead of numbers.** `np.asarray` on a sparse
+  matrix yields a 0-d *object* array wrapping it, not its contents, so
+  `.flatten()` broadcast one `csc_matrix` down every row — 2,700 copies of the
+  whole matrix in place of 2,700 expression values, on the most-called accessor
+  in Seurat and on the default assay class. Its test asserted the column name
+  and the row count, both of which that satisfies.
+- **`fetch_data` could not address an embedding column by its key.** `PC_1`
+  raised `KeyError`; only the reduction name worked, and it emitted `pca_1`
+  rather than the `Key()`-derived `PC_1` R uses. Both now work.
+- **`fetch_data` read `counts` where R reads `data`**, returning raw integers
+  where every vignette shows normalized expression. It now defaults to `data`
+  and, when there is no `data` layer, falls back to `counts` *with a warning*,
+  as Seurat does.
+- **The command log was inert.** `log_shanuz_command` was a public export with
+  no call sites, so `obj.commands` was always empty where Seurat logs one entry
+  per pipeline step. `normalize_data`, `find_variable_features`, `scale_data`,
+  `run_pca` and `find_neighbors` now log, keyed as Seurat keys them
+  (`NormalizeData.RNA` … `FindNeighbors.RNA.pca`).
+- **`orig.ident` was never created.** It is the first column of every Seurat
+  object's metadata and the default identity class.
+- **`add_meta_data` rejected a plain vector**, which is the form R's
+  `AddMetaData` documents and the vignettes pass it.
+
 *Leverage-score sketching: flattened sampling weights and the wrong label transfer (#46)*
 
 - **`leverage_score` whitened against the full rank.** Seurat computes leverage
@@ -91,6 +137,22 @@ on `main`; none of it is on PyPI.
   to reject, and both were mutation-tested against the old code.
 
 ### Added
+
+*Object-internals tutorial — the container, side by side with Seurat (#48)*
+
+- `tutorials/pbmc3k_objects_tutorial.py` + `pbmc3k_objects_verify.R` +
+  `objects_vignette.md` + `figures_objects/`. The first tutorial to compare the
+  **object model** rather than an algorithm: `Cells`/`Features`, the layered
+  assay, `Key`, `Embeddings`/`Loadings`/`Stdev`, `Graphs`, `FetchData`,
+  `Idents`/`WhichCells`/`RenameIdents`/`subset`, and the command log.
+- Nothing in it is stochastic, so **89 of 91 anchors are compared with no
+  tolerance at all** — orders, names, dimensions, keys and non-zero counts
+  either match Seurat or they do not. The two exceptions are the fields that
+  read a PCA, named explicitly rather than covered by a blanket rule.
+- 43 tests: 25 on the tutorial's own helpers (including the comparison
+  instrument itself — one that always agrees would make every number it prints
+  worthless) and 18 regressions on the defects above. All mutation-tested.
+- Tutorial coverage of public exports: **36/103 → 81/104**.
 
 *Guards against supported-Python drift (#47)*
 

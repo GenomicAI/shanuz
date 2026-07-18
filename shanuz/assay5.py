@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from abc import ABC, abstractmethod
 from typing import Optional, Type, Union
@@ -12,6 +13,11 @@ from ._sparse import as_sparse, empty_sparse, is_matrix_empty
 from ._utils import validate_cell_names, validate_feature_names
 from .logmap import LogMap
 from .mixins import KeyMixin
+
+#: Separator between a layer's stem and its split group, as in ``counts.batch1``.
+#: Seurat's spelling, and not configurable — it is what ``Layers()`` returns and
+#: what users write patterns against.
+_SPLIT_SEP = "."
 
 
 class StdAssay(KeyMixin, ABC):
@@ -48,6 +54,7 @@ class StdAssay(KeyMixin, ABC):
         "_all_feature_names",
         "_scaled_features",
         "_var_features",
+        "_split_stems",
     )
 
     def __init__(
@@ -83,6 +90,8 @@ class StdAssay(KeyMixin, ABC):
         self._layer_cells: dict[str, list[str]] = {}
         self._scaled_features: list[str] = []
         self._var_features: list[str] = []
+        # Layer name -> the layer it was split from. See `_stem_of`.
+        self._split_stems: dict[str, str] = {}
 
         layer_features = layer_features or {}
         layer_cells = layer_cells or {}
@@ -265,35 +274,98 @@ class StdAssay(KeyMixin, ABC):
     # Join / split layers
     # ------------------------------------------------------------------
 
+    def _drop_layer(self, name: str) -> None:
+        """Forget a layer and every index that mentions it."""
+        self.layers.pop(name, None)
+        self._layer_features.pop(name, None)
+        self._layer_cells.pop(name, None)
+        self._split_stems.pop(name, None)
+        if name in self._features:
+            del self._features[name]
+        if name in self._cells:
+            del self._cells[name]
+
+    def _stem_of(self, name: str) -> Optional[str]:
+        """The layer this one was split from, or ``None`` if it was not.
+
+        Provenance is *recorded* by :meth:`split_layers` rather than parsed back
+        out of the name, because the name cannot be parsed reliably: Seurat's own
+        ``scale.data`` contains the separator, so splitting on the last ``.``
+        would read it as layer ``scale`` of group ``data`` and rejoin it into
+        something that never existed.
+        """
+        return self._split_stems.get(name)
+
     def join_layers(self, layers: Optional[list[str]] = None) -> "StdAssay":
-        names = layers if layers is not None else list(self.layers)
-        if not names:
-            return self
-        mats = [self.layers[n] for n in names if n in self.layers]
-        if not mats:
-            return self
-        if sp.issparse(mats[0]):
-            joined = sp.hstack(mats, format="csc")
+        """Rejoin split layers, restoring the name, order and contents.
+
+        Mirrors R's ``JoinLayers``. Each split *stem* is rejoined separately —
+        ``counts.batch1`` and ``counts.batch2`` become ``counts`` again — and
+        layers that were never split are left alone, which is what makes the
+        no-argument call safe on a prepared assay that also holds ``data`` and a
+        variable-features-only ``scale.data``.
+
+        The rejoined columns come back in the **assay's** cell order, not in the
+        order the split happened to produce. The assay's own cell vector never
+        moved during the split, so anything else would leave the matrix silently
+        transposed against the metadata that indexes it.
+        """
+        if layers is not None:
+            # Explicit list: caller names the parts, so take the stem from the
+            # recorded provenance and fall back to the shared prefix.
+            parts = [n for n in layers if n in self.layers]
+            if not parts:
+                return self
+            stems = {self._stem_of(n) for n in parts}
+            stem = stems.pop() if len(stems) == 1 and None not in stems else None
+            if stem is None:
+                stem = os.path.commonprefix(parts).rstrip(_SPLIT_SEP)
+            groups = {stem or parts[0]: parts}
         else:
-            joined = np.hstack(mats)
-        # For simplicity: joined layer keeps all cells from all joined layers
+            groups = {}
+            for name in self.layers:
+                stem = self._stem_of(name)
+                if stem is not None:
+                    groups.setdefault(stem, []).append(name)
+        if not groups:
+            return self
+
         new_obj = self._copy()
-        joined_cells: list[str] = []
-        for n in names:
-            joined_cells.extend(new_obj._layer_cells.get(n, new_obj._all_cell_names))
-            del new_obj.layers[n]
-            new_obj._layer_features.pop(n, None)
-            new_obj._layer_cells.pop(n, None)
-            if n in new_obj._features:
-                del new_obj._features[n]
-            if n in new_obj._cells:
-                del new_obj._cells[n]
-        new_obj.layers["joined"] = joined
-        new_obj._layer_features["joined"] = list(new_obj._all_feature_names)
-        new_obj._layer_cells["joined"] = joined_cells
+        for stem, parts in groups.items():
+            features = list(self._layer_features.get(
+                parts[0], self._all_feature_names))
+            for part in parts[1:]:
+                if list(self._layer_features.get(part, self._all_feature_names)) != features:
+                    raise ValueError(
+                        f"Cannot join layers {parts!r}: they do not span the "
+                        f"same features."
+                    )
+
+            mats = [self.layers[p] for p in parts]
+            combined = (sp.hstack(mats, format="csc") if sp.issparse(mats[0])
+                        else np.hstack(mats))
+
+            # Column j of `combined` belongs to concat_cells[j]; put them back
+            # into the assay's order.
+            concat_cells = [c for p in parts
+                            for c in self._layer_cells.get(p, self._all_cell_names)]
+            position = {c: j for j, c in enumerate(concat_cells)}
+            ordered = [c for c in self._all_cell_names if c in position]
+            combined = combined[:, [position[c] for c in ordered]]
+
+            for part in parts:
+                new_obj._drop_layer(part)
+            new_obj._add_layer(stem, combined,
+                               feature_names=features, cell_names=ordered)
         return new_obj
 
     def split_layers(self, f: list[str], layer: Optional[str] = None) -> "StdAssay":
+        """Split one layer into per-group layers, as R's ``split()`` does.
+
+        The parts are named ``<layer>.<group>`` — Seurat's spelling, which users
+        match on with ``Layers(obj, pattern = "counts")`` — and each records the
+        layer it came from so :meth:`join_layers` can put it back.
+        """
         if layer is None:
             layer = self.default_layer
         if layer is None:
@@ -302,27 +374,22 @@ class StdAssay(KeyMixin, ABC):
         if len(f) != mat.shape[1]:
             raise ValueError("f must have one entry per cell.")
 
-        groups = {}
+        groups: dict[str, list[int]] = {}
         for i, g in enumerate(f):
-            groups.setdefault(g, []).append(i)
+            groups.setdefault(str(g), []).append(i)
 
         new_obj = self._copy()
         base_feats = list(new_obj._layer_features.get(layer, new_obj._all_feature_names))
         base_cells = list(new_obj._layer_cells.get(layer, new_obj._all_cell_names))
-        del new_obj.layers[layer]
-        new_obj._layer_features.pop(layer, None)
-        new_obj._layer_cells.pop(layer, None)
-        if layer in new_obj._features:
-            del new_obj._features[layer]
-        if layer in new_obj._cells:
-            del new_obj._cells[layer]
+        new_obj._drop_layer(layer)
         for g, idxs in groups.items():
-            key = f"{layer}_{g}"
+            key = f"{layer}{_SPLIT_SEP}{g}"
             new_obj._add_layer(
                 key, mat[:, idxs],
                 feature_names=base_feats,
                 cell_names=[base_cells[i] for i in idxs],
             )
+            new_obj._split_stems[key] = layer
         return new_obj
 
     # ------------------------------------------------------------------
@@ -393,6 +460,11 @@ class StdAssay(KeyMixin, ABC):
         )
         new._var_features = [f for f in self._var_features if f in keep_feat]
         new._scaled_features = [f for f in self._scaled_features if f in keep_feat]
+        # Carry the split provenance across: without it a subset of a split
+        # assay can never be rejoined, and `join_layers` would report success
+        # having done nothing, because it would find no stems to group.
+        new._split_stems = {k: v for k, v in self._split_stems.items()
+                            if k in new_layers}
         return new
 
     # ------------------------------------------------------------------
@@ -516,6 +588,7 @@ class StdAssay(KeyMixin, ABC):
         )
         new._var_features = list(self._var_features)
         new._scaled_features = list(self._scaled_features)
+        new._split_stems = dict(self._split_stems)
         return new
 
     # ------------------------------------------------------------------

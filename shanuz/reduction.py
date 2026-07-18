@@ -9,6 +9,7 @@ from typing import Optional
 import numpy as np
 import scipy.sparse as sp
 
+from .command import log_shanuz_command
 from .dimreduc import DimReduc
 
 
@@ -80,6 +81,10 @@ def run_pca(
     )
 
     seurat.reductions[reduction_name] = dr
+    log_shanuz_command(
+        seurat, "RunPCA", assay=assay_name,
+        params={"n_pcs": n_pcs, "reduction_name": reduction_name, "seed": seed},
+    )
 
 
 def run_spca(

@@ -9,6 +9,7 @@ from typing import Optional, Union
 import numpy as np
 import scipy.sparse as sp
 
+from .command import log_shanuz_command
 from .graph import Graph
 
 
@@ -72,6 +73,11 @@ def find_neighbors(
     )
     seurat.graphs[snn_name] = Graph(
         matrix=snn_mat, cell_names=cells, assay_used=assay_name
+    )
+    log_shanuz_command(
+        seurat, "FindNeighbors", assay=assay_name, reduction=reduction,
+        params={"k_param": k_param, "prune_snn": prune_snn,
+                "dims": list(dims) if dims is not None else None},
     )
 
 

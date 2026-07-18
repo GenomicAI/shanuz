@@ -21,7 +21,7 @@ class ShanuzCommand:
     params      : dict       non-function parameters passed to the command
     """
 
-    __slots__ = ("name", "time_stamp", "assay_used", "call_string", "params")
+    __slots__ = ("name", "time_stamp", "assay_used", "call_string", "params", "key")
 
     def __init__(
         self,
@@ -30,12 +30,18 @@ class ShanuzCommand:
         assay_used: Optional[str] = None,
         call_string: str = "",
         params: Optional[dict] = None,
+        key: Optional[str] = None,
     ) -> None:
         self.name = name
         self.time_stamp = time_stamp or datetime.now()
         self.assay_used = assay_used
         self.call_string = call_string
         self.params = params or {}
+        #: How R indexes this entry in ``obj@commands`` — the command name, the
+        #: assay, and for reduction-consuming steps the reduction, joined with
+        #: dots: ``FindNeighbors.RNA.pca``. Scripts look entries up by this, so
+        #: it is data rather than decoration and matches Seurat's spelling.
+        self.key = key or name
 
     def default_assay(self) -> Optional[str]:
         return self.assay_used
@@ -86,10 +92,15 @@ def log_shanuz_command(
     func_name: str,
     params: Optional[dict] = None,
     assay: Optional[str] = None,
+    reduction: Optional[str] = None,
 ) -> "ShanuzCommand":
     """Capture a command log entry, typically called at the end of a function.
 
-    Mirrors R's LogSeuratCommand.
+    Mirrors R's LogSeuratCommand, including how it names the entry: Seurat's
+    function name, the assay, and the reduction where one was consumed. The
+    names are R's (``RunPCA``, not ``run_pca``) because the log is a lookup
+    table users query — the same reasoning that keeps layer names ``scale.data``
+    and reduction keys ``PC_``.
     """
     params = params or {}
     # Remove any callable values (functions/lambdas) from params log
@@ -101,11 +112,13 @@ def log_shanuz_command(
     call_parts.append(")")
     call_string = "".join(call_parts)
 
+    key = ".".join(p for p in (func_name, assay, reduction) if p)
     cmd = ShanuzCommand(
         name=func_name,
         assay_used=assay,
         call_string=call_string,
         params=safe_params,
+        key=key,
     )
     # Append to object's command log if it has one
     if hasattr(object_, "commands") and isinstance(object_.commands, list):
