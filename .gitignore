@@ -43,6 +43,10 @@ tutorials/figures_integration/r_calls.csv
 tutorials/figures_integration/hvg_features.txt
 tutorials/figures_refmap/r_calls.csv
 tutorials/figures_refmap/hvg_features.txt
+tutorials/figures_cellcycle/r_calls.csv
+tutorials/figures_cellcycle/s_genes.txt
+tutorials/figures_cellcycle/g2m_genes.txt
+tutorials/figures_cellcycle/ifn_genes.txt
 
 # OS
 .DS_Store

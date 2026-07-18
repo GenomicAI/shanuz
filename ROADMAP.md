@@ -854,9 +854,9 @@ regime. Don't "simplify" them.
 - **Plan:** ~12 new side-by-side tutorials in four waves, one tutorial per PR, in
   the existing shape (`<name>_tutorial.py` + `<name>_verify.R` + `<name>.md` +
   `figures_<name>/`). Wave 1 = integration (ifnb), cell hashing (GSE108313),
-  reference mapping (panc8), Mixscape (GSE153056). Later waves: spatial/scale, the
-  DE-test suite, cell-cycle/module scores, the visualization gallery, dim-reduction
-  extras, object internals.
+  reference mapping (panc8), Mixscape (GSE153056). Wave 2 opens with cell-cycle /
+  module scores (THP-1); further topics: spatial/scale, the DE-test suite, the
+  visualization gallery, dim-reduction extras, object internals.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
@@ -901,6 +901,16 @@ regime. Don't "simplify" them.
     limit, not a divergence. **No defect found** — the transfer stack ports
     faithfully on its first real-data benchmark, the initiative's other valid
     outcome.
+- **Wave 2 — in progress.**
+  - **T-cc cell-cycle & module scoring — ✅ delivered (#44). Wave 2's first.**
+    `add_module_score` / `cell_cycle_scoring` on THP-1 (`cellcycle_vignette.md`),
+    a proliferating line with real S/G2/M populations (unlike resting PBMCs). On
+    identical counts + shared resolved gene lists, per-cell **Phase concordance is
+    96.62 %** (20,028/20,729 cells) and the S/G2M/module scores correlate at
+    Pearson ≥ 0.998. Both functions sample control genes at random and NumPy's RNG
+    is not R's, so the scores are not bit-identical by construction — the residual
+    is purely that RNG (the discrete Phase is robust to it), the same "don't chase
+    the RNG" story as `clara` (hashing) and the MULTI-seq KDE. No defect found.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects** — exactly the point: a green
   synthetic suite (balanced batches, self-consistent fixtures) hid a crash and a

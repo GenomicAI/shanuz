@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Nine end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Ten end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -18,6 +18,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 7 | [Mixscape — Pooled CRISPR Screen](mixscape_vignette.md) | 20,729 cells · 25 guides + NT · GSE153056 (THP-1 ECCITE-seq) | Perturbation signature (`CalcPerturbSig`) · KO-vs-escaper mixture (`RunMixscape`) · guide-separating LDA (`MixscapeLDA`) · `PlotPerturbScore` / `MixscapeHeatmap` — **97.45 %** per-cell call-concordant with R | Advanced |
 | 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA match R; **caught two RPCA bugs, both fixed** (a crash + a 4× under-integration) | Advanced |
 | 9 | [Reference Mapping — Label Transfer](refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 (Baron 2016) | Cross-technology annotation transfer (`FindTransferAnchors` ↔ `find_transfer_anchors`) · `TransferData` ↔ `transfer_data` · `MapQuery`/`ProjectUMAP` ↔ `map_query`/`project_umap` — **98.71 %** per-cell label-concordant with R, both ~98.5 % accurate vs ground truth | Advanced |
+| 10 | [Cell-cycle & Module Scoring](cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 (Papalexi 2021) | Gene-program scoring (`AddModuleScore` ↔ `add_module_score`) · cell-cycle phase (`CellCycleScoring` ↔ `cell_cycle_scoring`) · S/G2M scores + discrete phase — **96.6 %** per-cell Phase-concordant with R, scores correlate at Pearson ≥ 0.998 | Advanced |
 
 ---
 
@@ -508,6 +509,57 @@ types (epsilon, quiescent_stellate, schwann, <10 reference cells each), where bo
 tools stumble the same way — the honest limit of a small single-technology
 reference, not a divergence. **No defect found** — the transfer stack ports
 faithfully on its first real-data benchmark.
+
+---
+
+## Tutorial 10 — Cell-cycle & Module Scoring (R vs Python)
+
+> **Walkthrough:** [`cellcycle_vignette.md`](cellcycle_vignette.md)
+
+A port of Seurat's [cell-cycle vignette](https://satijalab.org/seurat/articles/cell_cycle_vignette)
+and `AddModuleScore`, run on the **THP-1** ECCITE-seq dataset (GSE153056,
+Papalexi et al. 2021) — a *proliferating* leukemia line, so unlike the resting
+PBMCs of earlier tutorials it has real S and G2/M populations (the right substrate
+for cell-cycle scoring). Reuses the Mixscape counts; only the raw RNA matters.
+
+```bash
+python  tutorials/thp1_cellcycle_tutorial.py    # downloads ~66 MB (shared with Mixscape), writes gene lists
+Rscript tutorials/thp1_cellcycle_verify.R       # Seurat reference → r_calls.csv + r_*.png
+python  tutorials/thp1_cellcycle_tutorial.py    # re-run → prints the R-vs-Python concordance
+python  tutorials/generate_cellcycle_plots.py   # Shanuz figures → figures_cellcycle/py_*.png
+```
+
+**What you'll learn:**
+- `add_module_score` — Seurat's `AddModuleScore`: score a gene program as its mean
+  expression minus a control set drawn from the same expression bins
+- `cell_cycle_scoring` — Seurat's `CellCycleScoring`: module scoring on the Tirosh
+  S / G2M sets (`CC_GENES` = `cc.genes.updated.2019`), then a discrete `Phase`
+- Why the scores are *not* expected to be bit-identical across tools (both sample
+  control genes at random, and NumPy's RNG is not R's) — and why the discrete
+  Phase is robust to it anyway
+
+**Key output figures** (in `tutorials/figures_cellcycle/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_score_scatter.png` | S.Score vs G2M.Score, coloured by assigned phase |
+| `py_02_phase_bar.png` | Cell count per phase (G1/S/G2M) |
+| `py_03_ifn_hist.png` | Interferon-response module-score distribution (AddModuleScore) |
+
+**Accuracy vs R** (identical counts + shared resolved gene lists, 20,729 cells):
+
+| Comparison | Agreement |
+|---|---:|
+| Per-cell `Phase` concordance (shanuz vs Seurat) | **96.62 %** (701 cells differ) |
+| `S.Score` / `G2M.Score` correlation (Pearson) | **0.998 / 0.999** |
+| `IFN.Response` module score correlation (Pearson) | **0.9995** |
+
+The continuous scores correlate at Pearson ≥ 0.998 — the algorithm is faithfully
+ported; the only reason they are not bit-identical is the random control-gene set
+(NumPy vs R). **96.62 %** of cells get the same phase, with the disagreements
+sitting on the S=0 / G2M=0 boundary where the small score wobble tips the call —
+the same boundary-sensitivity as Mixscape's weak guides. **No defect found** — the
+same "don't chase the RNG" residual as `clara` (hashing) and the MULTI-seq KDE.
 
 ---
 

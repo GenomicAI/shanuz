@@ -23,6 +23,25 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Cell-cycle & module-score tutorial — side by side with R Seurat (#44)*
+
+- `tutorials/cellcycle_vignette.md` with `thp1_cellcycle_tutorial.py`,
+  `thp1_cellcycle_verify.R`, and `generate_cellcycle_plots.py` — `add_module_score`
+  (`AddModuleScore`) and `cell_cycle_scoring` (`CellCycleScoring`) on the
+  proliferating THP-1 line (GSE153056), compared against Seurat on identical GEO
+  counts and the same resolved S / G2M / module gene lists. **Opens Wave 2** of the
+  tutorial initiative.
+- **First real-data fidelity result for the scoring features** (synthetic fixtures
+  only before): per-cell `Phase` concordance with Seurat is **96.62 %** (20,028 of
+  20,729 cells), and the `S.Score` / `G2M.Score` / module scores correlate at
+  Pearson ≥ 0.998. Both functions sample control genes at random and NumPy's RNG is
+  not R's, so the scores are not bit-identical *by construction* — the residual is
+  that control-gene RNG (the discrete `Phase` is robust to it), the same documented
+  behaviour as `clara` (hashing) and the MULTI-seq KDE. **No defect found.**
+- 11 network-free unit tests (`tests/test_cellcycle_tutorial.py`) covering the
+  metric helpers and a synthetic run with planted S/G2M populations, plus a gated
+  real-data regression in `tests/test_tutorial_smoke.py`.
+
 *Reference mapping tutorial — label transfer, side by side with R Seurat (#43)*
 
 - `tutorials/refmap_vignette.md` with `panc8_reference_mapping_tutorial.py`,
