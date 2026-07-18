@@ -72,6 +72,34 @@ def test_tutorial_runs_to_completion(script, dataset):
     assert proc.stdout.strip(), f"tutorials/{script} produced no output"
 
 
+def test_ifnb_rpca_matches_seurat_batch_mixing():
+    """Bug 2 regression, on real data: RPCA must actually integrate ifnb.
+
+    Before the reciprocal-PCA fix, shanuz RPCA reached batch-mixing entropy 0.22
+    on ifnb against Seurat's 0.91 — it barely mixed the CTRL/STIM batches and
+    recovered cell type *below* the uncorrected baseline. The fix (Seurat's
+    per-object scaling + the stacked-embedding SD/L2 normalisation) lifts it to
+    ~0.87. This is the only test that reproduces the *emergent* under-integration:
+    it needs the real dataset's many overlapping cell types and pervasive IFN
+    response, which no synthetic fixture stands in for (both were checked and the
+    pre-fix code integrated them fine). Asserts RPCA clears a floor the pre-fix
+    code could not, that CCA (the working baseline) stays high, and that RPCA now
+    recovers cell type better than doing nothing.
+    """
+    if not (DATA_ROOT / "ifnb").is_dir():
+        pytest.skip("dataset 'ifnb' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.ifnb_integration_tutorial import run_full
+
+    _, summary = run_full(methods=("cca", "rpca"), do_umap=False, verbose=False)
+    board = summary["scoreboard"].set_index("method")
+    assert board.loc["rpca", "batch_entropy"] >= 0.7            # pre-fix was 0.22
+    assert board.loc["cca", "batch_entropy"] >= 0.95            # baseline holds
+    assert (board.loc["rpca", "ari_celltype"]
+            > board.loc["uncorrected (PCA)", "ari_celltype"])   # pre-fix was below
+
+
 @pytest.mark.parametrize("script,dataset", [TUTORIALS[0]])
 def test_pbmc3k_prints_the_marker_table(script, dataset):
     """The exact block that the pandas 3 regression killed.

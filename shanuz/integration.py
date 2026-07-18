@@ -217,6 +217,17 @@ def _integrate_anchor_reduction(
         for g in groups
     ]
 
+    # Seurat's anchor workflow scales each batch independently (SplitObject →
+    # ScaleData per object → per-object PCA), so every batch's features are
+    # centred on that batch's own mean before the shared space is built. The
+    # object arrives here scaled globally (upstream ScaleData over all cells);
+    # re-scale each batch so the (reciprocal-)PCA spaces line up the way
+    # Seurat's do. This is what lets reciprocal PCA find enough good anchors —
+    # global scaling leaves each batch's mean shift in, and RPCA then under-finds
+    # mutual pairs and under-integrates.
+    for obj in objects:
+        scale_data(obj, assay=assay)
+
     anchors = find_integration_anchors(
         objects, reduction=reduction, seed=seed, **kwargs
     )

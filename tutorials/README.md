@@ -16,7 +16,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
 | 6 | [Cell Hashing — Demultiplexing](hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 (human+mouse) | Hashtag assay · CLR (margin 1) · `HTODemux` ↔ `hto_demux` · `MULTIseqDemux` ↔ `multiseq_demux` · cross-species doublet ground truth — **99.81 %** call-concordant with R | Advanced |
 | 7 | [Mixscape — Pooled CRISPR Screen](mixscape_vignette.md) | 20,729 cells · 25 guides + NT · GSE153056 (THP-1 ECCITE-seq) | Perturbation signature (`CalcPerturbSig`) · KO-vs-escaper mixture (`RunMixscape`) · guide-separating LDA (`MixscapeLDA`) · `PlotPerturbScore` / `MixscapeHeatmap` — **97.45 %** per-cell call-concordant with R | Advanced |
-| 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA match R; **caught two RPCA bugs** (a crash, fixed; an anchor-quality gap, tracked) | Advanced |
+| 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA match R; **caught two RPCA bugs, both fixed** (a crash + a 4× under-integration) | Advanced |
 
 ---
 
@@ -437,15 +437,16 @@ python  tutorials/generate_integration_plots.py   # Shanuz figures → figures_i
 | method | py mix | R mix | py ARI→celltype | R ARI→celltype |
 |--------|---:|---:|---:|---:|
 | Harmony | **0.991** | **0.991** | 0.917 | 0.930 |
-| CCA | **0.990** | **0.991** | 0.867 | 0.873 |
-| RPCA | 0.222 | 0.914 | 0.444 | 0.735 |
+| CCA | **0.990** | **0.991** | 0.884 | 0.873 |
+| RPCA | **0.867** | 0.914 | **0.677** | 0.735 |
 
 Harmony and CCA reproduce Seurat's integration to three decimals — the first
 real-data confirmation of `run_harmony` / `integrate_layers`. RPCA is where the
-tutorial earned its keep: it surfaced **two defects in `shanuz/anchors.py`** — a
-crash on unequal batch sizes (fixed in this PR, with regression tests) and a
-deeper anchor-quality gap that leaves it ~4× behind Seurat (tracked separately).
-On Shanuz, prefer Harmony or CCA until the RPCA fix lands.
+tutorial earned its keep: it surfaced **two defects** — a crash on unequal batch
+sizes (fixed in #41) and a deeper under-integration bug (fixed here: per-object
+scaling + Seurat's reciprocal-embedding normalization lift batch mixing from
+0.222 to 0.867). Both came with regression tests; neither reproduces on any
+synthetic fixture, only on the real Seurat comparison.
 
 ---
 

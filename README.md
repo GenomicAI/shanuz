@@ -44,7 +44,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 - **CITE-seq multimodal tutorial** — RNA + surface protein (ADT) with CLR normalization and WNN joint clustering
 - **Cell-hashing tutorial** — `hto_demux` + `multiseq_demux` demultiplexing, 99.81% call-concordant with R Seurat's `HTODemux`
 - **Mixscape tutorial** — pooled-CRISPR `calc_perturb_sig` + `run_mixscape` + `mixscape_lda`, 97.45% per-cell call-concordant with R Seurat on the THP-1 ECCITE-seq screen
-- **Integration tutorial** — `run_harmony` / `integrate_layers` on the ifnb IFN-β benchmark; Harmony and CCA match R Seurat's batch mixing and cell-type recovery to three decimals. The first tutorial to catch real defects: a crash in the RPCA path on unequal batch sizes (fixed) and an RPCA anchor-quality gap (tracked)
+- **Integration tutorial** — `run_harmony` / `integrate_layers` on the ifnb IFN-β benchmark; Harmony and CCA match R Seurat's batch mixing and cell-type recovery to three decimals. The first tutorial to catch real defects: two RPCA-path bugs, both fixed — a crash on unequal batch sizes and a 4× under-integration (per-object scaling + Seurat's reciprocal-embedding normalization, batch mixing 0.222 → 0.867)
 - **Xenium spatial tutorial** — spatial neighbourhood/niche analysis, verified to 8 s.f. against R Seurat
 
 ---
@@ -339,9 +339,9 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 522 tests pass.
+All 524 tests pass.
 
-Eight further tests run the tutorials end-to-end against real data. They are opt-in
+Nine further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
 CI:
 
