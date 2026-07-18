@@ -111,6 +111,7 @@ from shanuz.anchors import (  # noqa: E402
     find_integration_anchors,
     integrate_data,
     IntegrationAnchors,
+    _standardize_and_l2,
 )
 
 
@@ -254,6 +255,49 @@ def test_integrate_data_rpca_unequal_sizes_clusters_by_celltype():
     merged = integrate_data(anchors)
     emb = _integrated_pca(merged)
     assert silhouette_score(emb, celltype) > silhouette_score(emb, batch)
+
+
+def test_standardize_and_l2_normalizes_dimensions_then_cells():
+    """The reciprocal-PCA embedding normalisation (Seurat's ``l2.norm=TRUE``).
+
+    ``_standardize_and_l2`` divides every dimension (column) by its SD across the
+    stacked ref+query cells, then L2-normalises every cell (row). The column step
+    is the one that matters: skip it and the neighbour search collapses onto PC1's
+    dominant variance, which is what made RPCA under-integrate (Bug 2). This pins
+    both halves — rows come out unit-norm, and the result differs from plain
+    row-normalisation whenever the columns have unequal spread (so the SD step is
+    provably not a no-op).
+    """
+    from shanuz.anchors import _l2_normalize_rows
+
+    rng = np.random.default_rng(0)
+    # Columns with wildly different scales — the reciprocal-PCA situation, where
+    # PC1 carries orders of magnitude more variance than the trailing PCs.
+    emb = rng.normal(size=(60, 6)) * np.array([100.0, 30.0, 8.0, 3.0, 1.0, 0.3])
+    out = _standardize_and_l2(emb)
+    assert np.allclose(np.linalg.norm(out, axis=1), 1.0)      # every cell unit-norm
+    assert not np.allclose(out, _l2_normalize_rows(emb))       # SD step is not a no-op
+
+
+def test_find_integration_anchors_rpca_embedding_is_l2_normalized():
+    """RPCA must normalise its reciprocal embedding before the MNN and weighting.
+
+    Regression for Bug 2 (the anchor-quality half): shanuz searched the raw
+    ``scaled.T @ loadings`` projection, so PC1's variance dominated the neighbour
+    search and the anchors were wrong — RPCA under-integrated ifnb (batch-mixing
+    entropy 0.22 vs Seurat 0.91). The fix mirrors Seurat's ``ReciprocalProject``:
+    standardise each dimension, then L2-normalise each cell. The observable
+    signature is that the per-query weight embedding has unit-norm rows, which the
+    raw projection does not. (The *emergent* under-integration only reproduces on
+    real data with many overlapping cell types — synthetic batches, however
+    strong, are too separable to mislead the reciprocal search; that behaviour is
+    pinned by the gated ifnb regression in ``test_tutorial_smoke``.)
+    """
+    objs, _ = _unequal_pair(n_ref=40, n_query=70)
+    anchors = find_integration_anchors(objs, reduction="rpca", k_filter=0)
+    we = anchors.weight_embeddings[1]            # query cells in the reference space
+    assert we.shape[0] == len(objs[1])
+    assert np.allclose(np.linalg.norm(we, axis=1), 1.0)
 
 
 def test_integrate_data_leaves_the_reference_untouched():

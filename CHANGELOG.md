@@ -36,8 +36,8 @@ on `main`; none of it is on PyPI.
   synthetic-fixture tests before): Harmony and CCA reproduce Seurat's batch mixing
   and cell-type recovery to three decimals (batch-mixing entropy py/R 0.991 and
   0.990/0.991). **The first tutorial in the initiative to find real defects** —
-  see *Fixed* (the RPCA crash) and the walkthrough (the RPCA anchor-quality gap,
-  which under-integrates ~4× vs Seurat and is tracked as its own PR).
+  two RPCA bugs (see *Fixed*): a crash on unequal batch sizes, and a ~4×
+  under-integration; both are now fixed (the under-integration in follow-up #42).
 - Added to the opt-in tutorial smoke suite (`SHANUZ_TUTORIAL_SMOKE=1`) and covered
   by `tests/test_integration_tutorial.py` (network-free: the silhouette/ARI/entropy
   helpers and the load→prep→integrate→score→concordance path on a synthetic
@@ -188,6 +188,27 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- `integrate_layers(method="rpca")` **under-integrated ~4×** versus Seurat's RPCA
+  on real data — on the ifnb benchmark it reached batch-mixing entropy 0.222
+  against Seurat's 0.914, with cell-type recovery (0.444) *below* the uncorrected
+  baseline, while `reduction="cca"` and `run_harmony` matched Seurat to three
+  decimals. Reading the real Seurat source (`ReciprocalProject`, `FindNN`) against
+  an anchor-count probe showed the reciprocal-PCA path diverging three ways: it
+  scaled the batches **globally** instead of per-object (Seurat's `SplitObject →
+  ScaleData` per object), leaving each batch's mean shift in PC1 so reciprocal PCA
+  under-found mutual pairs; it searched the **raw** projection instead of Seurat's
+  `l2.norm` (standardise each dimension by its SD, then L2-normalise each cell), so
+  PC1's variance swamped the neighbour search; and it applied the expression-space
+  anchor **filter** Seurat disables for reciprocal PCA. Fixing all three lifts RPCA
+  batch-mixing to **0.867** and cell-type recovery to **0.677** (now above
+  baseline), with CCA and Harmony unchanged. The residual to 0.914 is the expected
+  exact-vs-annoy-neighbour / scikit-learn-vs-irlba-PCA gap. Regression tests: a unit
+  test of the embedding normalisation, a check that the RPCA weight embedding is
+  L2-normalised (the fix's observable signature — pre-fix rows were 0.79–0.92), and
+  a gated ifnb batch-mixing floor, since the *emergent* under-integration reproduces
+  on no synthetic fixture (both a 3-type and a hard 6-type unequal-batch fixture
+  integrate fine on the pre-fix code). Completes the RPCA pair found in #41. (#42)
+
 - `find_integration_anchors(reduction="rpca")` crashed with `IndexError` on any
   pair of datasets with **unequal cell counts** — i.e. every real dataset (the
   ifnb benchmark is CTRL 6,548 vs STIM 7,451). The reciprocal-PCA branch passed its
@@ -196,10 +217,9 @@ on `main`; none of it is on PyPI.
   its end whenever the query was larger. Balanced synthetic fixtures (equal batch
   sizes) never tripped it. Fixed by restoring the argument order, with two
   regression tests over unequal-size batches (both orderings). Found while building
-  the ifnb integration tutorial (#41). *A separate, deeper RPCA anchor-quality gap
-  — it under-integrates ~4× vs Seurat's RPCA — is documented in the tutorial and
-  tracked as its own PR; `reduction="cca"` and `run_harmony` are unaffected and
-  match Seurat.*
+  the ifnb integration tutorial (#41). *A separate, deeper RPCA under-integration
+  (~4× vs Seurat's RPCA) was found at the same time and is **fixed in #42** — see
+  the entry above; `reduction="cca"` and `run_harmony` were unaffected throughout.*
 
 - **BREAKING** — `normalize_data`'s CLR `margin` argument was inverted relative
   to Seurat. `margin=1` is now per-feature across cells (Seurat's default) and

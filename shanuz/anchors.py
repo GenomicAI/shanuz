@@ -126,6 +126,24 @@ def _l2_normalize_cols(mat: np.ndarray) -> np.ndarray:
     return mat / norms
 
 
+def _standardize_and_l2(emb: np.ndarray) -> np.ndarray:
+    """Normalize a reciprocal-PCA embedding the way Seurat's ``ReciprocalProject`` does.
+
+    With ``l2.norm = TRUE`` (Seurat's default) each reciprocal space — the
+    stacked ``[reference; query]`` cells in *one* dataset's PCA — is normalized
+    in two steps before the neighbour search: every dimension (column) is divided
+    by its standard deviation across the whole stack, then every cell (row) is
+    L2-normalized. The per-dimension scaling is the load-bearing step: a
+    projection's leading PC carries orders of magnitude more variance than its
+    trailing ones, so without it the nearest-neighbour search collapses onto PC1
+    and mates cells by library depth instead of type. (CCA needs no such step —
+    its singular vectors already share a scale — which is why only RPCA was hit.)
+    """
+    sd = emb.std(axis=0, ddof=1)
+    sd[sd == 0] = 1.0
+    return _l2_normalize_rows(emb / sd)
+
+
 def _cca(A: np.ndarray, B: np.ndarray, dims: int) -> tuple[np.ndarray, np.ndarray]:
     """Shared CCA embedding of two datasets.
 
@@ -357,9 +375,11 @@ def find_integration_anchors(
 
     features = _integration_features(objects, anchor_features)
 
-    ref_scaled = _l2_normalize_cols(
-        _anchor_feature_matrix(objects[reference], features, layer)
-    )
+    # CCA works on per-cell L2-normalized expression; reciprocal PCA works on the
+    # raw scaled data (Seurat runs its per-object PCA straight on scale.data and
+    # never column-normalizes for pca-based reductions), so keep both forms.
+    ref_raw = _anchor_feature_matrix(objects[reference], features, layer)
+    ref_scaled = _l2_normalize_cols(ref_raw)
 
     rows = []
     weight_embeddings: dict[int, np.ndarray] = {}
@@ -368,9 +388,8 @@ def find_integration_anchors(
     for d in range(len(objects)):
         if d == reference:
             continue
-        query_scaled = _l2_normalize_cols(
-            _anchor_feature_matrix(objects[d], features, layer)
-        )
+        query_raw = _anchor_feature_matrix(objects[d], features, layer)
+        query_scaled = _l2_normalize_cols(query_raw)
         used = min(used_dims, query_scaled.shape[1] - 1)
 
         if reduction == "cca":
@@ -380,13 +399,27 @@ def find_integration_anchors(
             )
             combined = np.vstack([emb_ref, emb_query])
             weight_emb = emb_query
-        else:  # rpca — reciprocal PCA projections
-            load_ref = _pca_loadings(ref_scaled, used, seed=seed)
-            load_query = _pca_loadings(query_scaled, used, seed=seed)
-            ref_in_ref = ref_scaled.T @ load_ref
-            query_in_ref = query_scaled.T @ load_ref
-            ref_in_query = ref_scaled.T @ load_query
-            query_in_query = query_scaled.T @ load_query
+        else:  # rpca — reciprocal PCA projections (Seurat's ReciprocalProject)
+            load_ref = _pca_loadings(ref_raw, used, seed=seed)
+            load_query = _pca_loadings(query_raw, used, seed=seed)
+            ref_in_ref = ref_raw.T @ load_ref        # ref cells, ref PCA
+            query_in_ref = query_raw.T @ load_ref     # query projected into ref PCA
+            ref_in_query = ref_raw.T @ load_query     # ref projected into query PCA
+            query_in_query = query_raw.T @ load_query  # query cells, query PCA
+
+            # Seurat forms each reciprocal space as the stacked [ref; query] and,
+            # with l2.norm=TRUE (its default), standardizes every dimension by its
+            # SD over the whole stack before L2-normalizing each cell. Skipping
+            # that let PC1's dominant variance swamp the neighbour search, so the
+            # mutual pairs were wrong — RPCA under-integrated ifnb 4x (batch-mix
+            # 0.22 vs Seurat's 0.91). Normalize each space, then split it back
+            # into its ref/query halves for the reciprocal MNN.
+            n_ref_cells = ref_in_ref.shape[0]
+            ref_space = _standardize_and_l2(np.vstack([ref_in_ref, query_in_ref]))
+            query_space = _standardize_and_l2(np.vstack([ref_in_query, query_in_query]))
+            ref_in_ref, query_in_ref = ref_space[:n_ref_cells], ref_space[n_ref_cells:]
+            ref_in_query, query_in_query = query_space[:n_ref_cells], query_space[n_ref_cells:]
+
             # Reciprocal search: find B(query)-neighbours of A(ref) in the query's
             # PCA space, and A-neighbours of B in the ref's space. _mutual_nn wants
             # (A-in-B, B-in-B, B-in-A, A-in-A) — args 1 & 4 are the reference
@@ -401,7 +434,12 @@ def find_integration_anchors(
 
         n_ref = ref_scaled.shape[1]
         scores = _score_anchors(pairs, combined, n_ref, k_score)
-        if k_filter:
+        # Seurat forces k.filter <- NA for reciprocal-PCA (every pca-based
+        # nn.reduction), skipping the expression-space filter entirely: the
+        # reciprocal projection is itself an expression-space check, and
+        # filtering on the shared anchor features here drops good anchors and
+        # leaves RPCA under-integrating. Only CCA keeps the filter.
+        if k_filter and reduction == "cca":
             pairs, scores = _filter_anchors(
                 pairs, scores, ref_scaled, query_scaled, k_filter
             )

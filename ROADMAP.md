@@ -48,12 +48,14 @@ Spatial data structures (FOV/Centroids/Segmentation/Molecules)
   query onto the reference with a Gaussian-weighted sum of anchor correction
   vectors and returns a merged object carrying an active `"integrated"` assay.
   Verified (`tests/test_integration.py`) to cluster by cell type, not batch.
-- **⚠️ RPCA caveat (found in T6, `integration_vignette.md`):** the `reduction="rpca"`
-  path has two real defects the synthetic tests missed — a crash on unequal batch
-  sizes (**fixed**, with regression tests) and an anchor-quality gap that leaves it
-  ~4× behind Seurat's RPCA on ifnb (batch-mix 0.222 vs 0.914, **tracked as its own
-  PR**). `reduction="cca"` and `run_harmony` both match Seurat to three decimals —
-  prefer them until the RPCA anchor fix lands.
+- **RPCA (found in T6, `integration_vignette.md`):** the `reduction="rpca"` path had
+  two real defects the synthetic tests missed, **both now fixed** — a crash on
+  unequal batch sizes (fixed in #41) and a 4× under-integration (batch-mix 0.222 →
+  **0.867** vs Seurat's 0.914; fixed by per-object scaling + Seurat's
+  reciprocal-embedding SD/L2 normalization + disabling the RPCA anchor filter, all
+  with regression tests). `reduction="cca"` and `run_harmony` match Seurat to three
+  decimals; RPCA now integrates well, ~5% off Seurat on the residual (exact-vs-annoy
+  NN, sklearn-vs-irlba PCA).
 - **R:** `FindIntegrationAnchors(list, reduction="cca")` → `IntegrateData(anchors)`
 - **Implemented:**
   1. `find_integration_anchors(objects, reduction, dims, k_anchor, k_filter, k_score, reference)` → `IntegrationAnchors`
@@ -875,17 +877,19 @@ regime. Don't "simplify" them.
     the weak boundary guides (MYC/SPI1/BRD4/CUL3) where the EM mixture is
     init-sensitive — a real method-level residual on a far more stochastic pipeline
     than the demuxers, not a bug. No defect found.
-  - **T6 integration — ✅ delivered (this PR). First defects of the initiative.**
+  - **T6 integration — ✅ delivered (#41). First defects of the initiative.**
     `run_harmony` / `integrate_layers` on ifnb (`integration_vignette.md`). Harmony
     and CCA reproduce Seurat's batch mixing and cell-type recovery to **three
     decimals** (batch-mixing entropy py/R 0.991 & 0.990/0.991). But investigating
-    RPCA surfaced **two real bugs in `shanuz/anchors.py`**: (1) a crash on unequal
-    batch sizes — the reciprocal-PCA MNN args were mis-ordered, `IndexError`
-    whenever n_query > n_ref, masked by the balanced synthetic test fixtures —
-    **fixed here** with unequal-size regression tests; (2) an anchor-quality gap
-    that leaves RPCA integrating ~4× worse than Seurat (batch-mix 0.222 vs 0.914),
-    traced to the reciprocal projection producing wrong pairs (quality, not count),
-    **tracked as its own PR** — a core-`anchors.py` change, not tutorial scope.
+    RPCA surfaced **two real bugs**, both now fixed: (1) a crash on unequal batch
+    sizes — the reciprocal-PCA MNN args were mis-ordered, `IndexError` whenever
+    n_query > n_ref, masked by the balanced synthetic test fixtures — **fixed in
+    #41**; (2) a 4× under-integration (batch-mix 0.222 vs 0.914) — **fixed in its
+    own follow-up PR** by matching Seurat's reciprocal-PCA construction: per-object
+    scaling, the `ReciprocalProject` SD/L2 embedding normalization, and disabling
+    the RPCA anchor filter, lifting batch-mix to **0.867** (py ARI→celltype 0.444 →
+    0.677). The old "quality, not count" read was wrong — it was mostly count
+    (global scaling under-found anchors) plus the missing embedding normalization.
   - Remaining: T8 reference mapping (panc8).
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7 and T9
   clean, then **T6 found the first two defects** — exactly the point: a green

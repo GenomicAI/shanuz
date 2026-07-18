@@ -154,13 +154,13 @@ scoreboard:
 |--------|---:|---:|---:|---:|---:|
 | uncorrected (PCA) | 0.108 | 0.139 | 16 | 0.524 | 0.164 |
 | **Harmony** | **0.008** | 0.192 | 12 | **0.917** | **0.991** |
-| **CCA** | **0.007** | 0.181 | 14 | **0.867** | **0.990** |
-| RPCA | 0.080 | 0.151 | 19 | 0.444 | 0.222 |
+| **CCA** | **0.001** | 0.190 | 15 | **0.884** | **0.990** |
+| **RPCA** | **0.008** | 0.185 | 14 | **0.677** | **0.867** |
 
 Uncorrected, the cells separate by condition (batch-mix 0.164 — clusters are
-nearly single-condition). Harmony and CCA collapse that almost completely
-(batch-mix 0.99) while *raising* cell-type recovery. RPCA is the outlier — hold
-that thought for the concordance section.
+nearly single-condition). All three methods collapse that while *raising*
+cell-type recovery: Harmony and CCA almost completely (batch-mix 0.99), RPCA
+strongly (0.87). Getting RPCA there took two fixes — see the concordance section.
 
 <table>
 <tr><th>R — uncorrected, by condition</th><th>Shanuz — uncorrected, by condition</th></tr>
@@ -191,7 +191,7 @@ After Harmony they interleave, while the cell types stay apart:
 
 ---
 
-## The headline · R-vs-Python concordance, and two RPCA bugs
+## The headline · R-vs-Python concordance, and two RPCA bugs (both fixed)
 
 Because integration embeddings are not coordinate-comparable across tools, the
 concordance is **partition-based**: the adjusted Rand index between the two tools'
@@ -204,8 +204,8 @@ batch mixing (`mix`, 1 = fully mixed). All are computed from the cluster labels
 |--------|---:|---:|---:|---:|---:|
 | PCA (baseline) | 0.96 | 0.524 | 0.520 | 0.164 | 0.164 |
 | **Harmony** | 0.95 | 0.917 | 0.930 | **0.991** | **0.991** |
-| **CCA** | 0.83 | 0.867 | 0.873 | **0.990** | **0.991** |
-| **RPCA** | 0.46 | **0.444** | **0.735** | **0.222** | **0.914** |
+| **CCA** | 0.84 | 0.884 | 0.873 | **0.990** | **0.991** |
+| **RPCA** | 0.76 | **0.677** | **0.735** | **0.867** | **0.914** |
 
 **Harmony and CCA match Seurat almost exactly.** The uncorrected baseline is
 identical to three decimals (mix 0.164 either way — the harness is calibrated),
@@ -213,32 +213,40 @@ and both real methods land their batch mixing and cell-type recovery right on to
 of Seurat's. This is the confirmation the initiative was built to get: shanuz's
 two primary integration paths reproduce Seurat's result on the standard benchmark.
 
-**RPCA is a different story — and the tutorial's own concordance table caught it.**
-The `mix` columns diverge sharply: Seurat's RPCA integrates ifnb nearly as well as
-CCA (0.914), while shanuz's barely moves the batches (0.222), and its cell-type
-recovery (0.444) actually falls *below* the uncorrected baseline. Investigating
-that gap surfaced **two distinct defects in `shanuz/anchors.py`**:
+**RPCA needed two fixes — and the tutorial's own concordance table is what caught
+both.** On the first run the `mix` columns diverged sharply: Seurat's RPCA
+integrates ifnb nearly as well as CCA (0.914), while shanuz's barely moved the
+batches (0.222), with cell-type recovery (0.444) *below* the uncorrected baseline.
+Investigating surfaced **two distinct defects** — both now fixed:
 
-1. **A crash on unequal batch sizes — fixed in this PR.** The reciprocal-PCA
-   branch passed its mutual-nearest-neighbour helper the ref/query arrays in the
-   wrong order, so whenever the query was larger than the reference (i.e. every
-   real dataset) it indexed past the neighbour list and raised `IndexError`. The
-   unit tests used *balanced* synthetic batches, which never trip it — precisely
-   the blind spot this initiative exists to close. A one-line reorder plus two
-   regression tests with unequal sizes.
+1. **A crash on unequal batch sizes (fixed in #41).** The reciprocal-PCA branch
+   passed its mutual-nearest-neighbour helper the ref/query arrays in the wrong
+   order, so whenever the query was larger than the reference (i.e. every real
+   dataset) it indexed past the neighbour list and raised `IndexError`. The unit
+   tests used *balanced* synthetic batches, which never trip it — precisely the
+   blind spot this initiative exists to close.
 
-2. **An anchor-quality gap — not fixed here, tracked separately.** With the crash
-   gone, RPCA runs but under-integrates ~4×. The cause is anchor *quality*, not
-   count: CCA finds 7,262 anchors and RPCA 992, but CCA *subsampled to 992*
-   anchors still integrates fine (sil_batch 0.012) while RPCA's own 992 give
-   0.080 — the reciprocal projection is producing incorrect pairs. Closing it
-   means aligning the reciprocal-PCA construction with Seurat's, a change to the
-   core anchor machinery that belongs in its own PR rather than this tutorial.
-   Until then, **prefer Harmony or CCA on Shanuz**; both match Seurat.
+2. **Under-integration (fixed in this PR).** With the crash gone RPCA still
+   under-integrated ~4×. Reading the real Seurat source (`ReciprocalProject`,
+   `FindNN`) alongside an anchor-count probe showed shanuz diverging in three
+   faithful-to-Seurat ways: it scaled the batches *globally* rather than
+   per-object, so each batch's mean shift stayed in PC1 and reciprocal PCA
+   under-found mutual pairs (~2× too few); it searched the *raw* projection
+   instead of standardising each dimension by its SD and then L2-normalising each
+   cell (Seurat's `l2.norm`), so PC1's variance swamped the neighbour search; and
+   it applied the expression-space anchor filter that Seurat disables for
+   reciprocal PCA. Correcting all three lifts RPCA's batch mixing from **0.222 to
+   0.867** and its cell-type recovery from 0.444 (below baseline) to **0.677**
+   (above it). The residual to Seurat's 0.914 is the expected implementation gap —
+   exact vs. approximate (annoy) neighbours, and scikit-learn vs. irlba PCA — the
+   same reason RPCA lands ~5% off while CCA, whose shared space is more robust,
+   matches to three decimals.
 
-That is the R-fidelity net doing exactly its job — three feature PRs into Wave 1,
-the first real integration benchmark turns a green synthetic suite into a fixed
-crash and a documented, tracked defect.
+That is the R-fidelity net doing exactly its job: the first real integration
+benchmark turned a green synthetic suite into a fixed crash and a fixed
+under-integration bug — neither of which any synthetic fixture reproduces (both a
+three-type and a hard six-type unequal-batch fixture integrate fine on the
+*pre*-fix code), which is the whole argument for comparing against real Seurat.
 
 ---
 
