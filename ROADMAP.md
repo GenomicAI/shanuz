@@ -876,15 +876,19 @@ regime. Don't "simplify" them.
   through both. Meanwhile 24 feature PRs landed after #10 (integration, reference
   mapping, sketching, lazy matrices, HTO/MULTI-seq, Mixscape, spatial) and **none
   of them has ever been compared to real Seurat** — their tests assert
-  self-consistency on synthetic `default_rng` fixtures. Of 103 public exports, 36
-  appear in a runnable tutorial; 67 do not. Closing that is the highest-leverage
+  self-consistency on synthetic `default_rng` fixtures. At the start of the
+  initiative 36 of 103 public exports appeared in a runnable tutorial; 67 did
+  not. As of T-obj it is **81 of 104**. Closing the rest is the highest-leverage
   correctness work left.
 - **Plan:** ~12 new side-by-side tutorials in four waves, one tutorial per PR, in
   the existing shape (`<name>_tutorial.py` + `<name>_verify.R` + `<name>.md` +
   `figures_<name>/`). Wave 1 = integration (ifnb), cell hashing (GSE108313),
-  reference mapping (panc8), Mixscape (GSE153056). Wave 2 opened with cell-cycle /
-  module scores (THP-1) and dim-reduction extras (pbmc3k); further topics:
-  spatial/scale, the DE-test suite, the visualization gallery, object internals.
+  reference mapping (panc8), Mixscape (GSE153056). Wave 2 = cell-cycle / module
+  scores (THP-1), dim-reduction extras (pbmc3k), leverage sketching (ifnb) and
+  object internals (pbmc3k). Remaining topics: the DE-test suite (Wave 3 — needs
+  the Bioconductor trio) and spatial/scale. **The visualization gallery is no
+  longer worth its own tutorial**: after T-obj, `dot_plot` is the only plotting
+  export not exercised somewhere, so it should be folded into an existing one.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
@@ -972,9 +976,40 @@ regime. Don't "simplify" them.
     0.905), which is why it survived, but it costs exactly what sketching exists
     to remove and is unusable at the scale the API targets. Fixing it moved the
     headline number **down** and per-cell agreement **up** to 98.1 %.
+  - **T-obj object internals — ✅ delivered. Eleven more defects, the largest
+    haul of the initiative.** `Cells`/`Features`, the layered assay, `Key`,
+    `Embeddings`/`Loadings`/`Stdev`, `Graphs`, `FetchData`, `Idents`/`WhichCells`/
+    `RenameIdents`/`subset`, and the command log, on pbmc3k
+    (`objects_vignette.md`). The container rather than an algorithm, which makes
+    it the sharpest net in the series: nothing here is stochastic, so **89 of the
+    91 anchors are compared with no tolerance at all** — orders, names,
+    dimensions, keys and non-zero counts either match or they do not. Coverage
+    went from 36/103 exports at the start of the initiative to **81/104**.
+    **Eleven bugs, all fixed here.** Five in the layered assay: `split`/`JoinLayers`
+    was not a round trip, returning a layer named `joined` whose columns were in
+    *split* order while the assay's own cell vector never moved — the right
+    numbers in the wrong columns, silently misaligned against the metadata that
+    indexes them, with every shape and checksum intact. The no-argument
+    `join_layers()` additionally raised `ValueError` on any prepared assay, and
+    `generics.split_layers` was declared but never registered for any type.
+    Three in `FetchData`: `np.asarray` on a sparse matrix wraps it rather than
+    densifying, so every one of 2,700 rows held a copy of the whole matrix — on
+    the most-called accessor in Seurat, on the default assay class, guarded by a
+    test that asserted only the column name and row count. Plus `PC_1` was
+    unaddressable and an unqualified fetch read `counts` where R reads `data`.
+    Three in the bookkeeping: `log_shanuz_command` had **zero call sites** so
+    `obj.commands` was always empty against Seurat's five entries; no
+    `orig.ident`; and `add_meta_data` rejected the plain vector R documents.
+    **`join_layers`/`split_layers` had zero call sites and zero tests before
+    this** — the defining feature of the v5 object model, never once run.
+    **Open, deliberately not fixed here:** `find_neighbors` symmetrizes the kNN
+    graph where Seurat's is directed (nnz 75,740 against exactly 2,700 × 20 =
+    54,000; degree 20-83, mean 28.1), and `_build_snn` drops the self-edge Seurat
+    keeps (~2,700 of the 4,044-edge gap). Both change what clustering consumes
+    and need their own comparison.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
-  clean, while **T6 found the first two defects**, **T-dr the next two** and
-  **T-sk two more** —
+  clean, while **T6 found the first two defects**, **T-dr the next two**,
+  **T-sk two more** and **T-obj eleven** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer

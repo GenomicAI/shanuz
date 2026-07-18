@@ -65,3 +65,7 @@ tutorials/figures_sketch/r_projection.csv
 tutorials/figures_sketch/hvg_features.txt
 tutorials/figures_sketch/cells.txt
 tutorials/figures_sketch/ifnb_data.lazy
+tutorials/figures_objects/hvg_features.txt
+tutorials/figures_objects/cells.txt
+tutorials/figures_objects/py_anchors.json
+tutorials/figures_objects/r_anchors.json

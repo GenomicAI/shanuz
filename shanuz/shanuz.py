@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import Optional, Union
 
 import numpy as np
@@ -227,6 +228,22 @@ class Shanuz:
         elif isinstance(metadata, pd.DataFrame):
             for col in metadata.columns:
                 self.meta_data[col] = metadata[col].reindex(self.meta_data.index)
+        elif isinstance(metadata, (np.ndarray, list, tuple, pd.Index)):
+            # R's `AddMetaData` documents "a vector, list, or data.frame", and a
+            # bare vector with `col.name` is how the vignettes use it. Positional
+            # by construction — there are no names to align on — so it has to be
+            # one entry per cell, in the object's cell order.
+            values = np.asarray(metadata).ravel()
+            if len(values) != len(self.meta_data.index):
+                raise ValueError(
+                    f"Metadata vector has {len(values)} entries but the object "
+                    f"has {len(self.meta_data.index)} cells."
+                )
+            if col_name is None:
+                raise ValueError(
+                    "col_name is required when adding metadata from a vector."
+                )
+            self.meta_data[col_name] = pd.Series(values, index=self.meta_data.index)
         else:
             raise TypeError(f"Cannot add metadata from {type(metadata).__name__}.")
         return self
@@ -251,23 +268,81 @@ class Shanuz:
             if v in self.meta_data.columns:
                 result[v] = self.meta_data.loc[cells, v]
             elif v in all_features:
-                if isinstance(assay, Assay5):
-                    mat = assay.layer_data(layer=layer, features=[v], cells=cells)
-                else:
-                    mat = assay.layer_data(layer=layer or "data", features=[v], cells=cells)
-                result[v] = np.asarray(mat).flatten()
+                mat = assay.layer_data(layer=layer or self._fetch_layer(assay),
+                                       features=[v], cells=cells)
+                # `np.asarray` on a sparse matrix yields a 0-d *object* array
+                # wrapping it rather than its contents, so the values have to be
+                # taken out explicitly. Getting this wrong is silent: the frame
+                # still has the right column name and row count, and every row
+                # holds a copy of the whole matrix.
+                if sp.issparse(mat):
+                    mat = mat.toarray()
+                result[v] = np.asarray(mat).ravel()
             elif v in self.reductions:
-                emb = self.reductions[v].cell_embeddings
-                all_c = self.cell_names()
-                cell_idx = [all_c.index(c) for c in cells]
-                n_dims = emb.shape[1]
-                for d in range(n_dims):
-                    col = f"{v}_{d + 1}"
-                    result[col] = emb[cell_idx, d]
+                # Columns are named by the reduction's Key, as R's `Embeddings`
+                # names them — `PC_1`, not `pca_1`. That is what `Key()` is for,
+                # and it is how the same columns are addressed one branch down.
+                dr = self.reductions[v]
+                emb = dr.cell_embeddings
+                cell_idx = self._cell_indices(cells)
+                key = getattr(dr, "key", None) or f"{v}_"
+                for d in range(emb.shape[1]):
+                    result[f"{key}{d + 1}"] = emb[cell_idx, d]
+            elif (found := self._reduction_column(v)) is not None:
+                dr, dim = found
+                result[v] = dr.cell_embeddings[self._cell_indices(cells), dim]
             else:
                 raise KeyError(f"Variable '{v}' not found in metadata, features, or reductions.")
 
         return pd.DataFrame(result, index=cells)
+
+    @staticmethod
+    def _fetch_layer(assay) -> str:
+        """Which layer an unqualified ``fetch_data`` should read.
+
+        ``data`` — normalized expression — which is what R's ``FetchData``
+        defaults to and what every vignette's output shows. Leaving this to the
+        layered assay's own default instead picked whichever layer happened to
+        be first, i.e. ``counts``, so a fetched gene came back as raw integers
+        and nothing said so.
+
+        When there is no ``data`` layer, R falls back to ``counts`` and warns.
+        The warning is the point: the fallback is easy to miss otherwise.
+        """
+        available = assay.layers_list() if hasattr(assay, "layers_list") else ["data"]
+        if "data" in available:
+            return "data"
+        if "counts" in available:
+            warnings.warn(
+                "data layer is not found and counts layer is used",
+                UserWarning, stacklevel=3,
+            )
+            return "counts"
+        return "data"
+
+    def _cell_indices(self, cells: list[str]) -> list[int]:
+        """Positions of ``cells`` in the object's cell vector."""
+        position = {c: i for i, c in enumerate(self.cell_names())}
+        return [position[c] for c in cells]
+
+    def _reduction_column(self, name: str):
+        """Resolve a single embedding column such as ``PC_1`` to (reduction, dim).
+
+        Seurat addresses embeddings by the reduction's ``Key`` plus a 1-based
+        dimension, which is how every vignette asks for one: ``FetchData(obj,
+        "PC_1")``. Returns ``None`` if the name does not resolve.
+        """
+        for dr in self.reductions.values():
+            key = getattr(dr, "key", None)
+            if not key or not name.startswith(key):
+                continue
+            suffix = name[len(key):]
+            if not suffix.isdigit():
+                continue
+            dim = int(suffix) - 1
+            if 0 <= dim < dr.cell_embeddings.shape[1]:
+                return dr, dim
+        return None
 
     # ------------------------------------------------------------------
     # WhichCells
@@ -552,6 +627,11 @@ def create_shanuz_object(
     # Build metadata
     raw_meta = assay_obj.calc_n() if hasattr(assay_obj, "calc_n") else _calc_n_for_assay5(assay_obj)
     base_meta = raw_meta.rename(columns={"nCount": f"nCount_{assay}", "nFeature": f"nFeature_{assay}"})
+    # `orig.ident` is the first column of every Seurat object's metadata and the
+    # default identity class; scripts group and split on it. Seeded with the
+    # project name, as `CreateSeuratObject` does.
+    base_meta.insert(0, "orig.ident",
+                     pd.Categorical([project] * len(cells), categories=[project]))
 
     if meta_data is not None:
         # Align user-supplied metadata to filtered cells

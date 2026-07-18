@@ -293,6 +293,10 @@ def _register_all() -> None:
     @join_layers.register(StdAssay)
     def _jl_std(x, layers=None): return x.join_layers(layers)
 
+    # --- split_layers ---
+    @split_layers.register(StdAssay)
+    def _sl_std(x, f, layer=None): return x.split_layers(f, layer)
+
     # --- is_global ---
     @is_global.register(DimReduc)
     def _ig_dr(x): return x.is_global()

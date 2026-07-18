@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
+from .command import log_shanuz_command
+
 
 # ------------------------------------------------------------------
 # Helpers
@@ -151,6 +153,11 @@ def normalize_data(
         raise ValueError(f"Unknown normalization_method: {normalization_method!r}")
 
     _set_layer(assay_obj, "data", normed)
+    log_shanuz_command(
+        seurat, "NormalizeData", assay=assay or seurat.active_assay,
+        params={"normalization_method": normalization_method,
+                "scale_factor": scale_factor, "margin": margin},
+    )
 
 
 def _log_normalize(counts, scale_factor: float = 10000.0):
@@ -306,6 +313,10 @@ def find_variable_features(
         assay_obj.variable_features = hvg_names
     else:
         assay_obj.var_features = hvg_names
+    log_shanuz_command(
+        seurat, "FindVariableFeatures", assay=assay or seurat.active_assay,
+        params={"selection_method": selection_method, "nfeatures": nfeatures},
+    )
 
 
 def _vst_hvg(
@@ -596,6 +607,11 @@ def scale_data(
         assay_obj._scaled_features = features_present
     else:
         assay_obj.scale_data = sub
+    log_shanuz_command(
+        seurat, "ScaleData", assay=assay or seurat.active_assay,
+        params={"do_center": do_center, "do_scale": do_scale,
+                "n_features": len(features_present)},
+    )
 
 
 def _regress_out(

@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Twelve end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Thirteen end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -21,6 +21,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 10 | [Cell-cycle & Module Scoring](cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 (Papalexi 2021) | Gene-program scoring (`AddModuleScore` ↔ `add_module_score`) · cell-cycle phase (`CellCycleScoring` ↔ `cell_cycle_scoring`) · S/G2M scores + discrete phase — **96.6 %** per-cell Phase-concordant with R, scores correlate at Pearson ≥ 0.998 | Advanced |
 | 11 | [Dimensional-Reduction Extras](dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | PC significance (`JackStraw`/`ScoreJackStraw` ↔ `jack_straw`/`score_jackstraw`) · `RunICA` ↔ `run_ica` · `RunTSNE` ↔ `run_tsne` — both tools keep **13 PCs**; ICA matched \|r\| **0.982**; **caught two JackStraw bugs, both fixed** (a too-tight null + the wrong aggregation test) | Advanced |
 | 12 | [Leverage-Score Sketching](sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Scaling to atlas size (`LeverageScore` ↔ `leverage_score` · `SketchData` ↔ `sketch_data` · `ProjectData` ↔ `project_data`) · both of Seurat's regimes · uniform-sampling control · on-disk `LazyMatrix` — exact-regime Spearman **1.000000**; leverage tracks rarity at **−0.929** in both tools; **caught two bugs, both fixed** (full-rank leverage + anchor-based label transfer) | Advanced |
+| 13 | [The Object Model Itself](objects_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | The **container**, not an algorithm: `Cells`/`Features` · the v5 layered assay (`Layers`/`LayerData`/`split`/`JoinLayers`) · `Key` · `Embeddings`/`Loadings`/`Stdev` · `Graphs` · `FetchData` · `Idents`/`WhichCells`/`RenameIdents`/`subset` · `Command` — **89 of 91 anchors match exactly**, no tolerance; **caught eleven bugs, all fixed** (a split/join round trip that silently misordered columns, `FetchData` returning sparse objects instead of numbers, an inert command log) | Advanced |
 
 ---
 

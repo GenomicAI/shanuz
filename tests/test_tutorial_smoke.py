@@ -43,6 +43,7 @@ TUTORIALS = [
     ("thp1_cellcycle_tutorial.py", "thp1_eccite"),
     ("pbmc3k_dimreduc_tutorial.py", "pbmc3k"),
     ("ifnb_sketch_tutorial.py", "ifnb"),
+    ("pbmc3k_objects_tutorial.py", "pbmc3k"),
 ]
 
 pytestmark = pytest.mark.skipif(
@@ -252,3 +253,46 @@ def test_pbmc3k_prints_the_marker_table(script, dataset):
     )
     # "Cluster 0: GENE, GENE, GENE" — genes present, not an empty table
     assert all(":" in ln and ln.split(":", 1)[1].strip() for ln in cluster_lines)
+
+
+def test_pbmc3k_object_model_round_trips():
+    """The object layer on real data, where the anchors are exact.
+
+    Nothing here is stochastic, so these are equalities rather than thresholds.
+    The split/join round trip is the one that matters: before this tutorial it
+    returned a differently-named layer holding the right numbers in the wrong
+    order, with the assay's own cell vector still in the original order — a
+    silent misalignment of every column against the metadata indexing it.
+    """
+    if not (DATA_ROOT / "pbmc3k").is_dir():
+        pytest.skip("dataset 'pbmc3k' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.pbmc3k_objects_tutorial import run_full
+
+    _, anchors = run_full(verbose=False)
+
+    round_trip = anchors["split_join"]
+    assert round_trip["layers_after_split"] == ["counts.batch1", "counts.batch2"]
+    assert round_trip["layer_name_restored"]
+    assert round_trip["cell_order_restored"]
+    assert round_trip["matrix_restored"]
+
+    # The no-argument join on a prepared assay — the call every script makes.
+    assert anchors["join_all_layers"]["error"] is None
+
+    # FetchData reaches all three kinds of variable, and returns numbers.
+    fetch = anchors["fetch"]
+    assert fetch["columns"] == ["nCount_RNA", "nFeature_RNA", "CD3E", "PC_1"]
+    assert fetch["n_rows"] == anchors["shape"]["n_cells"]
+    assert isinstance(fetch["CD3E_sum"], float)
+    assert fetch["pc1_matches_embeddings"]
+
+    # The command log, keyed the way Seurat keys it.
+    assert anchors["commands"] == [
+        "NormalizeData.RNA",
+        "FindVariableFeatures.RNA",
+        "ScaleData.RNA",
+        "RunPCA.RNA",
+        "FindNeighbors.RNA.pca",
+    ]
