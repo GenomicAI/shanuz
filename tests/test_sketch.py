@@ -111,13 +111,30 @@ def test_leverage_scores_are_not_flat():
     The old full-rank scores on a realistic matrix had a max/median of about 1.3
     against R's 6.5 — a spread so small that leverage sampling was uniform
     sampling with extra steps. Any implementation that saturates fails here.
+
+    Thresholds are placed in the *gap*, not on either value. Measured on this
+    fixture, whose 400 cells and 400 features make the old failure mode maximal
+    (full rank saturates every score at exactly 1):
+
+        ================  ==========  ============
+                          max/median  CV
+        ================  ==========  ============
+        old (full rank)   1.000       0.0000
+        fixed (rank 50)   1.525       0.1627
+        ================  ==========  ============
+
+    An earlier version of this test asserted ``> 1.5``, which sat directly on the
+    fixed value and duly failed on Python 3.10 at 1.4956 while passing on 3.11
+    and 3.12 — the SVD drifts ~2 % across versions. 1.25 leaves ~20 % either way.
+    If this ever fails again, check that the *sum* test above still passes before
+    touching the number: a genuine regression shows up there first.
     """
     obj, _ = _clustered_object(sizes=(200, 200), G=600, nfeatures=400)
 
     scores = leverage_score(obj)
 
-    assert scores.max() / np.median(scores) > 1.5
-    assert scores.std() / scores.mean() > 0.10
+    assert scores.max() / np.median(scores) > 1.25
+    assert scores.std() / scores.mean() > 0.08
 
 
 def test_leverage_score_picks_the_regime_the_way_seurat_does():
