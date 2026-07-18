@@ -41,6 +41,8 @@ tutorials/figures_mixscape/r_calls.csv
 tutorials/figures_mixscape/hvg_features.txt
 tutorials/figures_integration/r_calls.csv
 tutorials/figures_integration/hvg_features.txt
+tutorials/figures_refmap/r_calls.csv
+tutorials/figures_refmap/hvg_features.txt
 
 # OS
 .DS_Store

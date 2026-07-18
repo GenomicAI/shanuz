@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Eight end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Nine end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -17,6 +17,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 6 | [Cell Hashing — Demultiplexing](hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 (human+mouse) | Hashtag assay · CLR (margin 1) · `HTODemux` ↔ `hto_demux` · `MULTIseqDemux` ↔ `multiseq_demux` · cross-species doublet ground truth — **99.81 %** call-concordant with R | Advanced |
 | 7 | [Mixscape — Pooled CRISPR Screen](mixscape_vignette.md) | 20,729 cells · 25 guides + NT · GSE153056 (THP-1 ECCITE-seq) | Perturbation signature (`CalcPerturbSig`) · KO-vs-escaper mixture (`RunMixscape`) · guide-separating LDA (`MixscapeLDA`) · `PlotPerturbScore` / `MixscapeHeatmap` — **97.45 %** per-cell call-concordant with R | Advanced |
 | 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA match R; **caught two RPCA bugs, both fixed** (a crash + a 4× under-integration) | Advanced |
+| 9 | [Reference Mapping — Label Transfer](refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 (Baron 2016) | Cross-technology annotation transfer (`FindTransferAnchors` ↔ `find_transfer_anchors`) · `TransferData` ↔ `transfer_data` · `MapQuery`/`ProjectUMAP` ↔ `map_query`/`project_umap` — **98.71 %** per-cell label-concordant with R, both ~98.5 % accurate vs ground truth | Advanced |
 
 ---
 
@@ -447,6 +448,66 @@ sizes (fixed in #41) and a deeper under-integration bug (fixed here: per-object
 scaling + Seurat's reciprocal-embedding normalization lift batch mixing from
 0.222 to 0.867). Both came with regression tests; neither reproduces on any
 synthetic fixture, only on the real Seurat comparison.
+
+---
+
+## Tutorial 9 — Reference Mapping (R vs Python)
+
+> **Walkthrough:** [`refmap_vignette.md`](refmap_vignette.md)
+
+A port of Seurat's [reference mapping vignette](https://satijalab.org/seurat/articles/integration_mapping):
+the **panc8** pancreatic-islet dataset (Baron et al. 2016), ~14,900 cells across
+five sequencing technologies. Reference mapping is integration's asymmetric cousin
+— keep an annotated atlas fixed and *borrow* its labels for a new, unlabelled
+dataset. The tutorial annotates a **SMART-seq2** query (2,394 cells) from a
+**CEL-seq2** reference (2,285 cells) — a genuine cross-chemistry transfer — and,
+because the query's true `celltype` ships with the data, scores the result
+directly for accuracy. A single-technology reference is used on purpose, to
+isolate the transfer machinery from the integration path Tutorial 8 covers.
+
+```bash
+Rscript tutorials/export_seuratdata.R panc8            # one-time counts export (~117 MB pkg)
+python  tutorials/panc8_reference_mapping_tutorial.py  # writes HVGs, prints accuracy + per-class recall
+Rscript tutorials/panc8_reference_mapping_verify.R     # Seurat reference → r_calls.csv + r_*.png
+python  tutorials/panc8_reference_mapping_tutorial.py  # re-run → prints the R-vs-Python concordance
+python  tutorials/generate_refmap_plots.py             # Shanuz figures → figures_refmap/py_*.png
+```
+
+**What you'll learn:**
+- `find_transfer_anchors` — Seurat's `FindTransferAnchors(reduction="pcaproject")`:
+  project the query through the reference's PCA loadings and score the anchors
+- `transfer_data` — Seurat's `TransferData`: a distance-weighted, score-scaled vote
+  over the reference labels → `predicted.id` + per-class `prediction.score.*`
+- `map_query` / `project_umap` — Seurat's `MapQuery` / `ProjectUMAP`: run the
+  reference's *fitted* UMAP model in transform-only mode so the query lands on the
+  atlas you already know how to read
+- Reading a per-class recall table: where a small single-tech reference annotates
+  confidently, and where its rare types are too thin to anchor
+
+**Key output figures** (in `tutorials/figures_refmap/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_reference_umap_celltype.png` | The reference atlas UMAP, by cell type |
+| `py_02_query_projected_predicted.png` | The query projected into the reference UMAP, by transferred label |
+| `py_03_query_projected_truth.png` | The same projection, by the held-out true label |
+| `py_04_perclass_recall.png` | Per-cell-type transfer recall vs support |
+
+**Accuracy vs R** (per-cell label transfer on shared input + shared HVG basis, 2,394 query cells):
+
+| Comparison | Agreement |
+|---|---:|
+| Same `predicted.id` per cell (shanuz vs Seurat) | **98.71 %** (31 cells differ) |
+| shanuz accuracy vs ground-truth `celltype` | **98.45 %** |
+| Seurat accuracy vs ground-truth `celltype` | **98.79 %** |
+
+Both tools annotate the query almost identically — 2,363 of 2,394 cells get the
+same label — and each is ~98.5 % accurate against the held-out truth. Every
+abundant cell type is recovered at ≥98 %; the entire error budget is the rare
+types (epsilon, quiescent_stellate, schwann, <10 reference cells each), where both
+tools stumble the same way — the honest limit of a small single-technology
+reference, not a divergence. **No defect found** — the transfer stack ports
+faithfully on its first real-data benchmark.
 
 ---
 
