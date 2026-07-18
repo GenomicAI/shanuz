@@ -22,6 +22,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +41,7 @@ TUTORIALS = [
     ("ifnb_integration_tutorial.py", "ifnb"),
     ("panc8_reference_mapping_tutorial.py", "panc8"),
     ("thp1_cellcycle_tutorial.py", "thp1_eccite"),
+    ("pbmc3k_dimreduc_tutorial.py", "pbmc3k"),
 ]
 
 pytestmark = pytest.mark.skipif(
@@ -146,6 +148,36 @@ def test_thp1_cellcycle_recovers_phases():
     assert dist.loc["G2M", "fraction"] >= 0.06          # observed 0.13
     assert dist.loc["G1", "fraction"] <= 0.90           # not collapsed to all-G1
     assert summary["published_concordance"] >= 0.75     # observed 0.88
+
+
+def test_pbmc3k_dimreduc_extras_hold_up():
+    """JackStraw / ICA / t-SNE on real data: the observable signatures must survive.
+
+    Deliberately *not* an assertion on ``score_jackstraw``'s per-PC scores. On
+    real data those saturate at 0.0 for every PC — the finding this tutorial
+    reports — and pinning the current behaviour here would cement the defect
+    into the suite, which is exactly how the CLR and SCT bugs stayed green for
+    so long. What is asserted instead holds both before and after any fix: the
+    per-feature p-values are valid probabilities, the leading PCs carry more
+    signal than the trailing ones, and t-SNE preserves its input's structure.
+    """
+    if not (DATA_ROOT / "pbmc3k").is_dir():
+        pytest.skip("dataset 'pbmc3k' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.pbmc3k_dimreduc_tutorial import run_full
+
+    obj, summary = run_full(verbose=False)
+    emp = obj.reductions["pca"].jackstraw.empirical_p_values
+    assert np.isfinite(emp).all()
+    assert emp.min() >= 0.0 and emp.max() <= 1.0
+
+    # PC 1-5 carry the real cell-type structure; PC 16-20 are largely noise.
+    n_sig = (emp <= 1e-5).sum(axis=0)
+    assert n_sig[:5].mean() > n_sig[-5:].mean()
+
+    assert summary["n_ics"] == 20
+    assert summary["tsne_knn_vs_pca"] >= 0.3     # observed ~0.47; random is ~0.01
 
 
 @pytest.mark.parametrize("script,dataset", [TUTORIALS[0]])

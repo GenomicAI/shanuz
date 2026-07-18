@@ -138,10 +138,11 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Ten end-to-end tutorials — from basic guided clustering through multimodal
+Eleven end-to-end tutorials — from basic guided clustering through multimodal
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
-reference mapping and cell-cycle scoring to Xenium spatial — each pairing R Seurat
-code side-by-side with the Python Shanuz equivalent.
+reference mapping, cell-cycle scoring and PC-significance testing to Xenium
+spatial — each pairing R Seurat code side-by-side with the Python Shanuz
+equivalent.
 See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
@@ -156,6 +157,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 8 | [Batch Integration — Harmony/CCA/RPCA](https://github.com/GenomicAI/shanuz/blob/main/tutorials/integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
 | 9 | [Reference Mapping — Label Transfer](https://github.com/GenomicAI/shanuz/blob/main/tutorials/refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 | Advanced |
 | 10 | [Cell-cycle & Module Scoring](https://github.com/GenomicAI/shanuz/blob/main/tutorials/cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 | Advanced |
+| 11 | [Dimensional-Reduction Extras](https://github.com/GenomicAI/shanuz/blob/main/tutorials/dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -349,9 +351,9 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 547 tests pass.
+All 583 tests pass.
 
-Thirteen further tests run the tutorials end-to-end against real data. They are opt-in
+Fifteen further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
 CI:
 

@@ -51,3 +51,10 @@ tutorials/figures_cellcycle/ifn_genes.txt
 # OS
 .DS_Store
 Thumbs.db
+tutorials/figures_dimreduc/r_pca.csv
+tutorials/figures_dimreduc/r_jackstraw_p.csv
+tutorials/figures_dimreduc/r_jackstraw_pcs.csv
+tutorials/figures_dimreduc/r_ica.csv
+tutorials/figures_dimreduc/r_tsne.csv
+tutorials/figures_dimreduc/hvg_features.txt
+tutorials/figures_dimreduc/cells.txt

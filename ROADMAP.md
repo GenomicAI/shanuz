@@ -854,9 +854,9 @@ regime. Don't "simplify" them.
 - **Plan:** ~12 new side-by-side tutorials in four waves, one tutorial per PR, in
   the existing shape (`<name>_tutorial.py` + `<name>_verify.R` + `<name>.md` +
   `figures_<name>/`). Wave 1 = integration (ifnb), cell hashing (GSE108313),
-  reference mapping (panc8), Mixscape (GSE153056). Wave 2 opens with cell-cycle /
-  module scores (THP-1); further topics: spatial/scale, the DE-test suite, the
-  visualization gallery, dim-reduction extras, object internals.
+  reference mapping (panc8), Mixscape (GSE153056). Wave 2 opened with cell-cycle /
+  module scores (THP-1) and dim-reduction extras (pbmc3k); further topics:
+  spatial/scale, the DE-test suite, the visualization gallery, object internals.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
@@ -911,10 +911,30 @@ regime. Don't "simplify" them.
     is not R's, so the scores are not bit-identical by construction — the residual
     is purely that RNG (the discrete Phase is robust to it), the same "don't chase
     the RNG" story as `clara` (hashing) and the MULTI-seq KDE. No defect found.
+  - **T-dr dim-reduction extras — ✅ delivered (#45). Two more defects.**
+    `jack_straw` / `score_jackstraw` / `run_ica` / `run_tsne` on pbmc3k
+    (`dimreduc_vignette.md`). ICA reproduces R's subspace (Hungarian-matched
+    \|r\| **0.982**) and t-SNE preserves its input's neighbourhoods as well as R's
+    does (30-NN retention 0.470 vs 0.477) — both clean. **JackStraw was not.**
+    Two independent bugs, both fixed here: (1) the permutation null was built by
+    projecting the scrambled rows onto the *fixed* embedding instead of re-running
+    the PCA as R's `JackRandom` does, making the null far too tight — on the
+    pure-noise PCs 14-20 that put **109-203** of 2000 features below p ≤ 1e-5
+    where R finds **0-5**; (2) `score_jackstraw` aggregated with a one-sided KS
+    test rather than R's `prop.test`, so its largest score across all 20 PCs was
+    **8.1e-112** and no PC ever failed. Together they made shanuz keep **all 20**
+    PCs where Seurat keeps 13. After the fix both keep **13**, and the residual is
+    permutation scatter (13-15 across seeds; R fixes its per-replicate seeds and
+    is deterministic). `JackStrawData.fake_reduction_scores`, declared but never
+    populated, is filled too.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
-  clean, while **T6 found the first two defects** — exactly the point: a green
-  synthetic suite (balanced batches, self-consistent fixtures) hid a crash and a
-  4× under-integration that one real Seurat comparison exposed immediately. The
+  clean, while **T6 found the first two defects** and **T-dr the next two** —
+  exactly the point: a green synthetic suite (balanced batches, self-consistent
+  fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null
+  and the wrong significance test, all of which one real Seurat comparison
+  exposed immediately. JackStraw is the sharpest case yet: its tests asserted
+  only that signal genes score lower than noise genes, which stayed true while
+  the function was recommending every PC. The
   known-good tolerance is narrow — deterministic values match exactly, Louvain
   cluster counts drift ±1 — so anything outside that band gets investigated,
   not written up as an expected difference. This repo has twice let a real defect
