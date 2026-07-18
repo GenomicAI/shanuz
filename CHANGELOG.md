@@ -331,7 +331,7 @@ on `main`; none of it is on PyPI.
 
 ### Changed
 
-- **Supported Python is now 3.12–3.14; 3.10 and 3.11 are dropped.** The CI matrix
+- **Supported Python is now 3.12–3.13; 3.10 and 3.11 are dropped.** The CI matrix
   moves with it, and `requires-python` becomes `>=3.12`.
 
   The floor tracks [SPEC 0](https://scientific-python.org/specs/spec-0000/) — the
@@ -341,12 +341,19 @@ on `main`; none of it is on PyPI.
   held 3.11 until Oct 2027. Those four packages are what actually constrain this
   library, so theirs is the calendar worth following.
 
-  Checked before committing to it, not after: all 91 resolved packages ship
-  native `cp313` **and** `cp314` manylinux x86-64 wheels — `numba` 0.66 /
-  `llvmlite` 0.48 included, historically the last to arrive — with `igraph` and
-  `leidenalg` on stable-ABI wheels. No leg builds from source. The full suite
-  passes identically on 3.12, 3.13 and 3.14, as do all 17 tutorial smoke tests on
-  3.14 against the real datasets.
+  The full suite passes identically on both legs — 616 passed / 17 skipped — as
+  do all 17 tutorial smoke tests, which CI skips on every leg, run here against
+  the real datasets.
+
+  **Python 3.14 is not included, though it very nearly works.** Every package in
+  the set has a cp314 manylinux wheel except `harmonypy`, which publishes
+  cp39–cp313 only. Without a wheel, uv builds it from source, and that needs BLAS
+  plus a CMake-fetched armadillo `ubuntu-latest` does not have. Forcing a
+  wheels-only resolve is worse: it backtracks to `harmonypy` 0.2.0, which depends
+  on torch and pulls in triton and 24 `nvidia-*` packages. Dropping the
+  `integration` extra on a 3.14 leg does resolve clean (95 packages, wheels only)
+  but would leave 18 harmony tests unrun there. Deferred until `harmonypy` ships
+  a cp314 wheel; see `ROADMAP.md`.
 
   **Nothing breaks retroactively.** `pip` on 3.10 or 3.11 resolves to 0.2.0, the
   last release declaring `>=3.10`.

@@ -55,11 +55,16 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 
 Shanuz is published on [PyPI](https://pypi.org/project/shanuz/) — `pip install shanuz` just works.
 
-**Requires Python 3.12 or newer**, and CI tests 3.12, 3.13 and 3.14. The floor
-follows [SPEC 0](https://scientific-python.org/specs/spec-0000/), the support
-window numpy, scipy, pandas and scikit-learn themselves keep — three years past
-each Python release — rather than CPython's longer EOL calendar. On 3.10 or 3.11,
+**Requires Python 3.12 or newer**, and CI tests 3.12 and 3.13. The floor follows
+[SPEC 0](https://scientific-python.org/specs/spec-0000/), the support window
+numpy, scipy, pandas and scikit-learn themselves keep — three years past each
+Python release — rather than CPython's longer EOL calendar. On 3.10 or 3.11,
 `pip` resolves to **0.2.0**, the last release that declared `>=3.10`.
+
+Python 3.14 is not yet tested: [`harmonypy`](https://pypi.org/project/harmonypy/)
+ships manylinux wheels only through cp313, and the alternatives are a source
+build needing BLAS or a resolver backtrack that pulls in torch. Everything else
+in the dependency set already has 3.14 wheels, so this is one package away.
 
 > **The PyPI release lags `main` by a long way right now.** The newest release is
 > **0.2.0** (2026-07-05), and much of the Features list above landed after it:
@@ -347,7 +352,7 @@ any release. Milestones:
 | v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(delivered — see Tutorial 5)* |
 | v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy on-disk matrices (`LazyMatrix`) ✅ *(complete)* |
 | v0.9.0 | Specialized — `HTODemux` ✅ + `MULTIseqDemux` ✅ (cell hashing); Mixscape ✅ (`CalcPerturbSig` + `RunMixscape` + `MixscapeLDA` + `PlotPerturbScore` + `MixscapeHeatmap`, CRISPR screens) — **complete** |
-| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.12–3.14 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md) ✅, `mypy` wired advisory ✅ (annotating to `--strict` clean still open); MkDocs site still open |
+| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.12–3.13 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md) ✅, `mypy` wired advisory ✅ (annotating to `--strict` clean still open); MkDocs site still open |
 
 ---
 

@@ -799,11 +799,25 @@ regime. Don't "simplify" them.
 
 ### GitHub Actions CI — ✅ delivered
 - **File:** `.github/workflows/ci.yml`
-- **Matrix:** Python 3.12, 3.13, 3.14 on ubuntu-latest, via `astral-sh/setup-uv`
+- **Matrix:** Python 3.12, 3.13 on ubuntu-latest, via `astral-sh/setup-uv`
   (was 3.10–3.12; moved to track [SPEC 0](https://scientific-python.org/specs/spec-0000/),
-  which had already retired 3.10 in Oct 2024 and 3.11 in Oct 2025). Verified before
-  the change rather than after: all 91 resolved packages have native `cp313`/`cp314`
-  manylinux wheels, `numba`/`llvmlite` included, so no leg builds from source.
+  which had already retired 3.10 in Oct 2024 and 3.11 in Oct 2025).
+- **Open — add the 3.14 leg when `harmonypy` ships a cp314 wheel.** 3.14 was in
+  this change and came out again: it is the *only* package in the set without
+  one (manylinux cp39–cp313 only), and both ways around it are worse than
+  waiting. Building from source needs BLAS plus a CMake-fetched armadillo that
+  `ubuntu-latest` lacks — that is the failure we hit. Forcing a wheels-only
+  resolve instead backtracks to `harmonypy` 0.2.0, which depends on torch and
+  pulls triton and 24 `nvidia-*` packages. Everything else resolves clean: 95
+  packages, wheels only, on `x86_64-manylinux_2_28`/3.14. Recheck with
+  `uv pip compile pyproject.toml --extra all --python-platform
+  x86_64-manylinux_2_28 --python-version 3.14 --only-binary :all:`.
+- **Verify wheels on the *target* platform, not the dev machine.** The 3.14 leg
+  was signed off locally on macOS arm64, where the harmonypy source build
+  succeeds because Accelerate supplies BLAS — so a clean local install proved
+  nothing about Linux, and CI found it in 23 seconds. `--python-platform` +
+  `--only-binary :all:` is the check that would have caught it; the hand-picked
+  PyPI wheel survey that preceded it missed harmonypy entirely.
 - **Open — the matrix no longer varies dependencies.** Dropping 3.10 removed
   something nobody had written down: because the floors are `>=`, that leg was
   resolving numpy 2.2.6 / scipy 1.15.3 / pandas 2.3.3 where the others got
