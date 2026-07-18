@@ -42,6 +42,7 @@ TUTORIALS = [
     ("panc8_reference_mapping_tutorial.py", "panc8"),
     ("thp1_cellcycle_tutorial.py", "thp1_eccite"),
     ("pbmc3k_dimreduc_tutorial.py", "pbmc3k"),
+    ("ifnb_sketch_tutorial.py", "ifnb"),
 ]
 
 pytestmark = pytest.mark.skipif(
@@ -178,6 +179,47 @@ def test_pbmc3k_dimreduc_extras_hold_up():
 
     assert summary["n_ics"] == 20
     assert summary["tsne_knn_vs_pca"] >= 0.3     # observed ~0.47; random is ~0.01
+
+
+def test_ifnb_leverage_tracks_rarity():
+    """The defect regression, on the data where the method's purpose is visible.
+
+    Leverage sampling exists to keep rare cell states. On ifnb the annotations
+    span 4,362 cells (CD14 Mono) down to 55 (Eryth), so "does leverage rise as a
+    population gets rarer" is directly measurable — Spearman between a type's
+    mean leverage and its size, which is -0.93 in both tools.
+
+    This is the check no synthetic fixture can stand in for. Poisson clusters
+    around a shared baseline do *not* reproduce it (several were tried, and R
+    agrees with shanuz on those to 1e-5 while showing no enrichment either): real
+    rare types are transcriptionally extreme, not merely scarce. Before the fix
+    the full-rank scores were nearly flat — max/median 1.3 against R's 6.5 — so
+    sampling by them was uniform sampling, and this correlation is what that
+    destroys.
+    """
+    if not (DATA_ROOT / "ifnb").is_dir():
+        pytest.skip("dataset 'ifnb' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.ifnb_sketch_tutorial import run_full
+
+    _, summary = run_full(verbose=False, do_projection=False, do_lazy=False)
+
+    exact = summary["leverage"]["exact"]
+    assert np.isfinite(exact).all() and exact.min() >= 0
+    # Seurat truncates at 50 components, so the exact regime's scores sum to 50.
+    assert exact.sum() == pytest.approx(50.0, abs=1e-3)
+    # Real spread, not the near-uniform weights the old implementation produced.
+    assert exact.max() / np.median(exact) > 2.5
+
+    # The payoff: rarer types score higher. Observed -0.93 in both tools.
+    assert summary["rarity_spearman"]["exact"] < -0.5
+
+    # And the sketch acts on it — the rarest types are over-represented against
+    # a same-size uniform draw, which is the control that makes this meaningful.
+    lev = summary["sketch_composition"]["LeverageScore"]
+    rarest = lev.tail(3).index
+    assert lev.loc[rarest, "fold"].mean() > 1.0
 
 
 @pytest.mark.parametrize("script,dataset", [TUTORIALS[0]])

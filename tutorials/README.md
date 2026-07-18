@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Ten end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Twelve end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -20,6 +20,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 9 | [Reference Mapping — Label Transfer](refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 (Baron 2016) | Cross-technology annotation transfer (`FindTransferAnchors` ↔ `find_transfer_anchors`) · `TransferData` ↔ `transfer_data` · `MapQuery`/`ProjectUMAP` ↔ `map_query`/`project_umap` — **98.71 %** per-cell label-concordant with R, both ~98.5 % accurate vs ground truth | Advanced |
 | 10 | [Cell-cycle & Module Scoring](cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 (Papalexi 2021) | Gene-program scoring (`AddModuleScore` ↔ `add_module_score`) · cell-cycle phase (`CellCycleScoring` ↔ `cell_cycle_scoring`) · S/G2M scores + discrete phase — **96.6 %** per-cell Phase-concordant with R, scores correlate at Pearson ≥ 0.998 | Advanced |
 | 11 | [Dimensional-Reduction Extras](dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | PC significance (`JackStraw`/`ScoreJackStraw` ↔ `jack_straw`/`score_jackstraw`) · `RunICA` ↔ `run_ica` · `RunTSNE` ↔ `run_tsne` — both tools keep **13 PCs**; ICA matched \|r\| **0.982**; **caught two JackStraw bugs, both fixed** (a too-tight null + the wrong aggregation test) | Advanced |
+| 12 | [Leverage-Score Sketching](sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Scaling to atlas size (`LeverageScore` ↔ `leverage_score` · `SketchData` ↔ `sketch_data` · `ProjectData` ↔ `project_data`) · both of Seurat's regimes · uniform-sampling control · on-disk `LazyMatrix` — exact-regime Spearman **1.000000**; leverage tracks rarity at **−0.929** in both tools; **caught two bugs, both fixed** (full-rank leverage + anchor-based label transfer) | Advanced |
 
 ---
 

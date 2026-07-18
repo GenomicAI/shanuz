@@ -26,7 +26,7 @@ from shanuz.preprocessing import (  # noqa: E402
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca, _default_features, _get_scaled_data  # noqa: E402
+from shanuz.reduction import run_pca, _default_features  # noqa: E402
 from shanuz.umap import run_umap  # noqa: E402
 from shanuz.sketch import leverage_score, sketch_data, project_data  # noqa: E402
 
@@ -65,49 +65,120 @@ def _clustered_object(sizes=(60, 60, 60), seed=0, G=150, nfeatures=100):
 # ----------------------------------------------------------------------
 
 
-def test_leverage_score_matches_textbook_definition():
+def test_leverage_score_matches_seurats_truncated_svd():
+    """Seurat's definition, not the textbook one — see the regression test below."""
     obj, _ = _clustered_object()
 
-    # Build the exact matrix the function scores on, and its textbook leverage
-    # (row norms of the left singular vectors).
+    # R's small-data branch is rowSums(irlba(data, nv = 50)$v ^ 2): the leading 50
+    # right singular vectors of the (features × cells) *data* layer, uncentered.
     assay = obj.get_assay()
     feats = _default_features(assay, None)
-    A = np.asarray(_get_scaled_data(assay, feats, "scale.data"), dtype=float).T
-    U, s, _ = np.linalg.svd(A, full_matrices=False)
-    tol = s[0] * max(A.shape) * 1e-8
-    r = int((s > tol).sum())
-    exact = (U[:, :r] ** 2).sum(axis=1)
+    A = assay.layer_data("data")
+    idx = [assay.features().index(f) for f in feats]
+    A = np.asarray(A[idx, :].todense() if sp.issparse(A) else np.asarray(A)[idx, :],
+                   dtype=float)
+    _, _, vt = np.linalg.svd(A, full_matrices=False)
+    k = min(50, min(A.shape) - 1)
+    expected = (vt[:k] ** 2).sum(axis=0)
 
-    scores = leverage_score(obj, nsketch=10 ** 9)  # nsketch >= n → exact
+    scores = leverage_score(obj)
 
-    assert np.allclose(scores, exact, atol=1e-6)
-    # Leverage scores are non-negative, each at most 1, and sum to the rank.
+    assert np.allclose(scores, expected, atol=1e-8)
     assert scores.min() >= -1e-9
-    assert scores.max() <= 1 + 1e-8
-    assert scores.sum() == pytest.approx(r, abs=1e-6)
     # Also written back to metadata.
     assert "leverage.score" in obj.meta_data.columns
+
+
+def test_leverage_scores_sum_to_the_truncation_not_the_rank():
+    """The regression test for the defect this tutorial found.
+
+    Seurat truncates at 50 components, so the scores sum to 50. Shanuz used to
+    whiten against the *full* rank, which sums to the rank instead — on a matrix
+    with more features than 50 that is a completely different, and far flatter,
+    distribution. Asserting the sum pins the truncation directly.
+    """
+    obj, _ = _clustered_object(sizes=(200, 200), G=600, nfeatures=400)
+
+    scores = leverage_score(obj)
+
+    assert scores.sum() == pytest.approx(50.0, abs=1e-6)
+    assert scores.sum() != pytest.approx(400.0, abs=1.0)   # the old, wrong answer
+
+
+def test_leverage_scores_are_not_flat():
+    """The defect's *symptom*: near-uniform weights make sketching pointless.
+
+    The old full-rank scores on a realistic matrix had a max/median of about 1.3
+    against R's 6.5 — a spread so small that leverage sampling was uniform
+    sampling with extra steps. Any implementation that saturates fails here.
+    """
+    obj, _ = _clustered_object(sizes=(200, 200), G=600, nfeatures=400)
+
+    scores = leverage_score(obj)
+
+    assert scores.max() / np.median(scores) > 1.5
+    assert scores.std() / scores.mean() > 0.10
+
+
+def test_leverage_score_picks_the_regime_the_way_seurat_does():
+    """R switches to the sketched branch at ``ncells >= nsketch * 1.5``."""
+    # Many more cells than features: sketching needs the matrix to be tall, and
+    # the sketched branch additionally needs nsketch above 1.1x the feature count,
+    # so a square fixture cannot reach that branch at all.
+    obj, _ = _clustered_object(sizes=(500, 500), G=150, nfeatures=100)
+    n = len(obj)                                     # 1000 cells, 100 features
+
+    # ncells < nsketch * 1.5 → exact, so the scores sum to 50.
+    exact = leverage_score(obj, nsketch=n, var_name=None)
+    assert exact.sum() == pytest.approx(50.0, abs=1e-6)
+
+    # ncells >= nsketch * 1.5 → the CountSketch/QR/JL path, which is on its own
+    # scale (Seurat leaves the JL projection unscaled) and must *not* sum to 50.
+    sketched = leverage_score(obj, nsketch=200, var_name=None)
+    assert sketched.shape == exact.shape
+    assert np.all(np.isfinite(sketched)) and sketched.min() >= 0
+    assert sketched.sum() != pytest.approx(50.0, abs=1.0)
+
+
+def test_leverage_score_bumps_nsketch_like_seurat():
+    """Below 1.1x the feature count Seurat raises nsketch and warns, not errors."""
+    obj, _ = _clustered_object(sizes=(500, 500), G=150, nfeatures=100)
+
+    with pytest.warns(UserWarning, match="too close to the number of features"):
+        scores = leverage_score(obj, nsketch=105, var_name=None)
+
+    assert np.all(np.isfinite(scores)) and scores.min() >= 0
+
+
+def test_leverage_score_refuses_a_square_matrix():
+    obj, _ = _clustered_object(sizes=(60, 60), G=200, nfeatures=150)
+    with pytest.raises(ValueError, match="too square"):
+        leverage_score(obj, nsketch=50, var_name=None)
 
 
 def test_leverage_score_flags_rare_cells():
     # 120 common cells, 6 rare cells in a distinct state.
     obj, ct = _clustered_object(sizes=(120, 6), G=120, nfeatures=80)
-    scores = leverage_score(obj, nsketch=10 ** 9)
+    scores = leverage_score(obj)
 
     assert scores[ct == "T1"].mean() > scores[ct == "T0"].mean()
 
 
-def test_leverage_score_sketch_approximates_exact():
-    # n = 810 cells, d = 20 features: nsketch=500 sits between d and n, so the
-    # CountSketch path is exercised. A single-hash sketch is a subspace embedding
-    # only once it has ~d² rows, so this uses nsketch ≈ d² — the regime where the
-    # approximation tracks the exact scores (as it does at nsketch=5000 for the
-    # million-cell case this is a proxy for).
-    obj, _ = _clustered_object(sizes=(270, 270, 270), G=80, nfeatures=20)
-    exact = leverage_score(obj, nsketch=10 ** 9, seed=0)
-    approx = leverage_score(obj, nsketch=500, seed=0)
+def test_leverage_score_defaults_to_the_data_layer():
+    """Seurat scores the log-normalized data, not scale.data.
 
-    assert np.corrcoef(exact, approx)[0, 1] > 0.9
+    Worth pinning: the two give materially different geometries, and the default
+    silently deciding which one you get is exactly how the original defect stayed
+    invisible.
+    """
+    obj, _ = _clustered_object()
+
+    default = leverage_score(obj, var_name=None)
+    explicit = leverage_score(obj, layer="data", var_name=None)
+    scaled = leverage_score(obj, layer="scale.data", var_name=None)
+
+    assert np.allclose(default, explicit)
+    assert not np.allclose(default, scaled)
 
 
 # ----------------------------------------------------------------------
@@ -128,15 +199,51 @@ def test_sketch_data_returns_subset():
     assert sk.misc["sketch"]["ncells"] == 40
 
 
-def test_sketch_data_oversamples_rare():
-    # 10% of cells are a distinct rare state; leverage sampling should enrich it.
-    obj, ct = _clustered_object(sizes=(180, 20), G=120, nfeatures=80)
-    sk = sketch_data(obj, ncells=60, seed=0)
+def test_sketch_data_draws_towards_high_leverage_cells():
+    """The mechanism, tested where it is actually deterministic.
 
-    sketch_types = obj.meta_data.loc[sk.cell_names(), "celltype"].to_numpy()
-    rare_full = float(np.mean(ct == "T1"))
-    rare_sketch = float(np.mean(sketch_types == "T1"))
-    assert rare_sketch > rare_full
+    Deliberately *not* "the sketch over-represents rare cell type T1". Synthetic
+    Poisson clusters do not reproduce that: real rare types (pDC, erythrocytes)
+    are transcriptionally extreme, not merely scarce, and on ifnb they do get
+    2-3x the average leverage — which is where the tutorial's smoke test checks
+    it. What is true on any data is that sampling *proportional to leverage*
+    favours high-leverage cells, and that is what this pins, averaged over seeds
+    so a single unlucky draw cannot flip it.
+    """
+    obj, _ = _clustered_object(sizes=(300, 300), G=400, nfeatures=300)
+    scores = leverage_score(obj, var_name=None)
+    order = {c: i for i, c in enumerate(obj.cell_names())}
+    n = len(obj)
+
+    def mean_leverage(method):
+        got = []
+        for seed in range(20):
+            sk = sketch_data(obj, ncells=n // 10, method=method, seed=seed)
+            got.append(scores[[order[c] for c in sk.cell_names()]].mean())
+        return float(np.mean(got))
+
+    weighted = mean_leverage("LeverageScore")
+    uniform = mean_leverage("Uniform")
+
+    assert weighted > uniform
+    assert weighted > scores.mean()
+    # Uniform must land on the population mean — if it does not, the sampling
+    # itself is biased and the comparison above proves nothing.
+    assert uniform == pytest.approx(scores.mean(), rel=0.02)
+
+
+def test_sketch_data_uniform_method_ignores_leverage():
+    obj, _ = _clustered_object(sizes=(100, 100))
+    sk = sketch_data(obj, ncells=50, method="Uniform", var_name="lev", seed=0)
+
+    assert len(sk) == 50
+    assert np.allclose(obj.meta_data["lev"].to_numpy(), 1.0)
+
+
+def test_sketch_data_rejects_unknown_method():
+    obj, _ = _clustered_object(sizes=(40, 40))
+    with pytest.raises(ValueError, match="Uniform"):
+        sketch_data(obj, ncells=10, method="Nonsense")
 
 
 def test_sketch_data_caps_at_available_cells():
@@ -182,6 +289,51 @@ def test_project_data_transfers_labels():
     assert "predicted.score" in obj.meta_data.columns
     acc = np.mean(obj.meta_data["predicted"].to_numpy() == ct)
     assert acc > 0.85
+
+
+def test_project_data_votes_over_neighbours_not_anchors():
+    """Seurat's ``ProjectData`` transfers by weighted kNN, not integration anchors.
+
+    Pinned because the anchor route this replaced was *more* accurate on ifnb
+    (0.936 vs R's 0.905) while being the wrong algorithm — and unusable at the
+    scale sketching targets, since anchor finding against the full dataset is the
+    cost sketching removes. Matching R took accuracy *down* to 0.903, at 98.1 %
+    per-cell agreement. A regression would most likely look like an improvement,
+    so the check is structural: no anchor object is built, and the scores are a
+    normalized vote (bounded by 1) over exactly ``k_weight`` neighbours.
+    """
+    import shanuz.transfer as transfer_mod
+
+    obj, ct = _clustered_object(sizes=(80, 80, 80))
+    sk = sketch_data(obj, ncells=90, seed=0)
+    run_pca(sk, n_pcs=20)
+
+    calls = []
+    original = transfer_mod.find_transfer_anchors
+    transfer_mod.find_transfer_anchors = lambda *a, **k: calls.append(1)
+    try:
+        project_data(obj, sk, refdata={"predicted": "celltype"}, project_umap=False)
+    finally:
+        transfer_mod.find_transfer_anchors = original
+
+    assert calls == [], "project_data must not build transfer anchors"
+    scores = obj.meta_data["predicted.score"].to_numpy()
+    assert scores.min() > 0.0 and scores.max() <= 1.0 + 1e-9
+    acc = np.mean(obj.meta_data["predicted"].to_numpy() == ct)
+    assert acc > 0.85
+
+
+def test_project_data_accepts_a_bare_column_name():
+    """R expands a bare string to {col: col}; a raw array is not accepted."""
+    obj, _ = _clustered_object(sizes=(60, 60))
+    sk = sketch_data(obj, ncells=60, seed=0)
+    run_pca(sk, n_pcs=10)
+
+    project_data(obj, sk, refdata="celltype", project_umap=False)
+
+    assert "celltype.score" in obj.meta_data.columns
+    with pytest.raises(KeyError, match="not found in the sketch"):
+        project_data(obj, sk, refdata="no_such_column", project_umap=False)
 
 
 def test_project_data_projects_umap_when_model_present():

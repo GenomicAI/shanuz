@@ -23,6 +23,43 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+*Leverage-score sketching: flattened sampling weights and the wrong label transfer (#46)*
+
+- **`leverage_score` whitened against the full rank.** Seurat computes leverage
+  from a **rank-50 truncated SVD** — `rowSums(V²)` over the leading 50 right
+  singular vectors, so the scores sum to 50. Shanuz used every direction above a
+  tolerance, which is the classical hat-matrix definition and equally defensible
+  in the abstract, but useless on data of this shape: the scores sum to the rank
+  and are capped at 1, so 2000 variable features over a few thousand cells crush
+  every score towards `d/n`. On PBMC 3k that meant a max/median of **1.34**
+  against Seurat's **6.48**, where uniform sampling scores 1.00 — leverage
+  sampling had become an expensive way to sample uniformly, silently. Both
+  regimes are now ported: the truncated SVD below `nsketch * 1.5` cells, and
+  `CountSketch` → `QR` → `JLEmbed` above it, along with Seurat's `nsketch` bump
+  and its "too slow" / "too square" guards. The exact regime now matches R
+  per-cell (Spearman **1.000000**, max abs diff 3.4e-6).
+- **`leverage_score` read the wrong layer.** The default was `"scale.data"`;
+  Seurat scores the log-normalized `"data"`. Changed to match. `sketch_data`
+  follows.
+- **`project_data` transferred labels through integration anchors.** Seurat's
+  `ProjectData` calls `TransferSketchLabels` — a weighted k-nearest-neighbour
+  vote *inside the projected reduction*, with the sketch's own rows as the
+  reference. The anchor route scored **better** on ifnb (0.936 against Seurat's
+  0.905), which is why it survived review; it is still wrong, and it costs
+  precisely what sketching exists to remove, so at the scale this API targets it
+  is unusable rather than merely different. Now matches Seurat's mechanism and
+  its accuracy exactly (**0.9050** each), at 98.1 % per-cell agreement on a
+  shared sketch. Seurat's weight kernel is reproduced term-for-term from
+  `FindWeightsC`.
+- **`sketch_data` gained `method="Uniform"`**, as in Seurat — the control that
+  makes "the sketch keeps rare cells" a meaningful claim.
+
+  **Breaking:** `project_data` no longer accepts `seed` (the k-NN vote is
+  deterministic), and no longer accepts a raw label array for `refdata` — like
+  Seurat it takes a column name on the sketch, or `{new_col: sketch_col}`.
+  `leverage_score`'s `eps` changed meaning from an SVD rank tolerance (1e-8) to
+  Seurat's Johnson–Lindenstrauss distortion (0.5), and it gained `ndims`.
+
 *JackStraw: a mis-specified permutation null and the wrong significance test (#45)*
 
 - **`jack_straw` built its null against a fixed basis.** R's `JackRandom` permutes
@@ -54,6 +91,27 @@ on `main`; none of it is on PyPI.
   to reject, and both were mutation-tested against the old code.
 
 ### Added
+
+*Leverage-score sketching tutorial — side by side with R Seurat (#46)*
+
+- `tutorials/sketch_vignette.md` with `ifnb_sketch_tutorial.py`,
+  `ifnb_sketch_verify.R`, and `generate_sketch_plots.py` — `leverage_score`
+  (`LeverageScore`), `sketch_data` (`SketchData`) and `project_data`
+  (`ProjectData`) on ifnb, on a cell and feature basis shared with the R run.
+- **First real-data fidelity result for all three** (synthetic fixtures only
+  before), and it found the two defects above. Exercises **both** of Seurat's
+  regimes on one dataset by moving `nsketch` rather than the data. Headline:
+  exact-regime Spearman **1.000000** against R, leverage tracks cell-type rarity
+  at Spearman **−0.929** in both tools (CD4 Naive T 0.76× → Eryth 2.89×), and
+  `project_data` matches Seurat's label accuracy exactly.
+- ifnb's 13 annotated types — 4,362 cells down to 55 — make the payoff directly
+  measurable, against a same-size **uniform** sketch as the control. No synthetic
+  fixture reproduces it: several were tried, and R agrees with shanuz on those to
+  1e-5 while showing no enrichment either, because real rare types are
+  transcriptionally extreme rather than merely scarce.
+- The lazy on-disk `LazyMatrix` round-trip is checked too, but reported
+  separately and **not** as a side-by-side — R's equivalent is BPCells, which is
+  not installed here.
 
 *Dimensional-reduction extras tutorial — side by side with R Seurat (#45)*
 

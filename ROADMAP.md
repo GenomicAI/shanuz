@@ -927,18 +927,45 @@ regime. Don't "simplify" them.
     permutation scatter (13-15 across seeds; R fixes its per-replicate seeds and
     is deterministic). `JackStrawData.fake_reduction_scores`, declared but never
     populated, is filled too.
+  - **T-sk leverage-score sketching — ✅ delivered. Two more defects.**
+    `leverage_score` / `sketch_data` / `project_data` on ifnb
+    (`sketch_vignette.md`), exercising **both** of Seurat's regimes by moving
+    `nsketch` rather than the dataset. After the fixes the exact regime is a
+    per-cell match (Spearman **1.000000**, max abs diff 3.4e-6 — below R's own
+    unseeded-`irlba` noise), leverage tracks cell-type rarity at Spearman
+    **−0.929** in both tools, and `project_data` reaches Seurat's accuracy
+    exactly (**0.9050** each). **Two bugs, both fixed here:** (1) leverage was
+    whitened against the *full rank* rather than Seurat's rank-50 truncation, so
+    on 2000 HVGs the scores were crushed to a max/median of **1.34** against R's
+    **6.48** — uniform sampling scores 1.00, so leverage sampling had become an
+    expensive way to sample uniformly; (2) `project_data` transferred labels
+    through the integration anchors, where `ProjectData` uses a weighted k-NN
+    vote in the projected reduction — the anchor route scored *better* (0.936 vs
+    0.905), which is why it survived, but it costs exactly what sketching exists
+    to remove and is unusable at the scale the API targets. Fixing it moved the
+    headline number **down** and per-cell agreement **up** to 98.1 %.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
-  clean, while **T6 found the first two defects** and **T-dr the next two** —
+  clean, while **T6 found the first two defects**, **T-dr the next two** and
+  **T-sk two more** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
-  fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null
-  and the wrong significance test, all of which one real Seurat comparison
-  exposed immediately. JackStraw is the sharpest case yet: its tests asserted
-  only that signal genes score lower than noise genes, which stayed true while
-  the function was recommending every PC. The
+  fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
+  the wrong significance test, a flattened sampling weight and a label transfer
+  through the wrong machinery — all of which one real Seurat comparison exposed
+  immediately. JackStraw and leverage sketching are the sharpest cases: JackStraw's
+  tests asserted only that signal genes score lower than noise genes, which stayed
+  true while the function was recommending every PC; `leverage_score`'s asserted
+  its own full-rank definition to six decimals, and its sampling fixture was too
+  small to be in the algorithm's regime at all. The
   known-good tolerance is narrow — deterministic values match exactly, Louvain
   cluster counts drift ±1 — so anything outside that band gets investigated,
   not written up as an expected difference. This repo has twice let a real defect
   hide behind a documented "language difference" caveat.
+- **A fix can make the headline number worse, and still be the fix.** T-sk's
+  `project_data` bug scored *above* Seurat before it was corrected. Fidelity to
+  the reference implementation is the goal; when a divergence flatters us, that is
+  a reason to look harder, not to keep it. Where a residual really is RNG, prove
+  it distribution-against-distribution over matched seeds — single-run pairs were
+  actively misleading on T-sk's sketch composition.
 
 ### Documentation site
 - **Do the type annotations first.** mkdocstrings resolves annotations, and
