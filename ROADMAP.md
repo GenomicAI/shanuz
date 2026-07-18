@@ -861,7 +861,7 @@ regime. Don't "simplify" them.
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
   counts exactly), and the R deps (`SeuratData` + `harmony`).
-- **Wave 1 — in progress.**
+- **Wave 1 — ✅ complete.**
   - **T7 cell hashing — ✅ delivered (#39).** `hto_demux` / `multiseq_demux`
     on GSE108313 (`hashing_vignette.md`). Result: `HTODemux` is **99.81 %**
     call-concordant with Seurat on identical input — the first real-data
@@ -890,9 +890,19 @@ regime. Don't "simplify" them.
     the RPCA anchor filter, lifting batch-mix to **0.867** (py ARI→celltype 0.444 →
     0.677). The old "quality, not count" read was wrong — it was mostly count
     (global scaling under-found anchors) plus the missing embedding normalization.
-  - Remaining: T8 reference mapping (panc8).
-- **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7 and T9
-  clean, then **T6 found the first two defects** — exactly the point: a green
+  - **T8 reference mapping — ✅ delivered (#43). Wave 1's last tutorial.**
+    `find_transfer_anchors` / `transfer_data` / `map_query` / `project_umap` on
+    panc8 (`refmap_vignette.md`). Transferring `celltype` from a CEL-seq2 reference
+    to a SMART-seq2 query on a shared HVG basis: per-cell label concordance with
+    Seurat is **98.71 %** (2,363 of 2,394 cells), and each tool is ~98.5 % accurate
+    against the held-out truth (shanuz 0.9845, Seurat 0.9879). Every abundant type
+    is ≥98 %; the whole error budget is the rare types (<10 reference cells) where
+    both tools stumble the *same way* — a small single-tech reference's honest
+    limit, not a divergence. **No defect found** — the transfer stack ports
+    faithfully on its first real-data benchmark, the initiative's other valid
+    outcome.
+- **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
+  clean, while **T6 found the first two defects** — exactly the point: a green
   synthetic suite (balanced batches, self-consistent fixtures) hid a crash and a
   4× under-integration that one real Seurat comparison exposed immediately. The
   known-good tolerance is narrow — deterministic values match exactly, Louvain

@@ -38,6 +38,7 @@ TUTORIALS = [
     ("pbmc_hashing_tutorial.py", "pbmc_hashing"),
     ("thp1_mixscape_tutorial.py", "thp1_eccite"),
     ("ifnb_integration_tutorial.py", "ifnb"),
+    ("panc8_reference_mapping_tutorial.py", "panc8"),
 ]
 
 pytestmark = pytest.mark.skipif(
@@ -98,6 +99,28 @@ def test_ifnb_rpca_matches_seurat_batch_mixing():
     assert board.loc["cca", "batch_entropy"] >= 0.95            # baseline holds
     assert (board.loc["rpca", "ari_celltype"]
             > board.loc["uncorrected (PCA)", "ari_celltype"])   # pre-fix was below
+
+
+def test_panc8_reference_mapping_recovers_celltype():
+    """Reference mapping on real data: label transfer must recover the query's types.
+
+    On panc8, transferring ``celltype`` from the CEL-seq2 reference to the
+    SMART-seq2 query reaches ~0.98 accuracy against ground truth (Seurat ~0.99),
+    with the abundant cell types recovered near-perfectly and high-confidence
+    calls. Asserts the transfer clears a high floor, that it found a healthy
+    anchor set, and that the mean prediction score stays high — the observable
+    signatures a broken projection or anchor step would sink.
+    """
+    if not (DATA_ROOT / "panc8").is_dir():
+        pytest.skip("dataset 'panc8' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.panc8_reference_mapping_tutorial import run_full
+
+    _ref, _query, anchors, _pred, summary = run_full(do_umap=False, verbose=False)
+    assert summary["accuracy"] >= 0.9                        # observed 0.985
+    assert len(anchors.anchors) > 500                        # observed ~3550
+    assert summary["scoreboard"]["mean_score"].iloc[0] >= 0.9
 
 
 @pytest.mark.parametrize("script,dataset", [TUTORIALS[0]])

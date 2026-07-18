@@ -23,6 +23,29 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+*Reference mapping tutorial — label transfer, side by side with R Seurat (#43)*
+
+- `tutorials/refmap_vignette.md` with `panc8_reference_mapping_tutorial.py`,
+  `panc8_reference_mapping_verify.R`, and `generate_refmap_plots.py` — the
+  reference-mapping workflow (`find_transfer_anchors` / `transfer_data` /
+  `map_query` / `project_umap`) on the panc8 pancreatic-islet atlas (Baron et al.
+  2016), annotating a SMART-seq2 query from a CEL-seq2 reference. Both tools read
+  identical exported counts and a shared variable-feature basis; the query's true
+  `celltype` is held back as ground truth so the transfer is scored for accuracy,
+  not just agreement with R. A single-technology reference is used deliberately, to
+  isolate the transfer machinery from the integration path.
+- **First real-data fidelity result for the reference-mapping features** (only
+  synthetic two-type fixtures before): per-cell label concordance with Seurat is
+  **98.71 %** (2,363 of 2,394 query cells get the same `predicted.id`), and each
+  tool is ~98.5 % accurate against the held-out cell types (shanuz 0.9845, Seurat
+  0.9879). Every abundant cell type is recovered at ≥98 %; the rare types (<10
+  reference cells) are noisy in both tools alike — a small single-tech reference's
+  honest limit, not a divergence. **No defect found** — the transfer stack ports
+  faithfully. Completes Wave 1 of the tutorial initiative.
+- 12 network-free unit tests (`tests/test_refmap_tutorial.py`) covering the metric
+  helpers and a synthetic two-technology end-to-end run, plus a gated real-data
+  accuracy regression in `tests/test_tutorial_smoke.py`.
+
 *Integration tutorial — Harmony / CCA / RPCA, side by side with R Seurat (#41)*
 
 - `tutorials/integration_vignette.md` with `ifnb_integration_tutorial.py`,
