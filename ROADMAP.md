@@ -878,7 +878,7 @@ regime. Don't "simplify" them.
   of them has ever been compared to real Seurat** — their tests assert
   self-consistency on synthetic `default_rng` fixtures. At the start of the
   initiative 36 of 103 public exports appeared in a runnable tutorial; 67 did
-  not. As of T-sp it is **82 of 104**, counted as exports named anywhere in
+  not. As of T-de it is **82 of 104**, counted as exports named anywhere in
   `tutorials/*.py` — the runnable scripts, not the prose. That method is stated
   because the earlier figures in this bullet were not reproducible from it (the
   T-obj entry said 81 where this count gives 74), so treat the series as
@@ -890,8 +890,7 @@ regime. Don't "simplify" them.
   reference mapping (panc8), Mixscape (GSE153056). Wave 2 = cell-cycle / module
   scores (THP-1), dim-reduction extras (pbmc3k), leverage sketching (ifnb),
   object internals (pbmc3k) and spatial statistics / the spatial container
-  (Xenium). Remaining topics: the DE-test suite (Wave 3 — needs the Bioconductor
-  trio) and out-of-core `LazyMatrix` at scale, which has no R counterpart
+  (Xenium). Wave 3 = the DE-test suite (pbmc3k). Remaining: out-of-core `LazyMatrix` at scale, which has no R counterpart
   installed to compare against (`BPCells` is not present). **The visualization
   gallery never became its own tutorial**: `dot_plot` was the last plotting
   export uncovered and was folded into the pbmc3k gallery in T-sp.
@@ -1053,9 +1052,55 @@ regime. Don't "simplify" them.
     trusting the map. `dot_plot` — the last plotting export with no tutorial
     coverage — was folded into the same gallery, and drawing it is what exposed
     the mislabelling.
+- **Wave 3 — in progress.**
+  - **T-de the differential-expression test suite — ✅ delivered. Two defects,
+    one of them the most consequential of the initiative.** All eight
+    `find_markers` tests against `FindMarkers` on pbmc3k clusters 0 vs 1 (695 vs
+    477 cells, 13,714 genes, `de_vignette.md`), on a shared cell assignment so no
+    clustering difference can masquerade as a DE difference. **Eight tests and
+    none had ever been compared to R.** Result: all seven per-cell tests
+    reproduce Seurat's top 50 genes exactly, with `wilcox`/`t`/`bimod`/`LR` at
+    p-value Spearman ≥ 0.99997.
+    **(1) `avg_log2FC` put Seurat's pseudocount on the group *mean* instead of
+    the group *sum*.** Seurat 5's `log1pdata.mean.fxn` is
+    `log2((sum(expm1(x)) + 1) / n)` — worth `1/n` on the mean scale, not 1;
+    shanuz used Seurat *4*'s formula. This floored every fold change: a gene
+    detected in 0 % of one cluster and 24 % of the other read **−1.26** against
+    Seurat's **−9.92**. It is not a display bug, because **`logfc_threshold`
+    filters on this value** — at Seurat's own default of 0.1 shanuz returned
+    4,903 genes where Seurat returned 13,009, and at 0.25 it was **2,298 against
+    11,931, Jaccard 0.193**. The error concentrated in sparse marker-like genes
+    (where both groups express a gene the two formulas agree at Spearman 0.990),
+    which is exactly what DE is looking for. Now **7.11e-15 across all 13,712
+    genes**. `test_avg_log2fc_matches_seurat_formula` already existed, encoded
+    the same wrong formula, and was green throughout — corrected here.
+    **(2) `negbinom` ran a different test.** Seurat's `GLMDETest` uses
+    `MASS::glm.nb` (ML-estimated dispersion) and the **Wald** p-value; shanuz
+    used a fixed moment dispersion and a **likelihood-ratio** test, reading
+    HLA-DRA at 5.5e-128 against R's 1.1e-321. After the fix the p-values agree
+    **exactly** (median |log10 ratio| 0.000) for every gene detected above 5 %;
+    the residual sits below that, where the GLM fits near-empty rows and
+    Seurat's own `min.cells.feature` drops the genes (all 2,354 R dropped here
+    were below 1 % detection in both groups).
+    **Left standing:** `deseq2` is **pseudobulk** where Seurat's `DESeq2DETest`
+    tests **cells as replicates** — the practice Squair et al. 2021 showed
+    inflates false positives — and since it requires `sample_col` it raises
+    rather than silently substituting; `mast` is a hand-rolled hurdle model
+    (Spearman 0.9993 on detected genes) because MAST has no Python equivalent;
+    Seurat rounds `myAUC` to 3 dp inside `DifferentialAUC`, so ROC agrees only to
+    5e-4 by construction. Also corrected: the docstring advised passing CDR "to
+    match Seurat's default CDR covariate", but `MASTDETest` fits `~ condition`
+    alone and adds no CDR term.
+  - **R-side deps: MAST 1.38.0 + DESeq2 1.52.0, and deliberately NOT
+    `glmGamPoi`.** It is a *Suggests* of DESeq2 rather than an Imports,
+    `FindMarkers` never calls it, and its presence flips `sctransform`'s `vst`
+    onto a different backend — which would move the SCTransform R reference the
+    SCT tutorial is pinned against. Installing with default dependencies leaves
+    Suggests alone. Verified rather than assumed: an SCTransform fingerprint
+    taken before and after the install is byte-identical.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
-  **T-sk two more**, **T-obj eleven** and **T-sp three** —
+  **T-sk two more**, **T-obj eleven**, **T-sp three** and **T-de two** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer
