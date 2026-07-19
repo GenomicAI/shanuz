@@ -23,6 +23,31 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+*The differential-expression test suite, audited against Seurat 5.5.1*
+
+- **`avg_log2FC` put Seurat's pseudocount on the group mean instead of the group
+  sum.** Seurat 5's `log1pdata.mean.fxn` is `log2((sum(expm1(x)) + 1) / n)`, so
+  the pseudocount is worth `1/n` on the mean scale; shanuz added a whole count to
+  the mean, which is Seurat 4's formula. Every fold change was floored toward
+  zero — a gene detected in 0 % of one cluster and 24 % of the other read −1.26
+  against Seurat's −9.92. **`logfc_threshold` filters on this value**, so the
+  error changed which genes were returned, not only what they were labelled:
+  2,298 genes against Seurat's 11,931 at a 0.25 threshold (Jaccard 0.193). Now
+  matches R to **7.11e-15** across all 13,712 genes.
+- **`negbinom` ran a likelihood-ratio test on a moment-estimated dispersion**
+  where Seurat's `GLMDETest` fits `MASS::glm.nb` (dispersion by maximum
+  likelihood) and takes the Wald p-value. HLA-DRA read 5.5e-128 against R's
+  1.1e-321. After the fix, p-values agree exactly for every gene detected above
+  5 %; below that the GLM is fitting near-empty rows, and Seurat's
+  `min.cells.feature` drops those genes anyway.
+- **`test_avg_log2fc_matches_seurat_formula` encoded the same wrong formula** and
+  checked shanuz agreed with itself, so it was green the whole time under a name
+  that claimed Seurat parity. Corrected.
+- **The `latent_vars` docstring had MAST backwards** — it advised passing the
+  cellular detection rate "to match Seurat's default CDR covariate", but
+  `MASTDETest` fits `~ condition` alone and adds no CDR term. Passing CDR is a
+  deliberate departure from Seurat, not a way to match it.
+
 *Spatial statistics and the spatial container, audited against Seurat 5.5.1*
 
 - **`find_spatially_variable_features(method="moransi")` used the wrong spatial
@@ -169,6 +194,22 @@ run.
   to reject, and both were mutation-tested against the old code.
 
 ### Added
+
+*Differential-expression tutorial — Wave 3's first*
+
+- `tutorials/pbmc3k_de_tutorial.py` + `pbmc3k_de_verify.R` + `de_vignette.md` +
+  `figures_de/`. All eight `find_markers` tests against `FindMarkers` on pbmc3k
+  clusters 0 vs 1, on a cell assignment exported from the Python side so that no
+  clustering difference can be mistaken for a DE difference. **Eight tests, none
+  of which had ever been compared to R.**
+- After the two fixes, **all seven per-cell tests reproduce Seurat's top 50 genes
+  exactly**, with `wilcox` / `t` / `bimod` / `LR` at p-value Spearman ≥ 0.99997
+  and `mast` at 0.9993 on genes detected above 5 %.
+- Reported rather than changed: `deseq2` is pseudobulk where Seurat tests cells
+  as replicates (and requires `sample_col`, so it raises rather than silently
+  substituting); Seurat rounds `myAUC` to 3 dp inside `DifferentialAUC`; R's
+  `wilcox` returns `NaN` for genes expressed in neither group where shanuz
+  returns `p = 1`.
 
 *Spatial-statistics tutorial — Wave 2's last, and the wave's close*
 

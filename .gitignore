@@ -73,3 +73,7 @@ tutorials/figures_svf/cells.txt
 tutorials/figures_svf/py_anchors.json
 tutorials/figures_svf/r_anchors.json
 tutorials/figures_svf/r_moransi.csv
+tutorials/figures_de/groups.csv
+tutorials/figures_de/py_summary.json
+tutorials/figures_de/py_*.csv
+tutorials/figures_de/r_*.csv

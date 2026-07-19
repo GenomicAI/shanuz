@@ -41,11 +41,17 @@ def test_avg_log2fc_matches_seurat_formula(small_seurat):
     a_idx = list(range(10))
     b_idx = list(range(10, 20))
 
+    # Seurat 5's `log1pdata.mean.fxn`: log2((sum(expm1(x)) + pseudocount) / n).
+    # The pseudocount goes on the group's SUM, not on its mean — an earlier
+    # version of this test wrote `log2(mean(expm1(x)) + 1)`, which is Seurat 4's
+    # formula. It re-implemented the same mistake the code was making and then
+    # checked the two agreed, so it stayed green while `avg_log2FC` was wrong for
+    # 98.9 % of genes on pbmc3k. See tests/test_de_parity.py.
     for gene in res.index:
         gi = feats.index(gene)
-        m1 = np.expm1(dense[gi, a_idx]).mean()
-        m2 = np.expm1(dense[gi, b_idx]).mean()
-        expected = np.log2(m1 + 1) - np.log2(m2 + 1)
+        m1 = (np.expm1(dense[gi, a_idx]).sum() + 1.0) / len(a_idx)
+        m2 = (np.expm1(dense[gi, b_idx]).sum() + 1.0) / len(b_idx)
+        expected = np.log2(m1) - np.log2(m2)
         assert np.isclose(res.loc[gene, "avg_log2FC"], expected, atol=1e-9), gene
 
 
