@@ -8,6 +8,28 @@ import pandas as pd
 from .base import SpatialImage
 
 
+def _auto_radius(coords: pd.DataFrame) -> Optional[float]:
+    """A default spot radius, matching SeuratObject's ``.AutoRadius``.
+
+    ``0.01 * mean(width, height)`` of the bounding box — one percent of the
+    slide's mean dimension. It is a drawing hint, not a measurement: nothing
+    about the data says how big a cell is, so R picks a size that looks right at
+    slide scale and lets the caller override it.
+
+    Without this the radius stays ``None`` and every true-to-scale spot renderer
+    silently falls back to a fixed-size scatter, which is what shanuz did for
+    every FOV that did not come from a Visium ``scalefactors_json.json``.
+    """
+    if len(coords) == 0:
+        return None
+    spans = [
+        float(np.ptp(coords[axis].to_numpy(dtype=float)))
+        for axis in ("x", "y")
+    ]
+    radius = 0.01 * float(np.mean(spans))
+    return radius if np.isfinite(radius) and radius > 0 else None
+
+
 class Centroids(SpatialImage):
     """Cell centroid coordinates.
 
@@ -28,7 +50,7 @@ class Centroids(SpatialImage):
         self,
         coords: pd.DataFrame,
         nsides: int = 0,
-        radius: Optional[float] = None,
+        radius: Optional[float] = None,  # None → SeuratObject's .AutoRadius
         theta: Optional[float] = None,
         assay: str = "",
         key: str = "centroids_",
@@ -41,7 +63,7 @@ class Centroids(SpatialImage):
                 raise ValueError(f"coords must have a '{col}' column.")
         self._coords = coords[["x", "y", "cell"]].copy()
         self.nsides = nsides
-        self.radius_ = radius
+        self.radius_ = radius if radius is not None else _auto_radius(self._coords)
         self.theta_ = theta
 
     # ------------------------------------------------------------------

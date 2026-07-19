@@ -31,23 +31,47 @@ from shanuz.clustering import find_clusters
 from shanuz.umap import run_umap
 from shanuz.markers import find_all_markers
 from shanuz.plotting import (
-    vln_plot, feature_plot, dim_plot, elbow_plot,
+    vln_plot, feature_plot, dim_plot, dot_plot, elbow_plot,
     variable_feature_plot, viz_dim_loadings, dim_heatmap, do_heatmap, ridge_plot,
 )
 
 FIGURES = Path(__file__).parent / "figures"
 FIGURES.mkdir(exist_ok=True)
 
+# Seurat's `new.cluster.ids` for pbmc3k at resolution 0.5, in cluster order.
+# Verified against the clusters this pipeline actually produces rather than
+# copied: cluster 1 is LYZ 5.07 / CD14 1.51 (monocytes), cluster 2 is IL7R 1.63
+# (memory T), cluster 3 is MS4A1 2.14 (B), cluster 4 is NKG7 3.41 with GNLY low
+# (CD8 T, against cluster 6's GNLY 4.28 for NK). An earlier version of this map
+# had 1<->2 and 3<->4 transposed, which put monocyte names on the T-cell
+# compartment in every labelled figure. `test_cell_type_map_matches_the_markers`
+# now fails if the numbering drifts again.
 CELL_TYPE_MAP = {
     "0": "Naive CD4 T",
-    "1": "Memory CD4 T",
-    "2": "CD14+ Mono",
-    "3": "CD8 T",
-    "4": "B",
+    "1": "CD14+ Mono",
+    "2": "Memory CD4 T",
+    "3": "B",
+    "4": "CD8 T",
     "5": "FCGR3A+ Mono",
     "6": "NK",
     "7": "DC",
     "8": "Platelet",
+}
+
+# The marker each label must lead on, for the guard test. Chosen for being
+# *discriminative*, not merely canonical: IL7R is the textbook CD4 marker but is
+# expressed by both T subsets, and S100A4 peaks in monocytes, so neither
+# separates naive from memory. CCR7 and IL7R do.
+CELL_TYPE_MARKER = {
+    "Naive CD4 T": "CCR7",
+    "CD14+ Mono": "CD14",
+    "Memory CD4 T": "IL7R",
+    "B": "MS4A1",
+    "CD8 T": "CD8A",
+    "FCGR3A+ Mono": "FCGR3A",
+    "NK": "GNLY",
+    "DC": "FCER1A",
+    "Platelet": "PPBP",
 }
 
 
@@ -143,6 +167,11 @@ def main(data_dir=None):
     canon = ["MS4A1", "CD79A", "NKG7", "GNLY", "FCGR3A", "LYZ", "PPBP", "CD8A", "IL7R"]
     _save(feature_plot(pbmc, canon, reduction="umap", ncol=3, pt_size=1.5,
                        figsize=(12, 10)), "08_feature_plots.png")
+
+    # 8b. DotPlot — the same canonical markers, one row per annotated type.
+    # Says in one panel what the nine feature plots say in nine: which types
+    # express a marker (colour) and in what fraction of their cells (size).
+    _save(dot_plot(pbmc, canon, figsize=(10, 5)), "08b_marker_dotplot.png")
 
     # 9. Violin plots — MS4A1 + CD79A only, to match R's markerplots-1.png reference
     _save(vln_plot(pbmc, ["MS4A1", "CD79A"], figsize=(12, 4), ncol=2),

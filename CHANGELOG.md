@@ -23,6 +23,38 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+*Spatial statistics and the spatial container, audited against Seurat 5.5.1*
+
+- **`find_spatially_variable_features(method="moransi")` used the wrong spatial
+  weights.** Seurat builds `1/d²` between every pair of cells and
+  `Rfast2::moranI` row-standardises it; shanuz used a k-nearest-neighbour graph.
+  It was a *good* approximation — Pearson 0.986 against R, 46 of R's top 50
+  genes — which is exactly why nothing caught it, but it ran a median 1.23× high
+  and recovered only **7 of R's top 10**, the part of the ranking anyone reads.
+  R's weighting is now the default and matches to **1.6e-14 with 10/10**,
+  evaluated in row blocks so the n × n matrix is never materialised: the full
+  36,602-cell slide runs in 5.3 s at 0.95 GB where `RunMoransI` needs a 10.7 GB
+  allocation. `weights="knn"` keeps the old path, documented as an approximation.
+  The p-value deliberately stays a normal approximation — R's 999-permutation
+  test returns 14 distinct values and ties 233 of 248 genes at its floor.
+- **`Centroids` never carried a radius.** `SeuratObject` always computes one
+  (`.AutoRadius`, 1% of the mean bounding-box dimension — 42.83 on the Xenium
+  mouse brain). shanuz left it `None`, and because `_spot_collection` returns
+  `None` for a `None` radius, every true-to-scale spot renderer silently fell
+  back to a fixed-size scatter on every FOV not built from a Visium
+  `scalefactors_json.json`. `_spatial_panel` also read the radius off the FOV,
+  where R keeps `NULL`; it now reads the default boundary, as R does.
+- **`Segmentation` stored polygons open.** R closes each ring by repeating the
+  first vertex — a square is five rows, not four. Now closed, idempotently, with
+  concave shapes preserved.
+- **The pbmc3k figure generator mislabelled every cell type.** Its hardcoded
+  cluster→cell-type map had `1↔2` and `3↔4` transposed, putting monocyte names
+  on the T-cell compartment in every labelled figure, including the annotated
+  UMAP that heads the tutorial. The R code printed beside it in
+  `pbmc3k_tutorial.md` had the correct order throughout. Corrected in both,
+  figures regenerated, and now guarded by a test that checks each label against
+  its own discriminative marker instead of trusting the map.
+
 *The object model, audited against Seurat 5.5.1 (#48)*
 
 Eleven fidelity defects, found by the first tutorial to compare the **container**
@@ -137,6 +169,27 @@ run.
   to reject, and both were mutation-tested against the old code.
 
 ### Added
+
+*Spatial-statistics tutorial — Wave 2's last, and the wave's close*
+
+- `tutorials/xenium_svf_tutorial.py` + `xenium_svf_verify.R` +
+  `svf_vignette.md` + `figures_svf/`. Compares the spatial **container**
+  (`load_xenium` / `create_fov` / `create_centroids` / `create_segmentation`
+  against `LoadXenium` / `CreateFOV` / `CreateCentroids` / `CreateSegmentation`)
+  and the one spatial **statistic** never checked against R,
+  `find_spatially_variable_features`. The existing Xenium tutorial built its R
+  side from `Read10X` plus a coordinate frame, so R never constructed an FOV and
+  the whole boundary layer had gone uncompared.
+- **38 of 39 anchors match Seurat exactly**, 32 of them with no tolerance at all.
+  The one that differs is `GetTissueCoordinates`' shape — R returns `x, y, cell`
+  as three columns, shanuz carries the cell as the DataFrame index.
+- `weights=` on `find_spatially_variable_features`: `"inverse_square"` (R's, the
+  new default) or `"knn"` (the previous behaviour, kept for very large slides).
+- `dot_plot` folded into the pbmc3k gallery as `08b_marker_dotplot.png` — the
+  last plotting export with no tutorial coverage. Drawing it is what exposed the
+  cluster-label transposition fixed above.
+- **Wave 2 is complete**: five tutorials, sixteen defects, against Wave 1's four
+  and two.
 
 *Object-internals tutorial — the container, side by side with Seurat (#48)*
 

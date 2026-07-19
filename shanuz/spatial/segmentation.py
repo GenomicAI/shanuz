@@ -8,6 +8,28 @@ import pandas as pd
 from .base import SpatialImage
 
 
+def _close_rings(coords: pd.DataFrame) -> pd.DataFrame:
+    """Repeat each cell's first vertex at the end of its ring, as R does.
+
+    ``CreateSegmentation`` stores closed rings — a square arrives as four
+    vertices and comes back as five. That is the ``sf``/GEOS convention R
+    inherits, and it is not decoration: code that reads the vertex list to
+    measure a perimeter, or to draw an outline without asking matplotlib to close
+    it, is off by one edge on an open ring.
+
+    Already-closed rings are left alone, so this is idempotent.
+    """
+    if coords.empty:
+        return coords
+    out = []
+    for _, ring in coords.groupby("cell", sort=False):
+        first, last = ring.iloc[0], ring.iloc[-1]
+        if len(ring) > 2 and (first["x"], first["y"]) != (last["x"], last["y"]):
+            ring = pd.concat([ring, ring.iloc[[0]]], ignore_index=False)
+        out.append(ring)
+    return pd.concat(out) if out else coords
+
+
 class Segmentation(SpatialImage):
     """Cell boundary polygon coordinates.
 
@@ -32,7 +54,7 @@ class Segmentation(SpatialImage):
         for col in ("x", "y", "cell"):
             if col not in coords.columns:
                 raise ValueError(f"coords must have a '{col}' column.")
-        self._coords = coords[["x", "y", "cell"]].copy()
+        self._coords = _close_rings(coords[["x", "y", "cell"]].copy())
 
     # ------------------------------------------------------------------
     # SpatialImage interface

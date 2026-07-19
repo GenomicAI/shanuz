@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Thirteen end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Fourteen end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -22,6 +22,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 11 | [Dimensional-Reduction Extras](dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | PC significance (`JackStraw`/`ScoreJackStraw` ↔ `jack_straw`/`score_jackstraw`) · `RunICA` ↔ `run_ica` · `RunTSNE` ↔ `run_tsne` — both tools keep **13 PCs**; ICA matched \|r\| **0.982**; **caught two JackStraw bugs, both fixed** (a too-tight null + the wrong aggregation test) | Advanced |
 | 12 | [Leverage-Score Sketching](sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Scaling to atlas size (`LeverageScore` ↔ `leverage_score` · `SketchData` ↔ `sketch_data` · `ProjectData` ↔ `project_data`) · both of Seurat's regimes · uniform-sampling control · on-disk `LazyMatrix` — exact-regime Spearman **1.000000**; leverage tracks rarity at **−0.929** in both tools; **caught two bugs, both fixed** (full-rank leverage + anchor-based label transfer) | Advanced |
 | 13 | [The Object Model Itself](objects_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | The **container**, not an algorithm: `Cells`/`Features` · the v5 layered assay (`Layers`/`LayerData`/`split`/`JoinLayers`) · `Key` · `Embeddings`/`Loadings`/`Stdev` · `Graphs` · `FetchData` · `Idents`/`WhichCells`/`RenameIdents`/`subset` · `Command` — **89 of 91 anchors match exactly**, no tolerance; **caught eleven bugs, all fixed** (a split/join round trip that silently misordered columns, `FetchData` returning sparse objects instead of numbers, an inert command log) | Advanced |
+| 14 | [Spatial Statistics & the Spatial Container](svf_vignette.md) | 36,602 cells · 248 genes · 10x Xenium mouse brain | The spatial **container** and the one spatial **statistic** never checked against R: `LoadXenium` ↔ `load_xenium` · `CreateFOV`/`CreateCentroids`/`CreateSegmentation` ↔ `create_fov`/`create_centroids`/`create_segmentation` · `GetTissueCoordinates` · `Radius` · `FindSpatiallyVariableFeatures` ↔ `find_spatially_variable_features` — **38 of 39 anchors match exactly**; Moran's I to **1.6e-14** and 10/10 of Seurat's top genes, on a slide R cannot hold in memory; **caught three bugs, all fixed** (Moran's I on a kNN graph instead of R's inverse-square weights, centroids with no radius, unclosed polygons) | Advanced |
 
 ---
 

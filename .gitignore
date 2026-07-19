@@ -69,3 +69,7 @@ tutorials/figures_objects/hvg_features.txt
 tutorials/figures_objects/cells.txt
 tutorials/figures_objects/py_anchors.json
 tutorials/figures_objects/r_anchors.json
+tutorials/figures_svf/cells.txt
+tutorials/figures_svf/py_anchors.json
+tutorials/figures_svf/r_anchors.json
+tutorials/figures_svf/r_moransi.csv

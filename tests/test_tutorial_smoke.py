@@ -44,6 +44,7 @@ TUTORIALS = [
     ("pbmc3k_dimreduc_tutorial.py", "pbmc3k"),
     ("ifnb_sketch_tutorial.py", "ifnb"),
     ("pbmc3k_objects_tutorial.py", "pbmc3k"),
+    ("xenium_svf_tutorial.py", "xenium_mouse_brain"),
 ]
 
 pytestmark = pytest.mark.skipif(
@@ -296,3 +297,85 @@ def test_pbmc3k_object_model_round_trips():
         "RunPCA.RNA",
         "FindNeighbors.RNA.pca",
     ]
+
+
+def test_xenium_moransi_matches_seurats_weighting():
+    """Moran's I on the real slide, against the reference implementation.
+
+    Seurat's weighting is exact, so this is an equality, not a threshold. It is
+    checked against a dense transcription of `RunMoransI` rather than against
+    shanuz's own output — comparing the blocked implementation to itself would
+    pass no matter which weight matrix it used, which is precisely the defect
+    this tutorial found.
+    """
+    if not (DATA_ROOT / "xenium_mouse_brain").is_dir():
+        pytest.skip("dataset 'xenium_mouse_brain' not cached")
+
+    import pandas as pd
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tests.test_spatial_parity import _naive_morans_i
+    from tutorials.xenium_svf_tutorial import (
+        _subset_object,
+        load_slide,
+        subset_cells,
+    )
+    from shanuz.spatial import find_spatially_variable_features, get_tissue_coordinates
+
+    obj = load_slide()
+    cells = subset_cells(obj)
+    sub = _subset_object(obj, cells)
+
+    got = find_spatially_variable_features(sub, method="moransi")["moransi"]
+
+    assay = sub.assays["Xenium"]
+    data = assay.layer_data("data")
+    X = np.asarray(data.todense() if hasattr(data, "todense") else data, dtype=float)
+    Z = X - X.mean(axis=1, keepdims=True)
+    xy = get_tissue_coordinates(sub).loc[:, ["x", "y"]].to_numpy(dtype=float)
+    want = pd.Series(_naive_morans_i(Z, xy), index=list(assay.features()))
+
+    shared = got.index.intersection(want.index)
+    assert len(shared) == 248
+    assert np.abs(got[shared] - want[shared]).max() < 1e-12
+
+    # The container fixes, on the real slide.
+    fov = obj.images[list(obj.images)[0]]
+    assert fov.radius() is None                     # R: Radius(FOV) is NULL
+    centroids = fov.boundaries[fov.default_boundary()]
+    assert centroids.radius() == pytest.approx(42.82543, abs=1e-5)   # R: 42.82543
+
+
+def test_cell_type_map_matches_the_markers():
+    """Every hardcoded label must lead on its own canonical marker.
+
+    The pbmc3k figure generator maps cluster numbers to cell-type names by hand,
+    the way Seurat's vignette does. Nothing tied those names to the clusters they
+    were describing, and the map drifted: `1<->2` and `3<->4` were transposed, so
+    the monocyte compartment carried T-cell names in every labelled figure —
+    including the annotated UMAP, which is the tutorial's headline image. The
+    figures still rendered, still looked like a PBMC UMAP, and were wrong.
+
+    This asserts the labels against the data instead of trusting the map.
+    """
+    if not (DATA_ROOT / "pbmc3k").is_dir():
+        pytest.skip("dataset 'pbmc3k' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.generate_plots import CELL_TYPE_MARKER, run_pipeline
+
+    pbmc, _, _ = run_pipeline()
+    assay = pbmc.assays[pbmc.active_assay]
+    features = list(assay.features())
+    data = assay.layer_data("data")
+    X = np.asarray(data.todense() if hasattr(data, "todense") else data, dtype=float)
+    idents = np.asarray([str(i) for i in pbmc.idents])
+
+    for label, marker in CELL_TYPE_MARKER.items():
+        row = X[features.index(marker)]
+        means = {lab: row[idents == lab].mean() for lab in set(idents)}
+        winner = max(means, key=means.get)
+        assert winner == label, (
+            f"{marker} is highest in {winner!r}, not in {label!r} — the "
+            f"cluster-to-cell-type map no longer matches the clustering."
+        )

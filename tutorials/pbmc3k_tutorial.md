@@ -843,10 +843,10 @@ DimPlot(
 ```python
 cell_type_map = {
     "0": "Naive CD4 T",
-    "1": "Memory CD4 T",
-    "2": "CD14+ Mono",
-    "3": "CD8 T",
-    "4": "B",
+    "1": "CD14+ Mono",
+    "2": "Memory CD4 T",
+    "3": "B",
+    "4": "CD8 T",
     "5": "FCGR3A+ Mono",
     "6": "NK",
     "7": "DC",

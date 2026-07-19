@@ -149,7 +149,7 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Thirteen end-to-end tutorials — from basic guided clustering through multimodal
+Fourteen end-to-end tutorials — from basic guided clustering through multimodal
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
 reference mapping, cell-cycle scoring, PC-significance testing, leverage-score
 sketching and the object model itself to Xenium spatial — each pairing R Seurat
@@ -171,6 +171,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 11 | [Dimensional-Reduction Extras](https://github.com/GenomicAI/shanuz/blob/main/tutorials/dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 | 12 | [Leverage-Score Sketching](https://github.com/GenomicAI/shanuz/blob/main/tutorials/sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
 | 13 | [The Object Model Itself](https://github.com/GenomicAI/shanuz/blob/main/tutorials/objects_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 14 | [Spatial Statistics & the Spatial Container](https://github.com/GenomicAI/shanuz/blob/main/tutorials/svf_vignette.md) | 36,602 cells · 10x Xenium mouse brain | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -205,6 +206,9 @@ python tutorials/thp1_cellcycle_tutorial.py && python tutorials/generate_cellcyc
 
 # Tutorial 13 — The object model (downloads ~24 MB, shared with Tutorial 1)
 python tutorials/pbmc3k_objects_tutorial.py && python tutorials/generate_objects_plots.py
+
+# Tutorial 14 — Spatial statistics & the container (downloads ~14 MB, shared with Tutorial 5)
+python tutorials/xenium_svf_tutorial.py && python tutorials/generate_svf_plots.py
 ```
 
 ---

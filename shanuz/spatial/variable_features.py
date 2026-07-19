@@ -5,8 +5,11 @@ strongly its expression is organised in space, then rank the genes by that
 score. Both of R's methods are available through ``method=``:
 
 ``"moransi"``
-    Moran's I over a k-nearest-neighbour graph — one number per gene saying
-    whether neighbouring cells resemble each other. Comes with a p-value.
+    Moran's I — one number per gene saying whether neighbouring cells resemble
+    each other. Comes with a p-value. By default the spatial weights are R's:
+    inverse-squared distance between every pair of cells, row-standardised.
+    ``weights="knn"`` swaps in a k-nearest-neighbour graph, which is an
+    approximation but drops the cost from O(n²) to O(nk).
 
 ``"markvariogram"``
     The normalised mark variogram evaluated at a fixed distance — the average
@@ -31,6 +34,14 @@ from ..composition import _bh
 from .analysis import get_tissue_coordinates, spatial_knn
 
 METHODS = ("moransi", "markvariogram")
+WEIGHTS = ("inverse_square", "knn")
+
+# Distances are computed in row blocks so that the O(n²) weight matrix is never
+# materialised. The block is sized to keep one block of distances near this many
+# doubles (~80 MB), which is what makes R's all-pairs weighting usable on a slide
+# with tens of thousands of cells — R itself allocates the whole n × n matrix and
+# runs out of memory well before that.
+_BLOCK_DOUBLES = 10_000_000
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +70,91 @@ def _knn_weights(coords: np.ndarray, k: int, row_normalize: bool = True) -> sp.c
         rs[rs == 0] = 1.0
         W = sp.diags(1.0 / rs) @ W
     return sp.csr_matrix(W)
+
+
+def _block_size(n: int) -> int:
+    """How many rows of the weight matrix to hold in memory at once."""
+    return int(np.clip(_BLOCK_DOUBLES // max(n, 1), 1, max(n, 1)))
+
+
+def _inverse_square_base(xy: np.ndarray, start: int, stop: int) -> np.ndarray:
+    """Rows ``start:stop`` of ``1 / d²``, with the diagonal already zeroed.
+
+    ``cdist`` is used rather than the ``|a|² + |b|² - 2a·b`` expansion because the
+    expansion loses roughly half the mantissa on coordinates far from the origin,
+    and slide coordinates are exactly that — Xenium microns run into the tens of
+    thousands. Matching R here is a matter of not throwing precision away.
+    """
+    from scipy.spatial.distance import cdist
+
+    d2 = cdist(xy[start:stop], xy, metric="sqeuclidean")
+    # w_ii = 0: R writes the zero in after inverting, which is the same thing.
+    np.fill_diagonal(d2[:, start:stop], np.inf)
+    if not d2.all():
+        raise ValueError(
+            "Two cells share the same coordinates, so an inverse-distance weight "
+            "is infinite. Deduplicate the coordinates, or pass weights='knn'."
+        )
+    return 1.0 / d2
+
+
+def _inverse_square_lag(Z: np.ndarray, xy: np.ndarray) -> tuple[np.ndarray, float, float, float]:
+    """Row-standardised inverse-square spatial lag, and the moments of W.
+
+    Returns ``(Y, s0, s1, s2)`` with ``Y[g, i] = Σ_j w_ij · Z[g, j]``. This is
+    Seurat's weighting — ``weights <- 1 / pos.dist.mat ^ 2`` in ``RunMoransI``,
+    row-standardised inside ``Rfast2::moranI`` — evaluated in row blocks so the
+    n × n matrix is never held whole.
+
+    Two passes are needed: w_ij = base_ij / rowsum_i, so every row's denominator
+    must be known before any weight is final.
+    """
+    n = len(xy)
+    block = _block_size(n)
+
+    rowsum = np.empty(n)
+    for s in range(0, n, block):
+        e = min(s + block, n)
+        rowsum[s:e] = _inverse_square_base(xy, s, e).sum(axis=1)
+    rowsum[rowsum == 0] = 1.0
+
+    Y = np.empty((Z.shape[0], n))
+    colsum = np.zeros(n)
+    s0 = 0.0
+    s1 = 0.0
+    for s in range(0, n, block):
+        e = min(s + block, n)
+        base = _inverse_square_base(xy, s, e)
+        W = base / rowsum[s:e, None]
+        Y[:, s:e] = Z @ W.T
+        colsum += W.sum(axis=0)
+        s0 += float(W.sum())
+        # w_ij + w_ji = base_ij · (1/rowsum_i + 1/rowsum_j), the base being
+        # symmetric — so the transpose never has to be formed.
+        sym = base * (1.0 / rowsum[s:e, None] + 1.0 / rowsum[None, :])
+        s1 += 0.5 * float(np.einsum("ij,ij->", sym, sym))
+    # Every row of a row-standardised W sums to 1, so s2 = Σ_i (1 + colsum_i)².
+    s2 = float(np.sum((1.0 + colsum) ** 2))
+    return Y, s0, s1, s2
+
+
+def _morans_i_from_lag(Z: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    """Moran's I per gene, from the expression and its spatial lag.
+
+    ``I = Σ(y - ȳ)(z - z̄) / Σ(z - z̄)²`` — which is ``Rfast2``'s
+    ``cor(y, x) · sd(y) / sd(x)`` with the standard deviations cancelled, the
+    same number with one fewer place to lose precision. Valid because the lag was
+    built from row-standardised weights, so S₀ = n and the usual ``n / S₀`` factor
+    is 1.
+    """
+    Zc = Z - Z.mean(axis=1, keepdims=True)
+    Yc = Y - Y.mean(axis=1, keepdims=True)
+    num = np.einsum("gi,gi->g", Yc, Zc)
+    den = np.einsum("gi,gi->g", Zc, Zc)
+    out = np.full(Z.shape[0], np.nan)
+    ok = den > 0
+    out[ok] = num[ok] / den[ok]
+    return out
 
 
 def _morans_i(Z: np.ndarray, W: sp.csr_matrix) -> np.ndarray:
@@ -90,18 +186,39 @@ def _morans_moments(W: sp.csr_matrix) -> tuple[float, float]:
     row = np.asarray(W.sum(axis=1)).ravel()
     col = np.asarray(W.sum(axis=0)).ravel()
     s2 = float(np.sum((row + col) ** 2))
+    return _moments_from_sums(n, s0, s1, s2)
+
+
+def _moments_from_sums(n: int, s0: float, s1: float, s2: float) -> tuple[float, float]:
+    """(expected I, variance of I) under normality, from the three weight sums.
+
+    Split out from :func:`_morans_moments` so the blocked inverse-square path can
+    accumulate S₀/S₁/S₂ as it goes and share the closed form, rather than holding
+    an n × n matrix just to total it up.
+    """
     e_i = -1.0 / (n - 1)
     var = (n**2 * s1 - n * s2 + 3 * s0**2) / (s0**2 * (n**2 - 1)) - e_i**2
     return e_i, max(var, 0.0)
 
 
-def _moransi_table(Z: np.ndarray, xy: np.ndarray, genes: list[str], k: int) -> pd.DataFrame:
+def _moransi_table(
+    Z: np.ndarray,
+    xy: np.ndarray,
+    genes: list[str],
+    k: int,
+    weights: str = "inverse_square",
+) -> pd.DataFrame:
     """Moran's I, its p-value and rank, for every row of ``Z``."""
     from scipy.stats import norm
 
-    W = _knn_weights(xy, k=k)
-    moran = _morans_i(Z, W)
-    e_i, var = _morans_moments(W)
+    if weights == "inverse_square":
+        Y, s0, s1, s2 = _inverse_square_lag(Z, xy)
+        moran = _morans_i_from_lag(Z, Y)
+        e_i, var = _moments_from_sums(len(xy), s0, s1, s2)
+    else:
+        W = _knn_weights(xy, k=k)
+        moran = _morans_i(Z, W)
+        e_i, var = _morans_moments(W)
 
     if var > 0:
         z = (moran - e_i) / np.sqrt(var)
@@ -254,6 +371,7 @@ def find_spatially_variable_features(
     features: Optional[list[str]] = None,
     method: str = "moransi",
     k: int = 10,
+    weights: str = "inverse_square",
     assay: Optional[str] = None,
     layer: Optional[str] = None,
     image: Optional[Union[str, Sequence[str]]] = None,
@@ -269,7 +387,13 @@ def find_spatially_variable_features(
     features : restrict to these genes (default: all in the assay). Passing the
                variable features keeps this fast on large panels.
     method   : ``"moransi"`` (default) or ``"markvariogram"``.
-    k        : *moransi only* — neighbours per cell in the spatial weight graph.
+    weights  : *moransi only* — ``"inverse_square"`` (default) reproduces R
+               exactly: 1/d² between every pair of cells, row-standardised.
+               ``"knn"`` uses a k-nearest-neighbour graph instead, an
+               approximation that trades R's O(n²) cost for O(nk). Prefer it only
+               when the slide is too large to wait on; see the note below on how
+               far the two answers drift apart.
+    k        : *moransi only, weights="knn" only* — neighbours per cell.
     r_metric : *markvariogram only* — the distance at which to read the
                variogram, **in units of the median nearest-neighbour spacing**.
                The default of 5 therefore means "five cells apart".
@@ -305,6 +429,19 @@ def find_spatially_variable_features(
     compositional normalization, not of either statistic; it is negligible on
     real panels but can bite on small synthetic ones.
 
+    The ``moransi`` **statistic** matches R to ~1e-15 with the default weights.
+    The **p-value** deliberately does not. R runs a 999-permutation test through
+    ``Rfast2::moranI``, which on a 248-gene panel returns just 14 distinct values
+    and ties 233 genes at its 1/1025 floor — it cannot separate the most spatially
+    variable gene from the two-hundredth. The normal-approximation p-value here is
+    continuous, deterministic, and standard for Moran's I, so it is kept; matching
+    R would cost information and gain nothing. ``weights="knn"`` changes the
+    statistic itself, not just its cost. It is a decent approximation — on 2,000
+    Xenium cells it tracks R at Pearson 0.986 and recovers 46 of R's top 50 genes
+    — but it runs a median 1.23× high, differs by up to 0.14 in absolute I, and
+    agrees on only 7 of R's top 10. Close enough to mislead, not close enough to
+    call parity, which is why it is no longer the default.
+
     ``markvariogram`` differs from R's in two deliberate ways. R passes
     ``r.metric`` straight through to ``spatstat`` in raw coordinate units, so the
     same script gives different answers on pixel and micron coordinates; here r
@@ -319,6 +456,10 @@ def find_spatially_variable_features(
     if method not in METHODS:
         raise NotImplementedError(
             f"method={method!r} is not implemented; use one of {list(METHODS)}."
+        )
+    if weights not in WEIGHTS:
+        raise ValueError(
+            f"weights={weights!r} is not recognised; use one of {list(WEIGHTS)}."
         )
 
     coords = get_tissue_coordinates(seurat, image)
@@ -352,7 +493,7 @@ def find_spatially_variable_features(
     Z = X - X.mean(axis=1, keepdims=True)
 
     if method == "moransi":
-        res = _moransi_table(Z, xy, genes, k=k)
+        res = _moransi_table(Z, xy, genes, k=k, weights=weights)
     else:
         res = _markvariogram_table(Z, xy, genes, r_metric=r_metric, bandwidth=bandwidth)
 
