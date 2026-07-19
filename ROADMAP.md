@@ -878,17 +878,23 @@ regime. Don't "simplify" them.
   of them has ever been compared to real Seurat** — their tests assert
   self-consistency on synthetic `default_rng` fixtures. At the start of the
   initiative 36 of 103 public exports appeared in a runnable tutorial; 67 did
-  not. As of T-obj it is **81 of 104**. Closing the rest is the highest-leverage
+  not. As of T-sp it is **82 of 104**, counted as exports named anywhere in
+  `tutorials/*.py` — the runnable scripts, not the prose. That method is stated
+  because the earlier figures in this bullet were not reproducible from it (the
+  T-obj entry said 81 where this count gives 74), so treat the series as
+  indicative and the method as the thing to keep. Closing the rest is the highest-leverage
   correctness work left.
 - **Plan:** ~12 new side-by-side tutorials in four waves, one tutorial per PR, in
   the existing shape (`<name>_tutorial.py` + `<name>_verify.R` + `<name>.md` +
   `figures_<name>/`). Wave 1 = integration (ifnb), cell hashing (GSE108313),
   reference mapping (panc8), Mixscape (GSE153056). Wave 2 = cell-cycle / module
-  scores (THP-1), dim-reduction extras (pbmc3k), leverage sketching (ifnb) and
-  object internals (pbmc3k). Remaining topics: the DE-test suite (Wave 3 — needs
-  the Bioconductor trio) and spatial/scale. **The visualization gallery is no
-  longer worth its own tutorial**: after T-obj, `dot_plot` is the only plotting
-  export not exercised somewhere, so it should be folded into an existing one.
+  scores (THP-1), dim-reduction extras (pbmc3k), leverage sketching (ifnb),
+  object internals (pbmc3k) and spatial statistics / the spatial container
+  (Xenium). Remaining topics: the DE-test suite (Wave 3 — needs the Bioconductor
+  trio) and out-of-core `LazyMatrix` at scale, which has no R counterpart
+  installed to compare against (`BPCells` is not present). **The visualization
+  gallery never became its own tutorial**: `dot_plot` was the last plotting
+  export uncovered and was folded into the pbmc3k gallery in T-sp.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
@@ -933,7 +939,11 @@ regime. Don't "simplify" them.
     limit, not a divergence. **No defect found** — the transfer stack ports
     faithfully on its first real-data benchmark, the initiative's other valid
     outcome.
-- **Wave 2 — in progress.**
+- **Wave 2 — ✅ complete.** Five tutorials, **sixteen defects**, against Wave 1's
+  four tutorials and two. The wave's lesson is that the quietest bugs are not in
+  the algorithms: T-obj audited the *container* and found eleven, T-sp audited a
+  *statistic nobody had checked* and found three more, and in both cases the
+  broken code was returning plausible output that no test and no plot flagged.
   - **T-cc cell-cycle & module scoring — ✅ delivered (#44). Wave 2's first.**
     `add_module_score` / `cell_cycle_scoring` on THP-1 (`cellcycle_vignette.md`),
     a proliferating line with real S/G2/M populations (unlike resting PBMCs). On
@@ -984,7 +994,8 @@ regime. Don't "simplify" them.
     it the sharpest net in the series: nothing here is stochastic, so **89 of the
     91 anchors are compared with no tolerance at all** — orders, names,
     dimensions, keys and non-zero counts either match or they do not. Coverage
-    went from 36/103 exports at the start of the initiative to **81/104**.
+    went from 36/103 exports at the start of the initiative to 81/104 as counted
+    at the time — see the note on counting method in the plan bullet above.
     **Eleven bugs, all fixed here.** Five in the layered assay: `split`/`JoinLayers`
     was not a round trip, returning a layer named `joined` whose columns were in
     *split* order while the assay's own cell vector never moved — the right
@@ -1007,9 +1018,44 @@ regime. Don't "simplify" them.
     54,000; degree 20-83, mean 28.1), and `_build_snn` drops the self-edge Seurat
     keeps (~2,700 of the 4,044-edge gap). Both change what clustering consumes
     and need their own comparison.
+  - **T-sp spatial statistics & the spatial container — ✅ delivered. Wave 2's
+    last, three more defects.** `load_xenium` / `create_fov` / `create_centroids`
+    / `create_segmentation` / `find_spatially_variable_features` on the Xenium
+    mouse brain (`svf_vignette.md`). **38 of 39 anchors match Seurat exactly.**
+    The existing Xenium tutorial built its R side with `Read10X` plus a
+    coordinate data.frame, so R never constructed an FOV and the entire boundary
+    layer had gone uncompared; `FindSpatiallyVariableFeatures` had never been run
+    against R at all. **Three bugs, all fixed here.** (1) **Moran's I was
+    computed on a k-nearest-neighbour graph** where Seurat row-standardises
+    `1/d²` over every pair — a *good* approximation, which is why it survived
+    (Pearson 0.986, 46 of R's top 50), but a median 1.23× high and agreeing on
+    only **7 of R's top 10**, which is the part of the output anyone reads. Now
+    **1.6e-14 and 10/10**, evaluated in row blocks so R's O(n²) weighting runs on
+    the full 36,602-cell slide in **5.3 s at 0.95 GB** where `RunMoransI` needs a
+    **10.7 GB** dense allocation; `weights="knn"` keeps the old path as a
+    documented approximation. (2) **`Centroids` never received a radius** —
+    `.AutoRadius` gives 42.83 here — and `_spatial_panel` read it off the FOV,
+    where R keeps `NULL`, so every true-to-scale spot renderer silently fell back
+    to a fixed-size scatter on every non-Visium FOV. (3) **`Segmentation` stored
+    polygons open** where R closes each ring. **Left standing on purpose:** the
+    Moran's I p-value (R's 999-permutation test returns 14 distinct values and
+    ties 233 of 248 genes at its floor — matching it would cost information), and
+    the FOV `Key`, which appears only in `__repr__`.
+  - **Also fixed here, found in passing:** the pbmc3k figure generator's
+    hardcoded cluster→cell-type map had **`1↔2` and `3↔4` transposed**, so the
+    monocyte compartment carried T-cell names in every labelled figure —
+    including `11_umap_labeled.png`, the tutorial's headline image, published
+    since `93f33a2`. The R block printed beside it in `pbmc3k_tutorial.md` had
+    the correct order all along. Verified against markers (cluster 1 is
+    LYZ 5.07/CD14 1.51, cluster 3 is MS4A1 2.14), corrected in both files,
+    figures regenerated, and guarded by `test_cell_type_map_matches_the_markers`,
+    which asserts each label leads on its own discriminative marker rather than
+    trusting the map. `dot_plot` — the last plotting export with no tutorial
+    coverage — was folded into the same gallery, and drawing it is what exposed
+    the mislabelling.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
-  **T-sk two more** and **T-obj eleven** —
+  **T-sk two more**, **T-obj eleven** and **T-sp three** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer

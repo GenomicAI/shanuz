@@ -1222,16 +1222,34 @@ def _resolve_fovs(obj, image: Optional[Union[str, list]] = None) -> dict:
     return {n: images[n] for n in names}
 
 
+def _boundary_radius(fov) -> Optional[float]:
+    """The spot radius a FOV draws at: its own, else its default boundary's."""
+    r = fov.radius()
+    if r is not None:
+        return r
+    try:
+        boundary = fov.boundaries[fov.default_boundary()]
+    except (AttributeError, KeyError, TypeError):
+        return None
+    return boundary.radius()
+
+
 def _spatial_panel(fov, resolution: Optional[str]):
     """Draw-space coordinates, spot radius and background image for one FOV.
 
     A ``VisiumV2`` carrying a tissue photo reports its coordinates in
     full-resolution pixels, so they are scaled into the image's own pixel space
     here. Any other FOV has no image; its coordinates are used as they stand.
+
+    The radius comes from the FOV's default *boundary*, not from the FOV — which
+    is where R keeps it too: ``Radius()`` on a v5 ``FOV`` is ``NULL`` and it is
+    the ``Centroids`` underneath that carries the number. Reading it off the FOV
+    always returned ``None``, so every non-Visium slide silently drew fixed-size
+    dots instead of true-to-scale spots.
     """
     img = fov.get_image()
     if img is None:
-        return fov.get_tissue_coordinates(), fov.radius(), None
+        return fov.get_tissue_coordinates(), _boundary_radius(fov), None
     return fov.scale_coordinates(resolution=resolution), fov.spot_radius(resolution), img
 
 
