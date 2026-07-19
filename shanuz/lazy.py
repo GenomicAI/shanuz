@@ -260,6 +260,18 @@ class LazyMatrix:
         """Non-zeros per column (cell) — the ``nFeature`` count, read from indptr."""
         return np.diff(np.asarray(self._indptr)).astype(np.int64)
 
+    def nnz_per_row(self, block_size: int = 10_000) -> np.ndarray:
+        """Non-zeros per row (feature) — the ``min_cells`` count.
+
+        The column counterpart is free from ``indptr``; this one has to look at
+        every non-zero's row index, so it streams in cell-blocks rather than
+        mapping the whole ``indices`` array at once.
+        """
+        counts = np.zeros(self.nrow, dtype=np.int64)
+        for _, _, block in self.col_blocks(block_size):
+            counts += np.bincount(block.indices, minlength=self.nrow).astype(np.int64)
+        return counts
+
     # ------------------------------------------------------------------
     # Materialisation (the escape hatches — avoid on the huge path)
     # ------------------------------------------------------------------

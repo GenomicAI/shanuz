@@ -13,11 +13,35 @@ import pandas as pd
 import scipy.sparse as sp
 
 from .command import log_shanuz_command
+from .lazy import is_lazy
+
+
+# Cells per block when streaming an on-disk layer. Peak memory for the
+# streaming paths is a function of this, not of the dataset size.
+_CELL_BLOCK = 10_000
 
 
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+def _cell_blocks(matrix, block_size: int = _CELL_BLOCK):
+    """Yield ``matrix`` in blocks of ``block_size`` cells, as CSC blocks.
+
+    Accepts a :class:`~shanuz.lazy.LazyMatrix` or a scipy sparse matrix, so a
+    reduction written once serves both the on-disk and the in-memory layer.
+    That matters beyond tidiness: statistics computed by two implementations
+    agree only to rounding, and where a *tie-break* consumes them, rounding
+    decides which features come back.
+    """
+    if is_lazy(matrix):
+        for _, _, block in matrix.col_blocks(block_size):
+            yield block
+        return
+    csc = matrix.tocsc()
+    for start in range(0, csc.shape[1], block_size):
+        yield csc[:, start:min(start + block_size, csc.shape[1])]
+
 
 def _get_assay(seurat, assay: Optional[str]):
     return seurat.assays[assay or seurat.active_assay]
@@ -93,7 +117,10 @@ def percentage_feature_set(
     if not match_mask.any():
         pct = np.zeros(mat.shape[1])
     else:
-        if sp.issparse(mat):
+        # A lazy layer belongs on the sparse branch: indexing it returns a
+        # sparse block, so it satisfies this branch's contract exactly, while
+        # the dense one would `np.asarray` the whole store just to sum it.
+        if sp.issparse(mat) or is_lazy(mat):
             total = np.array(mat.sum(axis=0)).flatten()
             matching = np.array(mat[match_mask, :].sum(axis=0)).flatten()
         else:
@@ -160,8 +187,50 @@ def normalize_data(
     )
 
 
+def _log_normalize_lazy(counts, scale_factor: float, block_size: int = _CELL_BLOCK):
+    """Stream LogNormalize over an on-disk layer, one cell-block at a time.
+
+    Mirrors Seurat's ``LogNormalize.IterableMatrix``, which never materialises
+    the matrix — ``t(t(data)/colSums(data))`` followed by ``log1p(data * scale)``
+    stays a queued BPCells operation throughout.
+
+    The whole transform is **value-only**: dividing a column by its total and
+    taking ``log1p`` maps zero to zero, so which entries are non-zero never
+    changes. That lets the sparsity pattern be carried straight across and only
+    the values recomputed, block by block, so peak memory is one block plus the
+    output rather than the dense ``features × cells`` array the generic path
+    would build.
+    """
+    totals = counts.sum(axis=0)
+    totals[totals == 0] = 1.0
+
+    nnz = counts.nnz
+    out_data = np.empty(nnz, dtype=float)
+    out_indices = np.empty(nnz, dtype=np.int64)
+    out_indptr = np.zeros(counts.ncol + 1, dtype=np.int64)
+
+    offset = 0
+    for start, stop, block in counts.col_blocks(block_size):
+        end = offset + block.nnz
+        # One scale factor per column, expanded to that column's non-zeros --
+        # the same product `counts.dot(diags(scale / totals))` forms, in the
+        # same order, so the result is bit-identical to the in-memory path.
+        per_column = scale_factor / totals[start:stop]
+        per_nonzero = np.repeat(per_column, np.diff(block.indptr))
+        out_data[offset:end] = np.log1p(block.data.astype(float) * per_nonzero)
+        out_indices[offset:end] = block.indices
+        out_indptr[start + 1:stop + 1] = block.indptr[1:] + offset
+        offset = end
+
+    return sp.csc_matrix(
+        (out_data, out_indices, out_indptr), shape=counts.shape
+    )
+
+
 def _log_normalize(counts, scale_factor: float = 10000.0):
     """Normalize counts per cell to scale_factor, then log1p."""
+    if is_lazy(counts):
+        return _log_normalize_lazy(counts, scale_factor)
     if sp.issparse(counts):
         cell_totals = np.array(counts.sum(axis=0)).flatten().astype(float)
         cell_totals[cell_totals == 0] = 1.0
@@ -342,10 +411,28 @@ def _vst_hvg(
     if clip_max is None:
         clip_max = np.sqrt(n_cells)
 
-    if sp.issparse(data):
-        csr = data.tocsr()
-        means = np.array(csr.mean(axis=1)).flatten()
-        mean_sq = np.array(csr.power(2).mean(axis=1)).flatten()
+    blockwise = is_lazy(data) or sp.issparse(data)
+    if blockwise:
+        # Seurat's VST.IterableMatrix gets these from BPCells::matrix_stats, a
+        # streaming row reduction. Every non-zero carries its gene index in
+        # `indices`, so both moments accumulate per gene across cell-blocks
+        # without the matrix ever being whole in memory.
+        #
+        # Sparse layers take this path too, deliberately. `variance.standardized`
+        # has exact ties, and which of two tied genes is selected is decided by
+        # a tie-break -- so two code paths agreeing only to 1e-14 would rank
+        # them differently, and an on-disk layer would silently return a
+        # different feature set (and, through PCA, a different clustering) from
+        # the in-memory one. One implementation cannot disagree with itself.
+        row_sum = np.zeros(n_genes)
+        row_sum_sq = np.zeros(n_genes)
+        for block in _cell_blocks(data, _CELL_BLOCK):
+            vals = block.data.astype(float)
+            row_sum += np.bincount(block.indices, weights=vals, minlength=n_genes)
+            row_sum_sq += np.bincount(block.indices, weights=vals * vals,
+                                      minlength=n_genes)
+        means = row_sum / n_cells
+        mean_sq = row_sum_sq / n_cells
     else:
         d = np.asarray(data, dtype=float)
         means = d.mean(axis=1)
@@ -367,21 +454,29 @@ def _vst_hvg(
     expected_sd = np.sqrt(expected_var)
 
     var_standardized = np.zeros(n_genes)
-    if sp.issparse(data):
-        indptr = csr.indptr
-        values = csr.data.astype(float)
-        for g in valid_idx:
-            sd = expected_sd[g]
-            if sd <= 0:
-                continue
-            mu = means[g]
-            row_vals = values[indptr[g]:indptr[g + 1]]
-            n_zero = n_cells - row_vals.size
-            # Zero entries standardize to -mu/sd (negative → never clipped).
-            zero_term = n_zero * (mu / sd) ** 2
-            z = (row_vals - mu) / sd
+    if blockwise:
+        # Accumulated per gene across cell-blocks rather than read off one
+        # gene's contiguous row, for the same reason as the moments above.
+        # Genes with no fitted SD are masked out at the end, matching the
+        # `continue` in the dense loop.
+        scorable = np.zeros(n_genes, dtype=bool)
+        scorable[valid_idx] = expected_sd[valid_idx] > 0
+        sd_safe = np.where(scorable, expected_sd, 1.0)
+
+        clipped_sq = np.zeros(n_genes)
+        nnz_per_gene = np.zeros(n_genes, dtype=np.int64)
+        for block in _cell_blocks(data, _CELL_BLOCK):
+            rows = block.indices
+            nnz_per_gene += np.bincount(rows, minlength=n_genes)
+            z = (block.data.astype(float) - means[rows]) / sd_safe[rows]
             np.minimum(z, clip_max, out=z)
-            var_standardized[g] = (zero_term + np.dot(z, z)) / (n_cells - 1)
+            clipped_sq += np.bincount(rows, weights=z * z, minlength=n_genes)
+
+        # Zero entries standardize to -mu/sd (negative → never clipped).
+        zero_term = (n_cells - nnz_per_gene) * (means / sd_safe) ** 2
+        var_standardized = np.where(
+            scorable, (zero_term + clipped_sq) / (n_cells - 1), 0.0
+        )
     else:
         for g in valid_idx:
             sd = expected_sd[g]
@@ -391,7 +486,12 @@ def _vst_hvg(
             np.minimum(z, clip_max, out=z)
             var_standardized[g] = np.dot(z, z) / (n_cells - 1)
 
-    top_idx = np.argsort(var_standardized)[::-1][:nfeatures]
+    # `argsort(-v, stable)` rather than `argsort(v)[::-1]`: R's
+    # `head(order(x, decreasing = TRUE), n)` breaks ties by ascending original
+    # index, and reversing an ascending sort breaks them descending. Ties are
+    # common enough here to straddle the cutoff and decide which genes are
+    # selected at all.
+    top_idx = np.argsort(-var_standardized, kind="stable")[:nfeatures]
 
     return top_idx, means, variances, var_standardized
 
@@ -416,30 +516,54 @@ def _loess2(x: np.ndarray, y: np.ndarray, frac: float = 0.3, batch_size: int = 2
     For each query point x₀, fits:
         ŷ(x₀) = β₀  from  min Σᵢ w(xᵢ)·[yᵢ − β₀ − β₁(xᵢ−x₀) − β₂(xᵢ−x₀)²]²
     where w is the tricube kernel over the k nearest neighbours (k = ceil(frac·n)).
+
+    The fit is evaluated once per **distinct** x and broadcast back, and each
+    neighbourhood is chosen by distance rather than by position in the sorted
+    array. Both are needed to hold R's invariant that a fitted value is a
+    function of x alone: ties are common here (on pbmc3k 85 % of genes share a
+    ``log10(mean)`` with another gene, the largest run being 627 genes), and
+    windowing by position hands the members of a tied run different
+    neighbourhoods, so their fits differ according to how an unstable sort
+    happened to order them. Neighbourhoods still span observations, duplicates
+    included, which is what ``span`` means to R.
     """
     n = len(x)
     k = max(int(np.ceil(frac * n)), 6)
-    half_k = k // 2
 
-    sort_idx = np.argsort(x)
+    # Lexicographic, so that a tied run is ordered by y rather than by however
+    # the caller happened to supply it. Without that the window sums accumulate
+    # in a caller-dependent order and the fit moves in its last bits when the
+    # rows are merely permuted.
+    sort_idx = np.lexsort((y, x))
     xs = x[sort_idx]
     ys = y[sort_idx]
-    fitted_s = np.empty(n)
 
-    for b0 in range(0, n, batch_size):
-        b1 = min(b0 + batch_size, n)
+    # Query points are the distinct x values; `inverse` maps every observation
+    # back to the fit computed for its own x.
+    xu, inverse = np.unique(x, return_inverse=True)
+    m = len(xu)
+    fitted_u = np.empty(m)
+
+    # Window start per query point, by distance. The optimal start is
+    # non-decreasing in x₀, so one left-to-right sweep finds them all.
+    starts = np.empty(m, dtype=np.intp)
+    left = 0
+    limit = max(n - k, 0)
+    for q in range(m):
+        x0 = xu[q]
+        while left < limit and (x0 - xs[left]) > (xs[left + k] - x0):
+            left += 1
+        starts[q] = left
+
+    for b0 in range(0, m, batch_size):
+        b1 = min(b0 + batch_size, m)
         nb = b1 - b0
-        b_i = np.arange(b0, b1)
 
-        # Sliding window: exactly k neighbours for each query point
-        lefts = np.maximum(0, b_i - half_k)
-        rights = np.minimum(n, lefts + k)
-        lefts = np.maximum(0, rights - k)
-
-        win_idx = lefts[:, np.newaxis] + np.arange(k)   # (nb, k)
+        lefts = starts[b0:b1]
+        win_idx = lefts[:, np.newaxis] + np.arange(min(k, n))   # (nb, k)
         xw = xs[win_idx]   # (nb, k)
         yw = ys[win_idx]   # (nb, k)
-        xi = xs[b_i, np.newaxis]   # (nb, 1)
+        xi = xu[b0:b1, np.newaxis]   # (nb, 1)
 
         # Tricube weights
         d = np.abs(xw - xi)
@@ -449,7 +573,7 @@ def _loess2(x: np.ndarray, y: np.ndarray, frac: float = 0.3, batch_size: int = 2
 
         # Local quadratic design matrix: columns = [1, (x-x₀), (x-x₀)²]
         dx = xw - xi   # (nb, k)
-        A = np.stack([np.ones((nb, k)), dx, dx ** 2], axis=2)   # (nb, k, 3)
+        A = np.stack([np.ones_like(dx), dx, dx ** 2], axis=2)   # (nb, k, 3)
 
         # Weighted normal equations: (AᵀWA)β = AᵀWy
         Aw = A * w[:, :, np.newaxis]   # (nb, k, 3)
@@ -459,18 +583,16 @@ def _loess2(x: np.ndarray, y: np.ndarray, frac: float = 0.3, batch_size: int = 2
         try:
             # solve needs RHS as (..., M, 1), returns (..., M, 1)
             betas = np.linalg.solve(AtWA, AtWy[:, :, np.newaxis])[:, :, 0]  # (nb, 3)
-            fitted_s[b0:b1] = betas[:, 0]
+            fitted_u[b0:b1] = betas[:, 0]
         except np.linalg.LinAlgError:
             for j in range(nb):
                 try:
                     sol, *_ = np.linalg.lstsq(AtWA[j], AtWy[j], rcond=None)
-                    fitted_s[b0 + j] = sol[0]
+                    fitted_u[b0 + j] = sol[0]
                 except Exception:
-                    fitted_s[b0 + j] = float(np.average(yw[j], weights=w[j]))
+                    fitted_u[b0 + j] = float(np.average(yw[j], weights=w[j]))
 
-    fitted = np.empty(n)
-    fitted[sort_idx] = fitted_s
-    return fitted
+    return fitted_u[inverse]
 
 
 def _dispersion_hvg(
@@ -519,7 +641,8 @@ def _dispersion_hvg(
                 dispersion_scaled[mask] = 0
 
     n = min(nfeatures, len(dispersion_scaled))
-    top_idx = np.argsort(dispersion_scaled)[::-1][:n]
+    # Stable, and on the negated values -- see the note in `_vst_hvg`.
+    top_idx = np.argsort(-dispersion_scaled, kind="stable")[:n]
     return top_idx, means, variances, dispersion_scaled
 
 
@@ -575,7 +698,9 @@ def scale_data(
 
     # Get log-normalized data for the selected features (features × cells)
     data = _get_layer(assay_obj, layer)
-    if sp.issparse(data):
+    if sp.issparse(data) or is_lazy(data):
+        # Subset first, densify second -- on a lazy layer the reverse would
+        # read the whole store off disk to keep a few thousand rows of it.
         sub = data[feat_idx, :].toarray().astype(float)
     else:
         sub = np.asarray(data)[feat_idx, :].astype(float)

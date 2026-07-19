@@ -149,7 +149,7 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Fifteen end-to-end tutorials — from basic guided clustering through multimodal
+Sixteen end-to-end tutorials — from basic guided clustering through multimodal
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
 reference mapping, cell-cycle scoring, PC-significance testing, leverage-score
 sketching and the object model itself to Xenium spatial — each pairing R Seurat
@@ -173,6 +173,7 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 13 | [The Object Model Itself](https://github.com/GenomicAI/shanuz/blob/main/tutorials/objects_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 | 14 | [Spatial Statistics & the Spatial Container](https://github.com/GenomicAI/shanuz/blob/main/tutorials/svf_vignette.md) | 36,602 cells · 10x Xenium mouse brain | Advanced |
 | 15 | [The Differential-Expression Test Suite](https://github.com/GenomicAI/shanuz/blob/main/tutorials/de_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 16 | [Out of Core — `LazyMatrix` vs BPCells](https://github.com/GenomicAI/shanuz/blob/main/tutorials/lazy_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k

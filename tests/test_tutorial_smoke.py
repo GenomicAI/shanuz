@@ -46,6 +46,7 @@ TUTORIALS = [
     ("pbmc3k_objects_tutorial.py", "pbmc3k"),
     ("xenium_svf_tutorial.py", "xenium_mouse_brain"),
     ("pbmc3k_de_tutorial.py", "pbmc3k"),
+    ("lazy_bpcells_tutorial.py", "pbmc3k"),
 ]
 
 pytestmark = pytest.mark.skipif(

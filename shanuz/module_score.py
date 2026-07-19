@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
+from .lazy import is_lazy
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -132,7 +134,7 @@ def add_module_score(
 
     # Average expression per pooled gene, then equal-frequency bins.
     pool_rows = [feat_idx[g] for g in pool]
-    if sp.issparse(mat):
+    if sp.issparse(mat) or is_lazy(mat):
         data_avg = np.asarray(mat[pool_rows, :].mean(axis=1)).flatten()
     else:
         data_avg = np.asarray(mat)[pool_rows, :].mean(axis=1)

@@ -77,3 +77,14 @@ tutorials/figures_de/groups.csv
 tutorials/figures_de/py_summary.json
 tutorials/figures_de/py_*.csv
 tutorials/figures_de/r_*.csv
+tutorials/figures_lazy/cells.txt
+tutorials/figures_lazy/py_anchors.json
+tutorials/figures_lazy/r_anchors.json
+tutorials/figures_lazy/py_variable_features.txt
+tutorials/figures_lazy/r_variable_features.txt
+tutorials/figures_lazy/r_features.txt
+tutorials/figures_lazy/r_hvf*.csv
+tutorials/figures_lazy/*_markers_wilcox.csv
+tutorials/figures_lazy/shanuz_store/
+tutorials/figures_lazy/bpcells_store/
+tutorials/figures_lazy/bpcells_store_int/
