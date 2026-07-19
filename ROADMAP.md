@@ -890,10 +890,13 @@ regime. Don't "simplify" them.
   reference mapping (panc8), Mixscape (GSE153056). Wave 2 = cell-cycle / module
   scores (THP-1), dim-reduction extras (pbmc3k), leverage sketching (ifnb),
   object internals (pbmc3k) and spatial statistics / the spatial container
-  (Xenium). Wave 3 = the DE-test suite (pbmc3k). Remaining: out-of-core `LazyMatrix` at scale, which has no R counterpart
-  installed to compare against (`BPCells` is not present). **The visualization
-  gallery never became its own tutorial**: `dot_plot` was the last plotting
-  export uncovered and was folded into the pbmc3k gallery in T-sp.
+  (Xenium). Wave 3 = the DE-test suite (pbmc3k) and out-of-core `LazyMatrix`
+  (pbmc3k). **All four waves are now delivered — 16 tutorials, 29 defects, every
+  one fixed.** `BPCells` was installed for the final one (GitHub, not CRAN;
+  needs libhdf5) after fingerprinting ten Seurat references to prove it was
+  inert for ordinary input. **The visualization gallery never became its own
+  tutorial**: `dot_plot` was the last plotting export uncovered and was folded
+  into the pbmc3k gallery in T-sp.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
   `shanuz.datasets` loaders for the raw-source datasets, `tutorials/export_seuratdata.R`
   for the two SeuratData-only ones (`ifnb`/`panc8`, verified to round-trip R's
@@ -1052,7 +1055,7 @@ regime. Don't "simplify" them.
     trusting the map. `dot_plot` — the last plotting export with no tutorial
     coverage — was folded into the same gallery, and drawing it is what exposed
     the mislabelling.
-- **Wave 3 — in progress.**
+- **Wave 3 — ✅ complete.**
   - **T-de the differential-expression test suite — ✅ delivered. Two defects,
     one of them the most consequential of the initiative.** All eight
     `find_markers` tests against `FindMarkers` on pbmc3k clusters 0 vs 1 (695 vs
@@ -1098,9 +1101,47 @@ regime. Don't "simplify" them.
     SCT tutorial is pinned against. Installing with default dependencies leaves
     Suggests alone. Verified rather than assumed: an SCTransform fingerprint
     taken before and after the install is byte-identical.
+  - **T-lazy out-of-core — ✅ delivered. Seven defects, and the initiative's
+    last tutorial.** `LazyMatrix` against **BPCells 0.3.1**, the same pbmc3k
+    matrix down both tools' on-disk and in-memory paths (`lazy_vignette.md`).
+    **14 of 14 anchors match**, 1998/2000 variable features shared with Seurat.
+    The finding is each tool measured against *itself*: **shanuz's on-disk and
+    in-memory paths are bit-identical, and Seurat's are not** — BPCells computes
+    in single precision, so its out-of-core run differs by 1.0e-06 on
+    normalisation, 2.1e-02 on `variance.standardized`, and picks a different
+    variable feature (1999/2000). shanuz also runs all eight DE tests on a lazy
+    layer where `FindMarkers` takes `wilcox` alone.
+    **The defects:** (1) **five functions densified the whole store** —
+    `_log_normalize`, `_vst_hvg`, `scale_data`, `find_markers`,
+    `add_module_score` — so going on disk *raised* peak memory 4.6× and left a
+    dense layer 16× larger; `col_blocks` had no callers at all. (2)
+    `percentage_feature_set` **crashed** on a lazy layer. (3) `create_assay5_object`
+    and (4) `calc_n` **ended laziness in the constructor**, making the obvious
+    usage the one path that could not work — found only because a memory
+    measurement came out backwards. (5) **`_loess2` was chaotically
+    sort-dependent**: 85.5 % of pbmc3k genes share a `log10(mean)`, `argsort` is
+    unstable, and windows were chosen by position, so a **1e-15** nudge moved
+    fitted values **28.8 %**; the fix moved *toward* R (HVG overlap 99.65 % →
+    **99.90 %**). (6) both HVG selectors **broke ties opposite to R's `order`**.
+    (7) the sparse and lazy paths were **two implementations agreeing to 1e-14**,
+    which a tie-break turned into 147 reordered features and 9 clusters vs 8;
+    now one implementation.
+    **Left standing:** shanuz's store is **uncompressed** — 26.88 MB against
+    BPCells' 4.50 MB bitpacked uint32, **6.0×**. Storing counts as `uint32`
+    would take it to 17.92 MB; the remaining 4× is BP128 delta encoding, a
+    format rather than a tolerance, and is not attempted here. `LazyMatrix` is
+    also CSC-only, and Seurat warns that column-major is the wrong orientation
+    for DE.
+  - **R-side dep: BPCells 0.3.1, and it is safe to install.** Not on CRAN —
+    `remotes::install_github("bnprks/BPCells/r")` — and it **hard-requires
+    libhdf5** (`brew install hdf5 pkg-config`); its configure script aborts
+    without it. Unlike `glmGamPoi`, every reference to it inside Seurat is gated
+    on `inherits(x, "IterableMatrix")` rather than `requireNamespace`, so a
+    `dgCMatrix` run cannot reach a BPCells branch. Verified rather than assumed:
+    ten Seurat references fingerprinted before and after — **none moved**.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
-  **T-sk two more**, **T-obj eleven**, **T-sp three** and **T-de two** —
+  **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two** and **T-lazy seven** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer

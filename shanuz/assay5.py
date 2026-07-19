@@ -11,6 +11,7 @@ import scipy.sparse as sp
 
 from ._sparse import as_sparse, empty_sparse, is_matrix_empty
 from ._utils import validate_cell_names, validate_feature_names
+from .lazy import is_lazy
 from .logmap import LogMap
 from .mixins import KeyMixin
 
@@ -644,7 +645,13 @@ def create_assay5_object(
     if matrix is None:
         raise ValueError("Provide at least one of 'counts' or 'data'.")
 
-    if sp.issparse(matrix):
+    if is_lazy(matrix):
+        # Keep the on-disk layer on disk. `np.asarray` below would read the
+        # whole store into a dense array here in the constructor, so the
+        # obvious way to use the feature -- open a store, build an object
+        # around it -- would end the laziness before any analysis began.
+        mat = matrix
+    elif sp.issparse(matrix):
         mat = matrix.tocsc()
     else:
         mat = sp.csc_matrix(np.asarray(matrix))
@@ -656,16 +663,21 @@ def create_assay5_object(
     if cell_names is None:
         cell_names = [f"cell_{i}" for i in range(n_cells)]
 
-    # Filter features by min_cells
+    # Filter features by min_cells. Either filter subsets the lazy store
+    # through its own indexer, which yields an in-memory sparse block of just
+    # the kept entries -- a filtered assay cannot stay on disk without writing
+    # a second store, but it need never be dense to get there.
     if min_cells > 0:
-        nnz_per_feat = np.diff(mat.T.tocsc().indptr)
+        nnz_per_feat = (mat.nnz_per_row() if is_lazy(mat)
+                        else np.diff(mat.T.tocsc().indptr))
         keep_feat = np.where(nnz_per_feat >= min_cells)[0]
         mat = mat[keep_feat, :]
         feature_names = [feature_names[i] for i in keep_feat]
 
     # Filter cells by min_features
     if min_features > 0:
-        nnz_per_cell = np.diff(mat.tocsc().indptr)
+        nnz_per_cell = (mat.nnz_per_col() if is_lazy(mat)
+                        else np.diff(mat.tocsc().indptr))
         keep_cell = np.where(nnz_per_cell >= min_features)[0]
         mat = mat[:, keep_cell]
         cell_names = [cell_names[i] for i in keep_cell]

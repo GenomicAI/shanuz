@@ -12,6 +12,8 @@ import pandas as pd
 import scipy.sparse as sp
 from scipy.stats import mannwhitneyu
 
+from .lazy import is_lazy
+
 # Seurat's `pseudocount.use`, added to each group's *summed* un-logged expression
 # before dividing by the group size. See the fold-change block in `find_markers`.
 PSEUDOCOUNT = 1.0
@@ -300,7 +302,9 @@ def find_markers(
     idx_1 = [cell_idx_map[c] for c in cells_1]
     idx_2 = [cell_idx_map[c] for c in cells_2]
 
-    if sp.issparse(data):
+    # A lazy layer indexes like a sparse one, so it takes the same branch --
+    # the dense fallback would materialise the whole store twice, once per group.
+    if sp.issparse(data) or is_lazy(data):
         mat1 = data[:, idx_1].toarray().astype(float)  # (features × n1)
         mat2 = data[:, idx_2].toarray().astype(float)  # (features × n2)
     else:

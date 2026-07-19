@@ -23,6 +23,53 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+*The out-of-core path, audited against Seurat 5.5.1 + BPCells 0.3.1*
+
+- **Five functions read an on-disk layer by densifying all of it.**
+  `_log_normalize`, `_vst_hvg`, `scale_data`, `find_markers` and
+  `add_module_score` each took a dense fallback that ran
+  `np.asarray(whole)[idx]` where subsetting first would have been cheap —
+  `LazyMatrix.__getitem__` already returns a scipy block. The effect was that
+  backing a matrix on disk made things **worse**: `normalize_data` on pbmc3k
+  used **4.6× the peak memory** of the sparse path (1169 MB against 253 MB) and
+  left a dense `ndarray` **16× larger** than the sparse layer it replaced (296
+  MB against 18.3 MB). `col_blocks`, documented as "the primitive for an
+  out-of-core reduction", had no callers. Now zero whole-store materialisations
+  across the whole pipeline.
+- **`percentage_feature_set` raised on an on-disk layer.**
+  `sp.issparse(LazyMatrix)` is `False`, so it took the dense branch — but
+  indexing a `LazyMatrix` returns scipy, whose `.sum(axis=0)` is a `(1, n)`
+  matrix rather than a vector, and the result reached `pd.Series` with the wrong
+  shape.
+- **Object construction ended laziness before any analysis ran.**
+  `create_assay5_object` ran `sp.csc_matrix(np.asarray(matrix))` on anything not
+  already scipy, and `calc_n` densified again for `nCount`/`nFeature`. So
+  opening a store and building an object on it — the obvious way to use the
+  feature — was the one path that could not work. Seurat has a
+  `.CalcN.IterableMatrix` for the same reason. `LazyMatrix.nnz_per_row` added to
+  support `min_cells` filtering without materialising.
+- **`_loess2` was chaotically dependent on sort order.** On pbmc3k **85.5 % of
+  genes share their `log10(mean)`** (13,714 genes over 2,837 distinct values,
+  largest tied run 627). `np.argsort` defaults to unstable quicksort and the
+  LOESS window was chosen by position, so members of a tied run got different
+  neighbourhoods and different fitted values — a spread of **1.3e-3** within a
+  single tied `x`, where R's `loess` gives 1.8e-15 because a fitted value is a
+  function of `x` alone. Perturbing the input by **1e-15** moved fitted values by
+  up to **28.8 %**. The fit is now evaluated once per distinct `x`, with
+  distance-based neighbourhoods and a lexicographic sort. Checked against R
+  before adoption: median \|diff\| vs `loess` 0.000333 → **0.000103**, and HVG
+  overlap with Seurat 99.65 % → **99.90 %** (all 6 genes it added are ones
+  Seurat picks).
+- **Both HVG selectors broke ties the wrong way.** `argsort(v)[::-1]` orders
+  ties by descending index; R's `head(order(x, decreasing = TRUE), n)` orders
+  them ascending, and unstably at that. Now `argsort(-v, kind="stable")`.
+- **The sparse and on-disk paths were two implementations agreeing to 1e-14.**
+  That is not enough when a *tie-break* consumes the statistic:
+  `variance.standardized` carries exact ties, and genes tied under one summation
+  order are not tied under the other. It reordered **147 of 2000** features and
+  produced 9 clusters against 8. Both layer types now share one block reduction,
+  so the two paths are bit-identical by construction.
+
 *The differential-expression test suite, audited against Seurat 5.5.1*
 
 - **`avg_log2FC` put Seurat's pseudocount on the group mean instead of the group

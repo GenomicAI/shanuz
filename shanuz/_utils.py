@@ -15,6 +15,16 @@ def calc_n(matrix, margin: int = 2) -> tuple[np.ndarray, np.ndarray]:
     margin=2 operates on columns (cells), matching R's default.
     Returns (nCount, nFeature) as 1-D float arrays.
     """
+    from .lazy import is_lazy
+
+    if is_lazy(matrix):
+        # Seurat has a dedicated `.CalcN.IterableMatrix` for exactly this, and
+        # for the same reason: these two numbers are wanted for every cell the
+        # moment an object is built, so computing them densely would end an
+        # on-disk layer's life in the constructor. Both are streaming
+        # reductions over the store's own index arrays.
+        return (matrix.sum(axis=0).astype(float),
+                matrix.nnz_per_col().astype(float))
     if sp.issparse(matrix):
         ncount = np.asarray(matrix.sum(axis=0)).flatten()
         nfeature = np.diff(matrix.tocsc().indptr).astype(float)
