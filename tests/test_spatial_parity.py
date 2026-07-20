@@ -243,7 +243,7 @@ def test_concave_shapes_survive_closing():
     )
     tc = create_segmentation(L).get_tissue_coordinates()
     assert len(tc) == 7  # R: 7
-    assert [1.0, 1.0] in tc.values.tolist()
+    assert [1.0, 1.0] in tc[["x", "y"]].values.tolist()
 
 
 def test_degenerate_rings_are_left_alone():

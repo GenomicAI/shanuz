@@ -1,5 +1,6 @@
 """Tests for Visium tissue-image support (load_visium image=..., VisiumV2)."""
 import json
+import sys
 
 import numpy as np
 import pandas as pd
@@ -92,8 +93,86 @@ def test_read_tissue_image_returns_none_without_png(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# The image must be a function of the file, not of the environment.
+#
+# matplotlib returns float in [0, 1] for an 8-bit PNG; Pillow returns uint8 in
+# [0, 255]. Neither is a declared dependency, so before normalising, the same
+# bundle gave arrays 255x apart depending on which happened to be installed.
+# Asserting the dtype on one backend proves nothing — the two have to be read
+# and compared against each other.
+# ---------------------------------------------------------------------------
+
+def _no_matplotlib(monkeypatch):
+    """Force _imread's Pillow branch. sys.modules[name] = None makes import raise."""
+    monkeypatch.setitem(sys.modules, "matplotlib.image", None)
+
+
+def test_both_image_backends_return_the_same_array(tmp_path, monkeypatch):
+    _write_visium(tmp_path)
+    via_mpl, _ = read_tissue_image(tmp_path / "spatial", resolution="lowres")
+    with monkeypatch.context() as m:
+        _no_matplotlib(m)
+        via_pil, _ = read_tissue_image(tmp_path / "spatial", resolution="lowres")
+
+    assert via_pil.dtype == via_mpl.dtype
+    np.testing.assert_array_equal(via_pil, via_mpl)
+
+
+@pytest.mark.parametrize("pillow_only", [False, True])
+def test_image_is_unit_float_on_either_backend(tmp_path, monkeypatch, pillow_only):
+    _write_visium(tmp_path)
+    with monkeypatch.context() as m:
+        if pillow_only:
+            _no_matplotlib(m)
+        img, _ = read_tissue_image(tmp_path / "spatial", resolution="lowres")
+
+    assert np.issubdtype(img.dtype, np.floating), f"got {img.dtype}"
+    assert 0.0 <= img.min() and img.max() <= 1.0, f"range [{img.min()}, {img.max()}]"
+
+
+def test_the_pillow_branch_is_actually_reached(tmp_path, monkeypatch):
+    """Guard the guard: if the monkeypatch stopped working the two tests above
+    would silently both exercise matplotlib and could never fail."""
+    _write_visium(tmp_path)
+    with monkeypatch.context() as m:
+        _no_matplotlib(m)
+        with pytest.raises(ImportError):
+            import matplotlib.image  # noqa: F401
+
+
+@pytest.mark.parametrize("pillow_only", [False, True])
+def test_load_visium_image_is_unit_float(tmp_path, monkeypatch, pillow_only):
+    """Through the real entry point, not just the helper — and on both backends,
+    since with matplotlib installed the Pillow branch is never reached and the
+    assertion below cannot fail."""
+    _write_visium(tmp_path)                      # writes the PNG; needs matplotlib
+    with monkeypatch.context() as m:
+        if pillow_only:
+            _no_matplotlib(m)
+        img = load_visium(tmp_path).images["slice1"].get_image()
+    assert np.issubdtype(img.dtype, np.floating)
+    assert img.max() <= 1.0
+
+
+# ---------------------------------------------------------------------------
 # load_visium
 # ---------------------------------------------------------------------------
+
+def test_load_visium_defaults_match_seurat(tmp_path):
+    """The defaults themselves, not just the helpers behind them.
+
+    `Read10X_Image` reads tissue_lowres_image.png, filters to in-tissue spots,
+    and `Load10X_Spatial` keys the image 'slice1'. A test that passes every
+    argument explicitly would keep passing if any of these drifted.
+    """
+    _write_visium(tmp_path, all_in_tissue=False)             # 2 of 6 off tissue
+    obj = load_visium(tmp_path)
+
+    assert list(obj.images) == ["slice1"]                    # not 'spatial'
+    (fov,) = obj.images.values()
+    assert fov.image_resolution == "lowres"                  # not 'hires'
+    assert len(obj.cell_names()) == 4                        # off-tissue spots dropped
+
 
 def test_load_visium_attaches_image_and_scalefactors(tmp_path):
     barcodes = _write_visium(tmp_path)
@@ -103,12 +182,12 @@ def test_load_visium_attaches_image_and_scalefactors(tmp_path):
     assert obj.cell_names() == barcodes
     (fov,) = obj.images.values()
     assert isinstance(fov, VisiumV2)
-    assert fov.image_resolution == "hires"
-    assert fov.get_image().shape[:2] == (40, 40)
+    assert fov.image_resolution == "lowres"
+    assert fov.get_image().shape[:2] == (12, 12)
     assert fov.scale_factors.spot == SPOT_DIAMETER
     # Spot radius is half the diameter, in fullres pixels.
     assert fov.radius() == SPOT_DIAMETER / 2
-    assert fov.spot_radius() == SPOT_DIAMETER / 2 * HIRES_SCALEF
+    assert fov.spot_radius() == SPOT_DIAMETER / 2 * LOWRES_SCALEF
 
 
 def test_coordinates_stay_fullres_and_scale_on_demand(tmp_path):
@@ -124,22 +203,22 @@ def test_coordinates_stay_fullres_and_scale_on_demand(tmp_path):
 
     scaled = fov.scale_coordinates()
     np.testing.assert_allclose(scaled["x"].to_numpy(),
-                               coords["x"].to_numpy() * HIRES_SCALEF)
-    np.testing.assert_allclose(scaled["y"].to_numpy(),
-                               coords["y"].to_numpy() * HIRES_SCALEF)
-    # An explicit resolution overrides the stored one.
-    lo = fov.scale_coordinates(resolution="lowres")
-    np.testing.assert_allclose(lo["x"].to_numpy(),
                                coords["x"].to_numpy() * LOWRES_SCALEF)
+    np.testing.assert_allclose(scaled["y"].to_numpy(),
+                               coords["y"].to_numpy() * LOWRES_SCALEF)
+    # An explicit resolution overrides the stored one.
+    hi = fov.scale_coordinates(resolution="hires")
+    np.testing.assert_allclose(hi["x"].to_numpy(),
+                               coords["x"].to_numpy() * HIRES_SCALEF)
 
 
-def test_load_visium_lowres_request(tmp_path):
+def test_load_visium_hires_request(tmp_path):
     _write_visium(tmp_path)
-    obj = load_visium(tmp_path, image_resolution="lowres")
+    obj = load_visium(tmp_path, image_resolution="hires")
     (fov,) = obj.images.values()
-    assert fov.image_resolution == "lowres"
-    assert fov.get_image().shape[:2] == (12, 12)
-    assert fov.spot_radius() == SPOT_DIAMETER / 2 * LOWRES_SCALEF
+    assert fov.image_resolution == "hires"
+    assert fov.get_image().shape[:2] == (40, 40)
+    assert fov.spot_radius() == SPOT_DIAMETER / 2 * HIRES_SCALEF
 
 
 def test_load_visium_without_image_is_a_plain_fov(tmp_path):
@@ -173,13 +252,14 @@ def test_scalefactors_without_png_still_gives_visium_fov(tmp_path):
 def test_filter_by_tissue_drops_offtissue_spots(tmp_path):
     _write_visium(tmp_path, all_in_tissue=False)
 
-    obj = load_visium(tmp_path, filter_by_tissue=True)
+    obj = load_visium(tmp_path)                          # filtering is now the default
     assert len(obj.cell_names()) == 4                    # 2 spots had in_tissue == 0
     assert len(obj.assays["Spatial"].cells()) == 4       # dropped from the matrix too
     assert len(obj.get_tissue_coordinates()) == 4
 
-    # Default keeps everything.
-    assert len(load_visium(tmp_path).cell_names()) == N_SPOTS
+    # Opting out keeps the off-tissue spots.
+    kept = load_visium(tmp_path, filter_by_tissue=False)
+    assert len(kept.cell_names()) == N_SPOTS
 
 
 # ---------------------------------------------------------------------------
@@ -194,7 +274,7 @@ def test_subset_preserves_image_and_scalefactors(tmp_path):
     (fov,) = sub.images.values()
     assert isinstance(fov, VisiumV2)
     assert fov.cells() == barcodes[:3]
-    assert fov.get_image().shape[:2] == (40, 40)
+    assert fov.get_image().shape[:2] == (12, 12)
     assert fov.radius() == SPOT_DIAMETER / 2
 
 
@@ -206,7 +286,7 @@ def test_rename_cells_preserves_image(tmp_path):
     renamed = fov.rename_cells([f"new-{i}" for i in range(len(barcodes))])
     assert isinstance(renamed, VisiumV2)
     assert renamed.cells() == [f"new-{i}" for i in range(len(barcodes))]
-    assert renamed.get_image().shape[:2] == (40, 40)
+    assert renamed.get_image().shape[:2] == (12, 12)
     assert renamed.scale_factors.spot == SPOT_DIAMETER
 
 
@@ -218,7 +298,7 @@ def test_get_image_generic_dispatches(tmp_path):
     (visium,) = load_visium(tmp_path).images.values()
     (plain,) = load_visium(tmp_path, image=False).images.values()
 
-    assert get_image(visium).shape[:2] == (40, 40)
+    assert get_image(visium).shape[:2] == (12, 12)
     assert radius(visium) == SPOT_DIAMETER / 2
     assert get_image(plain) is None          # non-Visium images have no photo
 

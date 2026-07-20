@@ -894,7 +894,9 @@ regime. Don't "simplify" them.
   (pbmc3k). **All four waves are now delivered — 16 tutorials, 29 defects, every
   one fixed.** `BPCells` was installed for the final one (GitHub, not CRAN;
   needs libhdf5) after fingerprinting ten Seurat references to prove it was
-  inert for ordinary input. **The visualization gallery never became its own
+  inert for ordinary input. **T-vis (Visium) was added afterwards** as a
+  seventeenth, on the same method but with the reference question reopened —
+  see *Beyond the four waves* below. **The visualization gallery never became its own
   tutorial**: `dot_plot` was the last plotting export uncovered and was folded
   into the pbmc3k gallery in T-sp.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
@@ -1139,9 +1141,43 @@ regime. Don't "simplify" them.
     on `inherits(x, "IterableMatrix")` rather than `requireNamespace`, so a
     `dgCMatrix` run cannot reach a BPCells branch. Verified rather than assumed:
     ten Seurat references fingerprinted before and after — **none moved**.
+- **Beyond the four waves — T-vis, and the reference question reopened.**
+  - **T-vis Visium — ✅ delivered. One shanuz defect, two Seurat ones.**
+    `load_visium` / `VisiumV2` against `Read10X_Image` / `Load10X_Spatial` on
+    the 10x V1_Mouse_Brain_Sagittal_Anterior Space Ranger 1.1.0 bundle, 2,695
+    in-tissue spots × 32,285 genes (`visium_vignette.md`). **24 of 24 anchors
+    match**, 17 exactly; coordinates to `max|dx| = max|dy| = 0` over every spot;
+    all four scale factors exact; the tissue image to 1.68e-08.
+    **This is the first tutorial where the difference was Seurat's.** Every
+    earlier one treated R as the reference and a mismatch as shanuz's defect,
+    which was right 29 times. Here it would have introduced one: Seurat builds
+    the FOV with `radius = scale.factors[["spot"]]`, and that field holds
+    `spot_diameter_fullres` — a **diameter in a slot named radius**. Decided
+    from the slide rather than from either tool: Visium spots sit on a fixed
+    100 µm centre-to-centre grid, the measured spacing is 137.000 px so
+    1.3700 px/µm, and read as a radius the field describes **130.62 µm capture
+    spots on a 100 µm pitch** — overlapping wells, which cannot be. Read as a
+    diameter it is 65.31 µm, 10x's 65 µm reference spot to 1.0047×. shanuz
+    keeps `diameter / 2` and a test pins the 2× divergence so a later "parity
+    fix" cannot reintroduce it. Second Seurat finding: **`Radius()` on a
+    `VisiumV2` returns `NULL`** — `methods("Radius")` has Centroids, STARmap,
+    SlideSeq, SpatialImage and VisiumV1, but no VisiumV2.
+    **The shanuz defect:** `_imread` fell back from matplotlib to Pillow, which
+    return **float32 in [0,1] and uint8 in [0,255]** — 255× apart, from the same
+    file, and neither library is a declared dependency, so `get_image()` was a
+    function of the environment. Plotting hid it because `imshow` takes both.
+    **Three defaults aligned to Seurat** (breaking): `filter_by_tissue` False →
+    **True**, resolution `hires` → **`lowres`**, image key `"spatial"` →
+    **`"slice1"`**. And `GetTissueCoordinates` now returns Seurat's frame —
+    `x, y, cell` with the cells on the index too, not `x, y` alone.
+    **Left standing:** the LOESS residual reaches here as well — 1995/2000
+    shared variable features and a 1.9e-3 PCA gap. Isolated rather than
+    tolerated: on Seurat's own feature list the decompositions agree to
+    **2.49e-05**, so the gap is feature selection, not the PCA.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
-  **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two** and **T-lazy seven** —
+  **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two**, **T-lazy seven**
+  and **T-vis one** (plus two in Seurat itself) —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer

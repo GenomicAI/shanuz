@@ -88,3 +88,9 @@ tutorials/figures_lazy/*_markers_wilcox.csv
 tutorials/figures_lazy/shanuz_store/
 tutorials/figures_lazy/bpcells_store/
 tutorials/figures_lazy/bpcells_store_int/
+
+# Visium tutorial — generated anchors and feature lists (figures are committed)
+tutorials/figures_visium/py_anchors.json
+tutorials/figures_visium/r_anchors.json
+tutorials/figures_visium/py_variable_features.txt
+tutorials/figures_visium/r_variable_features.txt

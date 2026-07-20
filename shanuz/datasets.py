@@ -218,6 +218,56 @@ def xenium_mouse_brain(
     return data_dir
 
 
+# Visium mouse brain (sagittal anterior, section 1) — 10x Genomics public dataset,
+# the anterior half of Seurat's `stxBrain`. 2,695 in-tissue spots x 32,285 genes.
+#
+# Fetched as the raw Space Ranger output rather than through SeuratData, because
+# a loader can only be tested against the files it is supposed to read: the
+# curated .rda carries a built object, not `spatial/`. This is Space Ranger 1.1.0,
+# so positions arrive as the headerless `tissue_positions_list.csv` — the older
+# of the two layouts both `Read10X_Image` and `load_visium` have to handle.
+_VISIUM_MB_BASE = (
+    "https://cf.10xgenomics.com/samples/spatial-exp/1.1.0/"
+    "V1_Mouse_Brain_Sagittal_Anterior/"
+    "V1_Mouse_Brain_Sagittal_Anterior"
+)
+_VISIUM_MB_FILES = {
+    "spatial": ("_spatial.tar.gz", "spatial images + scale factors (~9 MB)"),
+    "filtered_feature_bc_matrix": ("_filtered_feature_bc_matrix.tar.gz",
+                                   "filtered spot matrix (~55 MB)"),
+}
+
+
+def visium_mouse_brain(
+    data_dir: Optional[str] = None,
+    force_download: bool = False,
+) -> Path:
+    """Download (if needed) the 10x Visium mouse-brain sagittal-anterior section.
+
+    Fetches the Space Ranger bundle (~64 MB) into ``data_dir`` (default
+    ``~/.shanuz_data/visium_mouse_brain``) and returns the folder path — ready to
+    pass to :func:`shanuz.load_visium`, and to R's ``Read10X_Image`` /
+    ``Load10X_Spatial``, so the same slide runs in both languages.
+    """
+    # A local Path rather than rebinding the str|None parameter — the older
+    # loaders in this module do the latter and it is most of their mypy noise.
+    root = (Path(data_dir) if data_dir is not None
+            else Path.home() / ".shanuz_data" / "visium_mouse_brain")
+    root.mkdir(parents=True, exist_ok=True)
+
+    # Each component is one tarball that unpacks to a directory of the same name.
+    for name, (suffix, label) in _VISIUM_MB_FILES.items():
+        if not force_download and (root / name).is_dir():
+            continue
+        tar_dest = root / f"{name}.tar.gz"
+        _download_file(_VISIUM_MB_BASE + suffix, tar_dest,
+                       label=f"Visium mouse brain {label}")
+        with tarfile.open(tar_dest, "r:gz") as tf:
+            tf.extractall(root)
+        os.unlink(tar_dest)
+    return root
+
+
 # PBMC "Cell Hashing" dataset (Stoeckius et al. 2018, GSE108313) — the 8-hashtag
 # experiment used by Seurat's hashing vignette. Cells are labelled with 8 HTOs
 # (BatchA–H) and the RNA is aligned to a *combined human+mouse* reference, so

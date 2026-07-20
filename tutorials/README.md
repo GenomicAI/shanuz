@@ -1,6 +1,6 @@
 # Shanuz Tutorials
 
-Sixteen end-to-end tutorials covering increasingly complex single-cell analysis workflows,
+Seventeen end-to-end tutorials covering increasingly complex single-cell analysis workflows,
 each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
 
 ---
@@ -25,6 +25,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 14 | [Spatial Statistics & the Spatial Container](svf_vignette.md) | 36,602 cells · 248 genes · 10x Xenium mouse brain | The spatial **container** and the one spatial **statistic** never checked against R: `LoadXenium` ↔ `load_xenium` · `CreateFOV`/`CreateCentroids`/`CreateSegmentation` ↔ `create_fov`/`create_centroids`/`create_segmentation` · `GetTissueCoordinates` · `Radius` · `FindSpatiallyVariableFeatures` ↔ `find_spatially_variable_features` — **38 of 39 anchors match exactly**; Moran's I to **1.6e-14** and 10/10 of Seurat's top genes, on a slide R cannot hold in memory; **caught three bugs, all fixed** (Moran's I on a kNN graph instead of R's inverse-square weights, centroids with no radius, unclosed polygons) | Advanced |
 | 15 | [The Differential-Expression Test Suite](de_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | All **eight** `find_markers` tests against `FindMarkers` — `wilcox` · `t` · `bimod` · `LR` · `negbinom` · `roc` · `MAST` · `DESeq2` — on a shared cell assignment so no clustering difference can pose as a DE difference. **All seven per-cell tests reproduce Seurat's top 50 exactly**; `avg_log2FC` to **7.1e-15**; **caught two bugs, both fixed** (Seurat's pseudocount on the group mean instead of the sum, which also changed which genes `logfc_threshold` returned; and a moment-dispersion LRT where Seurat runs an ML-dispersion Wald test) | Advanced |
 | 16 | [Out of Core — `LazyMatrix` vs BPCells](lazy_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | shanuz's on-disk layer against **BPCells**, Seurat's: `write_lazy_matrix`/`open_lazy_matrix` ↔ `write_matrix_dir`/`open_matrix_dir` · streaming `LogNormalize`/`VST`/`ScaleData` ↔ Seurat's `IterableMatrix` methods · `.CalcN` · storage formats. **14 of 14 anchors match**, 1998/2000 variable features shared with Seurat. The finding is each tool against *itself*: shanuz's on-disk and in-memory paths are **bit-identical**, Seurat's differ by 1.0e-06 and pick a different variable feature. **Caught seven bugs, all fixed** (five functions that densified the whole store — so going on disk *raised* peak memory 4.6× — a constructor that ended laziness before analysis began, and a LOESS whose fit moved 28.8 % under a 1e-15 nudge) | Advanced |
+| 17 | [Visium — the Spatial Container](visium_vignette.md) | 2,695 spots · 10x V1_Mouse_Brain_Sagittal_Anterior | The Visium loader and container: `Load10X_Spatial`/`Read10X_Image` ↔ `load_visium` · `VisiumV2` · `ScaleFactors` · `Radius` · `GetTissueCoordinates` · `SpatialDimPlot` ↔ `spatial_dim_plot` — **24 of 24 anchors match**, 17 exactly, coordinates to `max\|dx\| = 0`. **The first tutorial where Seurat is the one that's wrong**: it stores `spot_diameter_fullres` in the FOV's `radius`, which the slide's fixed 100 µm pitch shows is a diameter, and `Radius()` on its own `VisiumV2` returns `NULL`. **Caught one shanuz bug** (the tissue image came back 255× apart depending on whether matplotlib or Pillow was installed) and **aligned three defaults** to Seurat | Spatial |
 
 ---
 
@@ -43,7 +44,7 @@ Each tutorial has a **Python script** that runs the analysis and prints validati
 and a **figure-generation script** that writes plots to a `figures_*/` subfolder.
 
 The datasets download automatically on first run, to `~/.shanuz_data/` (~200 MB
-across all five tutorials).
+~770 MB with every dataset cached).
 
 ### Checking the tutorials still run
 

@@ -81,8 +81,14 @@ def _build_spatial_object(
     project: str,
     fov: Optional[Union[str, np.ndarray]] = None,
     meta_data: Optional[pd.DataFrame] = None,
+    image_name: Optional[str] = None,
 ):
-    """Assemble a Shanuz object + images from expression + coordinate parts."""
+    """Assemble a Shanuz object + images from expression + coordinate parts.
+
+    ``image_name`` names the single FOV when the run is not split into several.
+    It defaults to the lowercased assay name; Visium passes ``"slice1"`` so the
+    key matches ``Load10X_Spatial``'s.
+    """
     from ..shanuz import create_shanuz_object
 
     obj = create_shanuz_object(
@@ -95,7 +101,7 @@ def _build_spatial_object(
     coords = coords.dropna(subset=["x", "y"])
     fov_labels = coords[fov].to_numpy() if isinstance(fov, str) and fov in coords else None
     obj.images = create_fovs(coords[["x", "y", "cell"]], fov=fov_labels, assay=assay,
-                             default_name=assay.lower())
+                             default_name=image_name or assay.lower())
     if meta_data is not None:
         md = meta_data.reindex(kept)
         for c in md.columns:
@@ -183,8 +189,9 @@ def load_visium(
     assay: str = "Spatial",
     project: str = "Visium",
     image: bool = True,
-    image_resolution: str = "hires",
-    filter_by_tissue: bool = False,
+    image_resolution: str = "lowres",
+    filter_by_tissue: bool = True,
+    slice_name: str = "slice1",
 ):
     """Load a 10x Visium output into a Shanuz object with spot coordinates.
 
@@ -202,14 +209,23 @@ def load_visium(
     Parameters
     ----------
     image            : read the tissue image + scale factors (default True).
-    image_resolution : 'hires' (default) or 'lowres'; falls back to whichever is present.
-    filter_by_tissue : keep only spots with ``in_tissue == 1``.
+    image_resolution : 'lowres' (default) or 'hires'; falls back to whichever is
+                       present. Matches ``Read10X_Image``'s
+                       ``image.name = "tissue_lowres_image.png"``.
+    filter_by_tissue : keep only spots with ``in_tissue == 1`` (default True),
+                       matching ``Read10X_Image``'s ``filter.matrix = TRUE``.
+    slice_name       : key for the FOV in ``obj.images`` (default ``"slice1"``,
+                       the name ``Load10X_Spatial`` uses).
 
     Notes
     -----
     Spot coordinates stay in **full-resolution pixels**, matching
     ``tissue_positions.csv``. The scale factors convert them to image pixels —
     see :meth:`VisiumV2.scale_coordinates`.
+
+    The three defaults above changed to match Seurat. Reading a bundle the way
+    earlier versions did is ``load_visium(path, image_resolution="hires",
+    filter_by_tissue=False, slice_name="spatial")``.
     """
     from .visium import VisiumV2, read_scale_factors, read_tissue_image
 
@@ -241,7 +257,8 @@ def load_visium(
         cells = [cells[i] for i in idx]
 
     coords = pos[["cell", "x", "y"]]
-    obj = _build_spatial_object(counts, feats, cells, coords, assay, project)
+    obj = _build_spatial_object(counts, feats, cells, coords, assay, project,
+                                image_name=slice_name)
 
     if not image:
         return obj

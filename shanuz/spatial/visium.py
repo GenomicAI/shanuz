@@ -70,7 +70,7 @@ def read_scale_factors(path: Union[str, Path]) -> ScaleFactors:
 
 def read_tissue_image(
     path: Union[str, Path],
-    resolution: str = "hires",
+    resolution: str = "lowres",
 ) -> Optional[tuple[np.ndarray, str]]:
     """Read ``tissue_{hires,lowres}_image.png`` from a Visium ``spatial/`` dir.
 
@@ -94,25 +94,46 @@ def read_tissue_image(
     return None
 
 
+def _to_unit_float(img: np.ndarray) -> np.ndarray:
+    """Integer pixel values → float in [0, 1]; an already-float image passes through."""
+    if np.issubdtype(img.dtype, np.integer):
+        return img.astype(np.float32) / float(np.iinfo(img.dtype).max)
+    return img
+
+
 def _imread(png: Path) -> Optional[np.ndarray]:
+    """Read a PNG as float in [0, 1], whichever backend happens to be installed.
+
+    The two backends do not agree on their own: matplotlib returns float in
+    [0, 1] for an 8-bit PNG, Pillow returns uint8 in [0, 255]. Both are "the
+    image", but they are not the same array, so without normalising here
+    ``get_image()`` would be a function of the environment as much as of the
+    file — and neither matplotlib nor Pillow is a declared dependency. R's
+    ``png::readPNG`` is always double in [0, 1]; match that.
+    """
+    img = None
     try:
         import matplotlib.image as mpimg
 
-        return np.asarray(mpimg.imread(png))
+        img = np.asarray(mpimg.imread(png))
     except ImportError:
-        pass
-    try:
-        from PIL import Image
+        try:
+            from PIL import Image
 
-        with Image.open(png) as im:
-            return np.asarray(im)
-    except ImportError:
-        warnings.warn(
-            "Reading the Visium tissue image needs matplotlib or Pillow; "
-            "loading without it. Install shanuz[analysis] to enable tissue plots.",
-            stacklevel=3,
-        )
-        return None
+            with Image.open(png) as im:
+                # matplotlib expands a palette PNG to RGB(A); Pillow hands back
+                # palette indices unless asked, which is the same disagreement.
+                src = (im.convert("RGBA" if "transparency" in im.info else "RGB")
+                       if im.mode == "P" else im)
+                img = np.asarray(src)
+        except ImportError:
+            warnings.warn(
+                "Reading the Visium tissue image needs matplotlib or Pillow; "
+                "loading without it. Install shanuz[analysis] to enable tissue plots.",
+                stacklevel=3,
+            )
+            return None
+    return _to_unit_float(img)
 
 
 class VisiumV2(FOV):
@@ -137,7 +158,7 @@ class VisiumV2(FOV):
         molecules: Optional[dict[str, Molecules]] = None,
         image: Optional[np.ndarray] = None,
         scale_factors: Optional[ScaleFactors] = None,
-        image_resolution: str = "hires",
+        image_resolution: str = "lowres",
         coords_x_orientation: str = "horizontal",
         assay: str = "",
         key: str = "slice1_",
@@ -165,7 +186,7 @@ class VisiumV2(FOV):
         fov: FOV,
         image: Optional[np.ndarray] = None,
         scale_factors: Optional[ScaleFactors] = None,
-        image_resolution: str = "hires",
+        image_resolution: str = "lowres",
     ) -> "VisiumV2":
         """Upgrade a plain FOV in place-ish: same boundaries, plus the image."""
         obj = cls(

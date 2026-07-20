@@ -21,7 +21,53 @@ Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
 spatial, scale, and the specialized assays — plus one breaking fix. All of it is
 on `main`; none of it is on PyPI.
 
+### Changed — BREAKING
+
+*The Visium loader, aligned to `Read10X_Image` / `Load10X_Spatial`*
+
+- **`load_visium` now filters to in-tissue spots by default.**
+  `filter_by_tissue` defaults to `True`, matching Seurat's
+  `filter.matrix = TRUE`. On a `filtered_feature_bc_matrix` bundle nothing
+  changes — those barcodes are already tissue-filtered — but on a
+  `raw_feature_bc_matrix` the spot count drops from every spot on the capture
+  area to the ones under tissue (4,992 → 2,695 on the reference slide).
+- **`load_visium` now reads the lowres image by default.** `image_resolution`
+  defaults to `"lowres"`, matching `Read10X_Image`'s
+  `image.name = "tissue_lowres_image.png"`. The stored array is ~11× smaller;
+  `scale_coordinates()` and `spot_radius()` follow the stored resolution, so
+  anything reading them in image pixels changes scale accordingly.
+- **The image key is now `"slice1"`, not `"spatial"`.** `obj.images["slice1"]`
+  is what `Load10X_Spatial` produces and what every ported Seurat script
+  indexes; it used to raise `KeyError`. Override with `slice_name=`.
+- **`get_tissue_coordinates()` on a `Centroids`, `Segmentation` or FOV now
+  returns a `cell` column** alongside `x`/`y`, with the cells still on the
+  index — the frame R returns. Callers taking `.values`/`.to_numpy()` over the
+  whole frame now get an object array and should select `[["x", "y"]]`.
+
+  The previous behaviour is still available:
+  `load_visium(path, image_resolution="hires", filter_by_tissue=False, slice_name="spatial")`.
+
 ### Fixed
+
+*The Visium container, audited against Seurat 5.5.1*
+
+- **The tissue image depended on which optional package was installed.**
+  `_imread` tried `matplotlib.image` and fell back to `PIL`, which return
+  float32 in [0, 1] and uint8 in [0, 255] respectively — **arrays 255× apart,
+  with different dtypes, from the same PNG**. Neither library is a declared
+  dependency, so `VisiumV2.get_image()` was a function of the environment as
+  much as of the file. Plotting never revealed it because `imshow` accepts
+  both. Both backends now return the same float array, matching
+  `png::readPNG` to float32 epsilon.
+
+  Two Seurat behaviours are **reported and deliberately not matched**: it
+  stores `spot_diameter_fullres` in the FOV's `radius` (shanuz keeps
+  `diameter / 2`; the slide's fixed 100 µm spot pitch shows the field is a
+  diameter, since read as a radius the capture areas would overlap by 31 µm),
+  and `Radius()` on a `VisiumV2` returns `NULL` because no `Radius.VisiumV2`
+  method exists. See [`tutorials/visium_vignette.md`](tutorials/visium_vignette.md).
+
+*The out-of-core path, audited against Seurat 5.5.1 + BPCells 0.3.1*
 
 *The out-of-core path, audited against Seurat 5.5.1 + BPCells 0.3.1*
 

@@ -98,7 +98,7 @@ def test_spatial_dim_plot_draws_the_tissue_image(visium):
     fig = spatial_dim_plot(visium, group_by="region")
     ax = fig.axes[0]
     assert len(ax.images) == 1
-    assert ax.images[0].get_array().shape[:2] == (HIRES_PX, HIRES_PX)
+    assert ax.images[0].get_array().shape[:2] == (LOWRES_PX, LOWRES_PX)
 
 
 def test_spatial_feature_plot_draws_the_tissue_image(visium):
@@ -121,21 +121,21 @@ def test_image_alpha_is_applied(visium):
 def test_spots_are_scaled_into_image_pixel_space(visium):
     fig = spatial_dim_plot(visium, group_by="region", crop=False)
     offsets = _spots(fig).get_offsets()
-    # Fullres x = col * 200, y = row * 100; hires image is 0.1× that.
+    # Fullres x = col * 200, y = row * 100; the lowres image is 0.03× that.
     expected = np.column_stack([
-        np.arange(N_SPOTS) * 200.0 * HIRES_SCALEF,
-        np.arange(N_SPOTS) * 100.0 * HIRES_SCALEF,
+        np.arange(N_SPOTS) * 200.0 * LOWRES_SCALEF,
+        np.arange(N_SPOTS) * 100.0 * LOWRES_SCALEF,
     ])
     assert np.allclose(np.asarray(offsets), expected)
     # ...and they land inside the image, which the raw fullres coords would not.
-    assert np.asarray(offsets).max() <= HIRES_PX
+    assert np.asarray(offsets).max() <= LOWRES_PX
 
 
 def test_spot_diameter_matches_the_scale_factor(visium):
     fig = spatial_dim_plot(visium, group_by="region", pt_size_factor=1.0)
     coll = _spots(fig)
     assert coll.get_offset_transform() is fig.axes[0].transData    # sized in data units
-    assert np.allclose(_diameters(coll), SPOT_DIAMETER * HIRES_SCALEF)
+    assert np.allclose(_diameters(coll), SPOT_DIAMETER * LOWRES_SCALEF)
 
 
 def test_pt_size_factor_scales_the_spots(visium):
@@ -146,13 +146,15 @@ def test_pt_size_factor_scales_the_spots(visium):
     assert np.allclose(big, small * 2.0)
 
 
-def test_lowres_resolution_rescales_spots_and_image(tmp_path):
+def test_hires_resolution_rescales_spots_and_image(tmp_path):
+    """The non-default resolution. lowres is what load_visium now picks on its own,
+    so asking for hires is the case that proves the choice is wired through."""
     _write_visium(tmp_path)
-    obj = load_visium(tmp_path, image_resolution="lowres")
+    obj = load_visium(tmp_path, image_resolution="hires")
     fig = spatial_dim_plot(obj, crop=False)
-    assert fig.axes[0].images[0].get_array().shape[:2] == (LOWRES_PX, LOWRES_PX)
+    assert fig.axes[0].images[0].get_array().shape[:2] == (HIRES_PX, HIRES_PX)
     offsets = np.asarray(_spots(fig).get_offsets())
-    assert np.allclose(offsets[:, 0], np.arange(N_SPOTS) * 200.0 * LOWRES_SCALEF)
+    assert np.allclose(offsets[:, 0], np.arange(N_SPOTS) * 200.0 * HIRES_SCALEF)
 
 
 # ---------------------------------------------------------------------------
@@ -167,16 +169,16 @@ def test_y_axis_points_down_like_the_image(visium):
 
 def test_crop_false_shows_the_whole_slide(visium):
     ax = spatial_dim_plot(visium, group_by="region", crop=False).axes[0]
-    assert ax.get_xlim() == pytest.approx((-0.5, HIRES_PX - 0.5))
-    assert ax.get_ylim() == pytest.approx((HIRES_PX - 0.5, -0.5))
+    assert ax.get_xlim() == pytest.approx((-0.5, LOWRES_PX - 0.5))
+    assert ax.get_ylim() == pytest.approx((LOWRES_PX - 0.5, -0.5))
 
 
 def test_crop_zooms_to_the_spots(visium):
     ax = spatial_dim_plot(visium, group_by="region", crop=True).axes[0]
     x0, x1 = ax.get_xlim()
-    # Spots span x = 0..100 in hires px; cropping must be tighter than the slide.
-    assert x1 < HIRES_PX - 0.5
-    assert x0 > -HIRES_PX
+    # Spots span x = 0..30 in lowres px; cropping must be tighter than the slide.
+    assert x1 < LOWRES_PX - 0.5
+    assert x0 > -LOWRES_PX
 
 
 # ---------------------------------------------------------------------------
