@@ -123,9 +123,9 @@ def _imread(png: Path) -> Optional[np.ndarray]:
             with Image.open(png) as im:
                 # matplotlib expands a palette PNG to RGB(A); Pillow hands back
                 # palette indices unless asked, which is the same disagreement.
-                if im.mode == "P":
-                    im = im.convert("RGBA" if "transparency" in im.info else "RGB")
-                img = np.asarray(im)
+                src = (im.convert("RGBA" if "transparency" in im.info else "RGB")
+                       if im.mode == "P" else im)
+                img = np.asarray(src)
         except ImportError:
             warnings.warn(
                 "Reading the Visium tissue image needs matplotlib or Pillow; "

@@ -249,23 +249,23 @@ def visium_mouse_brain(
     pass to :func:`shanuz.load_visium`, and to R's ``Read10X_Image`` /
     ``Load10X_Spatial``, so the same slide runs in both languages.
     """
-    if data_dir is None:
-        data_dir = Path.home() / ".shanuz_data" / "visium_mouse_brain"
-    else:
-        data_dir = Path(data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
+    # A local Path rather than rebinding the str|None parameter — the older
+    # loaders in this module do the latter and it is most of their mypy noise.
+    root = (Path(data_dir) if data_dir is not None
+            else Path.home() / ".shanuz_data" / "visium_mouse_brain")
+    root.mkdir(parents=True, exist_ok=True)
 
     # Each component is one tarball that unpacks to a directory of the same name.
     for name, (suffix, label) in _VISIUM_MB_FILES.items():
-        if not force_download and (data_dir / name).is_dir():
+        if not force_download and (root / name).is_dir():
             continue
-        tar_dest = data_dir / f"{name}.tar.gz"
+        tar_dest = root / f"{name}.tar.gz"
         _download_file(_VISIUM_MB_BASE + suffix, tar_dest,
                        label=f"Visium mouse brain {label}")
         with tarfile.open(tar_dest, "r:gz") as tf:
-            tf.extractall(data_dir)
+            tf.extractall(root)
         os.unlink(tar_dest)
-    return data_dir
+    return root
 
 
 # PBMC "Cell Hashing" dataset (Stoeckius et al. 2018, GSE108313) — the 8-hashtag
