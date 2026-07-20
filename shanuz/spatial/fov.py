@@ -83,7 +83,7 @@ class FOV(SpatialImage):
         bname = boundary or self._default_boundary
         if bname and bname in self.boundaries:
             return self.boundaries[bname].get_tissue_coordinates(cells=cells)
-        return pd.DataFrame(columns=["x", "y"])
+        return pd.DataFrame(columns=["x", "y", "cell"])
 
     def rename_cells(self, new_names: list[str]) -> "FOV":
         old_names = self.cells()

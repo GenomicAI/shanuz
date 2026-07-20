@@ -83,7 +83,12 @@ class Centroids(SpatialImage):
         df = self._coords.set_index("cell")[["x", "y"]]
         if cells is not None:
             df = df.loc[cells]
-        return df.copy()
+        df = df.copy()
+        # Seurat's GetTissueCoordinates returns cell as a column *and* as the
+        # row name. Keeping only the index is the pandas idiom but not the same
+        # frame, and callers porting R code index `coords$cell`.
+        df["cell"] = df.index.to_numpy()
+        return df
 
     def rename_cells(self, new_names: list[str]) -> "Centroids":
         if len(new_names) != len(self._coords):

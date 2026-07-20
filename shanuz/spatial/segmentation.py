@@ -73,7 +73,9 @@ class Segmentation(SpatialImage):
         df = self._coords.set_index("cell")[["x", "y"]]
         if cells is not None:
             df = df.loc[df.index.isin(cells)]
-        return df.copy()
+        df = df.copy()
+        df["cell"] = df.index.to_numpy()      # as Seurat returns it; see Centroids
+        return df
 
     def rename_cells(self, new_names: list[str]) -> "Segmentation":
         old_names = self.cells()

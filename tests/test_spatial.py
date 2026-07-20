@@ -57,7 +57,9 @@ def test_centroids_cells(centroid_coords, cell_names):
 def test_centroids_coords(centroid_coords):
     c = create_centroids(centroid_coords)
     df = c.get_tissue_coordinates()
-    assert set(df.columns) == {"x", "y"}
+    # As Seurat's GetTissueCoordinates returns it: cell as a column and as the index.
+    assert list(df.columns) == ["x", "y", "cell"]
+    assert list(df["cell"]) == list(df.index)
     assert len(df) == 20
 
 

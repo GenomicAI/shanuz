@@ -149,7 +149,7 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Sixteen end-to-end tutorials — from basic guided clustering through multimodal
+Seventeen end-to-end tutorials — from basic guided clustering through multimodal
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
 reference mapping, cell-cycle scoring, PC-significance testing, leverage-score
 sketching and the object model itself to Xenium spatial — each pairing R Seurat
