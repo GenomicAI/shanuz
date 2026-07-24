@@ -259,8 +259,14 @@ def run_integration(obj, method, group_by=BATCH, do_umap=True, seed=0):
         run_harmony(obj, group_by=group_by, reduction="pca",
                     reduction_name="harmony", seed=seed)
     else:
+        # k_weight cannot exceed the number of distinct query anchor cells, and
+        # Seurat stops rather than quietly shrinking it. On ifnb the smallest
+        # batch is 6,548 cells so this is Seurat's default 100; it only bites on
+        # small inputs, where lowering k.weight is the standard advice anyway.
+        smallest = obj.meta_data[group_by].value_counts().min()
         integrate_layers(obj, method=method, group_by=group_by,
-                         new_reduction=method, seed=42)
+                         new_reduction=method, seed=42,
+                         k_weight=int(min(100, smallest // 2)))
     return cluster_and_embed(obj, reduction=method, key=method, do_umap=do_umap)
 
 

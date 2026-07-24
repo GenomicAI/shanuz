@@ -13,14 +13,16 @@ assumes the datasets share a coordinate system to begin with. Instead it
      and cell *j* of dataset B are an *anchor* only if each is among the other's
      k nearest neighbours. A mutual pair is evidence the two cells are the same
      biological state seen in two batches;
-  3. **scores** every anchor by how much of its neighbourhood the two members
-     share (a consistent anchor sits in a coherent local structure) and
-     **filters** ones that are not even near each other in the original
-     expression space;
+  3. **filters** anchors whose members are not even near each other in the
+     original log-normalized expression space, then **scores** the survivors by
+     how much of their neighbourhood the two members share (a consistent anchor
+     sits in coherent local structure). The order matters: the score is rescaled
+     against the percentiles of whatever set it is given;
   4. **corrects** each query dataset onto the reference by adding, to every
      query cell, a distance-weighted average of the anchor *correction vectors*
      ``expr_ref − expr_query`` — pulling matched populations on top of each
-     other while leaving genuinely reference-only structure alone.
+     other while leaving genuinely reference-only structure alone. The weights
+     are found in a fresh PCA of the merged pair, not in the anchor space.
 
 The output of :func:`integrate_data` is a merged object carrying an
 ``"integrated"`` assay whose ``data`` is the batch-corrected expression of the
@@ -38,6 +40,7 @@ integration modes and keeps the guide-tree bookkeeping out of the first cut.
 """
 from __future__ import annotations
 
+import warnings
 from typing import Optional
 
 import numpy as np
@@ -66,8 +69,10 @@ class IntegrationAnchors:
     anchor_features : the features the anchors (and correction) run on.
     dims            : number of shared dimensions used.
     weight_embeddings : ``{query_index: (n_query_cells × dims) array}`` — each
-                      query dataset's cells in the shared space, used by
-                      :func:`integrate_data` to weight the correction.
+                      query dataset's cells in the shared anchor space. Kept for
+                      inspection; :func:`integrate_data` does *not* weight with
+                      it, because Seurat weights in a fresh PCA of the merged
+                      pair instead.
     """
 
     __slots__ = (
@@ -144,30 +149,120 @@ def _standardize_and_l2(emb: np.ndarray) -> np.ndarray:
     return _l2_normalize_rows(emb / sd)
 
 
-def _cca(A: np.ndarray, B: np.ndarray, dims: int) -> tuple[np.ndarray, np.ndarray]:
-    """Shared CCA embedding of two datasets.
+def _standardize_cols(mat: np.ndarray) -> np.ndarray:
+    """Seurat's ``Standardize``: z-score every column (cell) of features × cells.
 
-    ``A`` (features × cells_a) and ``B`` (features × cells_b) are L2-normalized
+    This is *not* the per-cell L2 normalization it is easily mistaken for. The
+    cross-covariance of two standardized matrices is a correlation matrix
+    between cells; of two L2-normalized ones, a cosine-similarity matrix. They
+    have different singular vectors, so using the wrong one moves every anchor:
+    against Seurat 5.5.1 on ifnb, L2 recovers 70% of the anchors where
+    ``Standardize`` recovers 100%.
+    """
+    mu = mat.mean(axis=0, keepdims=True)
+    sd = mat.std(axis=0, ddof=1, keepdims=True)
+    sd = np.where(sd == 0, 1.0, sd)
+    return (mat - mu) / sd
+
+
+def _check_features(mats: list[np.ndarray]) -> np.ndarray:
+    """Indices of features with non-zero variance in *every* matrix.
+
+    ``RunCCA`` runs ``CheckFeatures`` on both objects' scale.data and silently
+    drops anything constant in either — 83 of the 2,000 anchor features on the
+    ifnb pair. Left in, those columns standardize to NaN and contaminate the
+    whole cross-covariance.
+    """
+    ok = np.ones(mats[0].shape[0], dtype=bool)
+    for mat in mats:
+        ok &= mat.std(axis=1, ddof=1) > 0
+    return np.where(ok)[0]
+
+
+def _cca(
+    A: np.ndarray, B: np.ndarray, dims: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Shared CCA embedding of two datasets (Seurat's ``RunCCA``).
+
+    ``A`` (features × cells_a) and ``B`` (features × cells_b) are standardized
     per cell. The SVD of the cross-covariance ``AᵀB`` (cells_a × cells_b) yields
     left/right singular vectors that place the two datasets' cells in one space;
-    each cell's coordinates are then L2-normalized (Seurat's ``L2Dim``).
+    the stacked embedding is sign-fixed the way ``RunCCA.default`` does it, then
+    each cell's coordinates are L2-normalized (Seurat's ``L2Dim``).
+
+    Returns the two L2-normalized halves plus the feature loadings
+    (``ProjectDim(do.center = FALSE)``: scale.data ᐧ the *pre*-L2 embedding),
+    which is what picks the genes the anchor filter runs on.
     """
-    cross = A.T @ B
-    U, _s, Vt = np.linalg.svd(cross, full_matrices=False)
+    d1, d2 = _standardize_cols(A), _standardize_cols(B)
+    U, _s, Vt = np.linalg.svd(d1.T @ d2, full_matrices=False)
     d = min(dims, U.shape[1])
-    emb_a = _l2_normalize_rows(U[:, :d])
-    emb_b = _l2_normalize_rows(Vt[:d, :].T)
-    return emb_a, emb_b
+    ccv = np.vstack([U[:, :d], Vt[:d, :].T])
+    # RunCCA forces each canonical vector's first entry positive. A whole-column
+    # flip is distance-preserving, so this only matters for reproducing R's
+    # signs, not for the anchors.
+    flip = np.sign(ccv[0, :])
+    flip[flip == 0] = 1.0
+    ccv = ccv * flip
+    loadings = np.hstack([A, B]) @ ccv
+    n_a = A.shape[1]
+    emb = _l2_normalize_rows(ccv)
+    return emb[:n_a], emb[n_a:], loadings
+
+
+def _top_dim_features(
+    loadings: np.ndarray, features_per_dim: int = 100, max_features: int = 200
+) -> list[int]:
+    """Seurat's ``TopDimFeatures``: the genes ``FilterAnchors`` actually runs on.
+
+    For each candidate count *y*, take the ``round(y/2)`` highest- and
+    lowest-loading features of every dimension; keep the largest *y* whose union
+    still fits under ``max_features``. The filter therefore runs in a ≤200-gene
+    subspace picked from the CCA loadings, not in the full anchor-feature space.
+    """
+    n_dims = loadings.shape[1]
+    max_features = max(n_dims * 2, max_features)
+    order = np.argsort(-loadings, axis=0, kind="stable")
+
+    def take(y: int) -> set[int]:
+        half = 0 if y == 1 else int(np.round(y / 2.0))
+        if half == 0:
+            return set()
+        got: set[int] = set()
+        for d in range(n_dims):
+            got.update(order[:half, d].tolist())
+            got.update(order[-half:, d].tolist())
+        return got
+
+    counts = np.array([len(take(y)) for y in range(1, features_per_dim + 1)])
+    ok = np.where(counts < max_features)[0]
+    if len(ok) == 0:
+        return sorted(take(1))
+    return sorted(take(int(ok[np.argmax(counts[ok])]) + 1))
 
 
 def _pca_loadings(mat: np.ndarray, dims: int, seed: int = 42) -> np.ndarray:
-    """Top-``dims`` PCA loadings (features × dims) of a features × cells matrix."""
-    from sklearn.decomposition import PCA
+    """Top-``dims`` PCA loadings (features × dims) of a features × cells matrix.
 
-    d = min(dims, min(mat.shape) - 1)
-    pca = PCA(n_components=max(d, 1), random_state=seed)
-    pca.fit(mat.T)  # samples (cells) × features
-    return pca.components_.T  # features × dims
+    Uses an **exact** economy SVD, not sklearn's ``PCA``. For a matrix this
+    shape sklearn defaults to *randomized* SVD, which is accurate for the
+    leading components but visibly wrong in the trailing ones — on the ifnb
+    batches only 12–14 of 30 PCs matched Seurat's irlba above 0.99. Ordinarily
+    that trailing noise is harmless, but reciprocal PCA standardizes each
+    projected dimension by its own SD before the neighbour search, which is not
+    rotation-invariant, so a rotated trailing axis becomes a *different*
+    reciprocal space and a different anchor. Exact SVD matches irlba to 1.0000
+    on every PC, which takes RPCA anchor recall from 45% to full agreement.
+    ``seed`` is accepted for signature compatibility but unused: the SVD is
+    deterministic.
+
+    Seurat's ``RunPCA`` runs irlba on ``t(scale.data)`` without re-centring
+    (scale.data is already gene-centred), so this does the same.
+    """
+    d = max(min(dims, min(mat.shape) - 1), 1)
+    # SVD of cells × features; the right singular vectors are the loadings.
+    _u, _s, vt = np.linalg.svd(mat.T, full_matrices=False)
+    return vt[:d, :].T  # features × dims
 
 
 # ----------------------------------------------------------------------
@@ -200,13 +295,24 @@ def _mutual_nn(
     """
     a_to_b = _nearest(emb_a_for_b, emb_b_for_b, k)  # A-cell → nearby B-cells
     b_to_a = _nearest(emb_b_for_a, emb_a_for_a, k)  # B-cell → nearby A-cells
-    b_sets = [set(row) for row in b_to_a]
-    pairs = []
-    for i, neigh in enumerate(a_to_b):
-        for j in neigh:
-            if i in b_sets[j]:
-                pairs.append((int(i), int(j)))
-    return pairs
+    return _mutual_nn_from({"ab": a_to_b, "ba": b_to_a}, k)
+
+
+def _mutual_nn_from(nbrs: dict[str, np.ndarray], k_anchor: int) -> list[tuple[int, int]]:
+    """``FindAnchorPairs``: mutual pairs within the first ``k_anchor`` columns.
+
+    ``FindNN`` searches at ``max(k_anchor, k_score)`` so the same neighbour
+    tables serve both the pairing and the scoring; only the leading
+    ``k_anchor`` of them decide an anchor.
+    """
+    ab = nbrs["ab"][:, :k_anchor]
+    ba_sets = [set(row) for row in nbrs["ba"][:, :k_anchor]]
+    return [
+        (int(i), int(j))
+        for i, neigh in enumerate(ab)
+        for j in neigh
+        if i in ba_sets[j]
+    ]
 
 
 # ----------------------------------------------------------------------
@@ -214,27 +320,48 @@ def _mutual_nn(
 # ----------------------------------------------------------------------
 
 
+def _neighbor_sets(
+    emb_a: np.ndarray, emb_b: np.ndarray, k: int
+) -> dict[str, np.ndarray]:
+    """Seurat's ``FindNN``: four searches, not one over the pooled stack.
+
+    ``aa``/``bb`` are within-dataset (computed at ``k + 1`` so the self hit at
+    position 0 is not one of the ``k`` kept), ``ab``/``ba`` across.
+    """
+    return {
+        "aa": _nearest(emb_a, emb_a, k + 1),
+        "bb": _nearest(emb_b, emb_b, k + 1),
+        "ab": _nearest(emb_a, emb_b, k),
+        "ba": _nearest(emb_b, emb_a, k),
+    }
+
+
 def _score_anchors(
     pairs: list[tuple[int, int]],
-    combined: np.ndarray,
+    nbrs: dict[str, np.ndarray],
     n_a: int,
     k_score: int,
 ) -> np.ndarray:
-    """Shared-neighbourhood score in [0, 1] for each anchor.
+    """Shared-neighbourhood score in [0, 1] for each anchor (``ScoreAnchors``).
 
-    ``combined`` stacks the two datasets ([A; B]) in a common space. An anchor
-    ``(i, j)`` scores high when the reference cell ``i`` and query cell
-    ``j = n_a + j`` share many of their ``k_score`` nearest neighbours — i.e.
-    the anchor sits in locally consistent structure. Scores are rescaled to
-    [0, 1] with Seurat's 1st/90th-percentile clamp.
+    Each anchor member's neighbourhood is ``k_score`` neighbours *within its own
+    dataset* plus ``k_score`` *in the other* — 2·k_score cells drawn from four
+    separate searches. A single kNN over the pooled stack is not the same thing
+    and biases the scores down: with a batch effect present a cell's pooled
+    neighbours are nearly all same-batch, so the two members of an anchor share
+    almost nothing. Scores are rescaled with Seurat's 1st/90th-percentile clamp.
     """
     if not pairs:
         return np.array([])
-    knn = _nearest(combined, combined, min(k_score, combined.shape[0]))
-    neigh_sets = [set(row) for row in knn]
-    raw = np.empty(len(pairs))
-    for m, (i, j) in enumerate(pairs):
-        raw[m] = len(neigh_sets[i] & neigh_sets[n_a + j])
+    set_a = [
+        set(nbrs["aa"][i, :k_score]) | {int(x) + n_a for x in nbrs["ab"][i, :k_score]}
+        for i in range(nbrs["aa"].shape[0])
+    ]
+    set_b = [
+        set(nbrs["ba"][j, :k_score]) | {int(x) + n_a for x in nbrs["bb"][j, :k_score]}
+        for j in range(nbrs["bb"].shape[0])
+    ]
+    raw = np.array([len(set_a[i] & set_b[j]) for i, j in pairs], dtype=float)
     lo, hi = np.quantile(raw, 0.01), np.quantile(raw, 0.90)
     if hi <= lo:
         return np.ones_like(raw)
@@ -243,27 +370,30 @@ def _score_anchors(
 
 def _filter_anchors(
     pairs: list[tuple[int, int]],
-    scores: np.ndarray,
     A_feat: np.ndarray,
     B_feat: np.ndarray,
     k_filter: int,
-) -> tuple[list[tuple[int, int]], np.ndarray]:
+) -> list[tuple[int, int]]:
     """Drop anchors whose cells are not neighbours in the original feature space.
 
-    ``A_feat`` / ``B_feat`` are the L2-normalized (features × cells) anchor
-    matrices. An anchor ``(i, j)`` survives only if query cell ``j`` is among
-    reference cell ``i``'s ``k_filter`` nearest neighbours in expression space.
+    ``A_feat`` / ``B_feat`` are (features × cells) **log-normalized** matrices
+    already restricted to the top CCA-loading genes — ``FilterAnchors`` runs on
+    the ``data`` layer, not on scale.data, and on ``TopDimFeatures`` rather than
+    the whole anchor-feature set. An anchor ``(i, j)`` survives only if query
+    cell ``j`` is among reference cell ``i``'s ``k_filter`` nearest neighbours
+    there.
     """
     if not pairs:
-        return pairs, scores
-    keep_neigh = _nearest(A_feat.T, B_feat.T, min(k_filter, B_feat.shape[1]))
-    allowed = [set(row) for row in keep_neigh]
-    kept, kept_scores = [], []
-    for m, (i, j) in enumerate(pairs):
-        if j in allowed[i]:
-            kept.append((i, j))
-            kept_scores.append(scores[m])
-    return kept, np.asarray(kept_scores)
+        return pairs
+    # Seurat keeps every anchor rather than shrinking k when a dataset is
+    # smaller than k.filter: with too few cells the filter carries no
+    # information, and quietly narrowing it would drop good anchors instead.
+    if min(A_feat.shape[1], B_feat.shape[1]) < k_filter:
+        return pairs
+    cn1 = _l2_normalize_cols(A_feat).T
+    cn2 = _l2_normalize_cols(B_feat).T
+    allowed = [set(row) for row in _nearest(cn1, cn2, k_filter)]
+    return [(i, j) for i, j in pairs if j in allowed[i]]
 
 
 # ----------------------------------------------------------------------
@@ -375,37 +505,46 @@ def find_integration_anchors(
 
     features = _integration_features(objects, anchor_features)
 
-    # CCA works on per-cell L2-normalized expression; reciprocal PCA works on the
-    # raw scaled data (Seurat runs its per-object PCA straight on scale.data and
-    # never column-normalizes for pca-based reductions), so keep both forms.
+    # Both reductions start from the per-object scale.data. CCA standardizes it
+    # per cell inside _cca; reciprocal PCA runs straight on it (Seurat's
+    # per-object RunPCA never column-normalizes for pca-based reductions).
     ref_raw = _anchor_feature_matrix(objects[reference], features, layer)
-    ref_scaled = _l2_normalize_cols(ref_raw)
 
     rows = []
     weight_embeddings: dict[int, np.ndarray] = {}
-    used_dims = min(dims, ref_scaled.shape[1] - 1, ref_scaled.shape[0])
+    used_dims = min(dims, ref_raw.shape[1] - 1, ref_raw.shape[0])
 
     for d in range(len(objects)):
         if d == reference:
             continue
         query_raw = _anchor_feature_matrix(objects[d], features, layer)
-        query_scaled = _l2_normalize_cols(query_raw)
-        used = min(used_dims, query_scaled.shape[1] - 1)
+        used = min(used_dims, query_raw.shape[1] - 1)
 
         if reduction == "cca":
-            emb_ref, emb_query = _cca(ref_scaled, query_scaled, used)
-            pairs = _mutual_nn(
-                emb_ref, emb_query, emb_query, emb_ref, k_anchor
-            )
-            combined = np.vstack([emb_ref, emb_query])
+            # CheckFeatures: RunCCA drops anchor features that are constant in
+            # either object before standardizing, so the CCA and its loadings
+            # live on this subset.
+            keep = _check_features([ref_raw, query_raw])
+            emb_ref, emb_query, loadings = _cca(ref_raw[keep], query_raw[keep], used)
+            nbrs = _neighbor_sets(emb_ref, emb_query, max(k_anchor, k_score))
+            pairs = _mutual_nn_from(nbrs, k_anchor)
+            filter_feats = [features[keep[t]] for t in _top_dim_features(loadings)]
             weight_emb = emb_query
         else:  # rpca — reciprocal PCA projections (Seurat's ReciprocalProject)
+            # The reciprocal spaces below are only as good as these loadings,
+            # and reciprocal PCA standardizes each dimension before the
+            # neighbour search (see _pca_loadings), so the trailing PCs have to
+            # be right, not just the leading ones. Feeding this the exact SVD
+            # loadings takes RPCA anchor agreement with Seurat from 45% to full.
             load_ref = _pca_loadings(ref_raw, used, seed=seed)
             load_query = _pca_loadings(query_raw, used, seed=seed)
             ref_in_ref = ref_raw.T @ load_ref        # ref cells, ref PCA
             query_in_ref = query_raw.T @ load_ref     # query projected into ref PCA
             ref_in_query = ref_raw.T @ load_query     # ref projected into query PCA
             query_in_query = query_raw.T @ load_query  # query cells, query PCA
+            # Each object in its own unnormalized PCA — Seurat's plain "pca"
+            # reduction, which is what the within-dataset neighbour tables use.
+            own_ref, own_query = ref_in_ref, query_in_query
 
             # Seurat forms each reciprocal space as the stacked [ref; query] and,
             # with l2.norm=TRUE (its default), standardizes every dimension by its
@@ -421,28 +560,44 @@ def find_integration_anchors(
             ref_in_query, query_in_query = query_space[:n_ref_cells], query_space[n_ref_cells:]
 
             # Reciprocal search: find B(query)-neighbours of A(ref) in the query's
-            # PCA space, and A-neighbours of B in the ref's space. _mutual_nn wants
-            # (A-in-B, B-in-B, B-in-A, A-in-A) — args 1 & 4 are the reference
-            # (n_ref rows), args 2 & 3 the query (n_query rows). Passing them in a
-            # different order silently mismatches the index spaces and, when
-            # n_query > n_ref, indexes past the b_sets list (IndexError).
-            pairs = _mutual_nn(
-                ref_in_query, query_in_query, query_in_ref, ref_in_ref, k_anchor
-            )
-            combined = np.vstack([ref_in_ref, query_in_ref])
+            # PCA space, and A-neighbours of B in the ref's space. The four
+            # neighbour tables ScoreAnchors needs are asymmetric here — the
+            # within-dataset ones come from each object's *own* PCA (Seurat's
+            # nn.reduction stays "pca" on the rpca branch, so it never sees a
+            # reciprocal space), the across-dataset ones from the reciprocal
+            # projections. Getting the index spaces the wrong way round silently
+            # mismatches them and, when n_query > n_ref, runs off the end.
+            k_neighbor = max(k_anchor, k_score)
+            nbrs = {
+                "aa": _nearest(own_ref, own_ref, min(k_neighbor + 1, own_ref.shape[0])),
+                "bb": _nearest(own_query, own_query,
+                               min(k_neighbor + 1, own_query.shape[0])),
+                "ab": _nearest(ref_in_query, query_in_query, k_neighbor),
+                "ba": _nearest(query_in_ref, ref_in_ref, k_neighbor),
+            }
+            pairs = _mutual_nn_from(nbrs, k_anchor)
+            filter_feats = None
             weight_emb = query_in_ref
 
-        n_ref = ref_scaled.shape[1]
-        scores = _score_anchors(pairs, combined, n_ref, k_score)
+        # FindAnchors filters BEFORE it scores, and the score is rescaled
+        # against the 1st/90th percentiles of whatever set it is handed. Scoring
+        # first sets those percentiles from anchors that are about to be thrown
+        # away, which shifts every surviving score — same ranking, wrong values.
+        #
         # Seurat forces k.filter <- NA for reciprocal-PCA (every pca-based
         # nn.reduction), skipping the expression-space filter entirely: the
         # reciprocal projection is itself an expression-space check, and
         # filtering on the shared anchor features here drops good anchors and
         # leaves RPCA under-integrating. Only CCA keeps the filter.
-        if k_filter and reduction == "cca":
-            pairs, scores = _filter_anchors(
-                pairs, scores, ref_scaled, query_scaled, k_filter
+        if k_filter and filter_feats:
+            pairs = _filter_anchors(
+                pairs,
+                _data_matrix(objects[reference], filter_feats),
+                _data_matrix(objects[d], filter_feats),
+                k_filter,
             )
+        n_ref = ref_raw.shape[1]
+        scores = _score_anchors(pairs, nbrs, n_ref, k_score)
 
         weight_embeddings[d] = weight_emb
         for (i, j), s in zip(pairs, scores):
@@ -468,6 +623,7 @@ def integrate_data(
     k_weight: int = 100,
     sd_weight: float = 1.0,
     add_cell_ids: Optional[list[str]] = None,
+    seed: int = 42,
 ) -> "object":
     """Batch-correct query datasets onto the reference (Seurat's ``IntegrateData``).
 
@@ -485,9 +641,11 @@ def integrate_data(
     anchors      : an :class:`IntegrationAnchors` from
                    :func:`find_integration_anchors`.
     new_assay    : name for the corrected assay (default ``"integrated"``).
-    k_weight     : anchors used to weight each query cell's correction.
-    sd_weight    : bandwidth multiplier for the Gaussian anchor kernel.
+    k_weight     : anchors used to weight each query cell's correction. Counts
+                   anchors, not anchor cells — see :func:`_anchor_weights`.
+    sd_weight    : bandwidth of the anchor kernel; enters as ``(2/sd_weight)²``.
     add_cell_ids : optional per-object prefixes for the merged cell names.
+    seed         : random seed for the per-pair weight PCA.
 
     Returns
     -------
@@ -519,7 +677,6 @@ def integrate_data(
     for d in order[1:]:
         query_data = _data_matrix(objects[d], features)  # features × cells_q
         pair = anchors.anchors[anchors.anchors["dataset2"] == d]
-        weight_emb = anchors.weight_embeddings[d]
 
         if len(pair) == 0:
             # No anchors to this dataset — leave it uncorrected.
@@ -533,24 +690,18 @@ def integrate_data(
         # Correction vectors in feature space: reference minus query at anchors.
         bv = ref_data[:, i_idx] - query_data[:, j_idx]  # features × n_anchor
 
-        anchor_pos = weight_emb[j_idx]  # n_anchor × dims (query anchor cells)
-        k = min(k_weight, anchor_pos.shape[0])
-        dist = _pairwise_to_anchors(weight_emb, anchor_pos, k)
-        nn_idx = dist[1]        # cells_q × k  → indices into the anchor list
-        nn_dist = dist[0]       # cells_q × k
-
-        # Gaussian kernel over the k nearest anchors, scaled by anchor score.
-        bandwidth = nn_dist[:, -1:].copy()
-        bandwidth[bandwidth == 0] = 1.0
-        weights = np.exp(-((nn_dist / (bandwidth / sd_weight)) ** 2))
-        weights = weights * anchor_scores[nn_idx]
-        wsum = weights.sum(axis=1, keepdims=True)
-        wsum[wsum == 0] = 1.0
-        weights = weights / wsum
-
-        # correction[:, c] = Σ_k bv[:, nn_idx[c, k]] * weights[c, k]
-        contrib = bv[:, nn_idx]  # features × cells_q × k
-        correction = np.einsum("fck,ck->fc", contrib, weights)
+        # The weights live in a PCA of *this pair*, not in the anchor space.
+        # RunIntegration merges the reference and query, re-scales on the anchor
+        # features and runs a fresh PCA, and FindWeights searches there. Reusing
+        # the CCA embedding instead measures distances in a space built to make
+        # the batches overlap, which is not the same neighbourhood.
+        query_emb = _pair_weight_embedding(
+            ref_obj, objects[d], features, anchors.dims, seed
+        )
+        weights = _anchor_weights(
+            query_emb, j_idx, anchor_scores, k_weight, sd_weight
+        )
+        correction = bv @ weights           # features × cells_q
         corrected_blocks.append(query_data + correction)
 
     integrated = np.hstack(corrected_blocks)  # features × total_cells
@@ -568,12 +719,91 @@ def integrate_data(
     return merged
 
 
-def _pairwise_to_anchors(
-    query_emb: np.ndarray, anchor_pos: np.ndarray, k: int
-) -> tuple[np.ndarray, np.ndarray]:
-    """Distances and indices from each query cell to its ``k`` nearest anchors."""
+def _pair_weight_embedding(
+    ref_obj, query_obj, features: list[str], dims: int, seed: int
+) -> np.ndarray:
+    """The query half of ``RunIntegration``'s weight PCA.
+
+    Seurat merges the reference and query, re-runs ``ScaleData`` over the pair
+    on the anchor features, runs a PCA of ``max(dims)`` components and hands
+    *that* to ``FindWeights``. Returns the merged embedding restricted to the
+    query cells, in the query object's own cell order.
+    """
+    from .preprocessing import scale_data
+    from .reduction import run_pca
+
+    merged = ref_obj.merge([query_obj])
+    scale_data(merged, features=features)
+    run_pca(merged, n_pcs=dims, features=features, reduction_name="_weights", seed=seed)
+    emb = merged.reductions["_weights"].cell_embeddings
+    order = {c: i for i, c in enumerate(merged.cell_names())}
+    return emb[[order[c] for c in query_obj.cell_names()], :]
+
+
+def _anchor_weights(
+    query_emb: np.ndarray,
+    anchor_cells: np.ndarray,
+    scores: np.ndarray,
+    k_weight: int,
+    sd_weight: float,
+) -> np.ndarray:
+    """``FindWeights`` / ``FindWeightsC``: an (n_anchor × n_query) column-stochastic matrix.
+
+    Three things here are easy to get wrong and all three move the answer:
+
+    * the neighbour search runs over the **unique** query anchor cells, not over
+      the anchor list — a cell that anchors five times is one candidate, not
+      five;
+    * ``k_weight`` then caps the number of **anchors** written, not the number
+      of anchor cells. FindWeightsC walks those neighbours outwards, expands
+      each into all of its anchor rows and stops at ``k_weight`` entries, so on
+      a typical pair (~2.7 anchors per cell) only the nearest ~37 cells
+      contribute;
+    * the kernel is ``1 − exp(−d̃ · score / (2/sd)²)`` over ``d̃ = 1 − d/dₖ``,
+      which *rises* with proximity and folds the anchor score into the exponent.
+      A Gaussian in the raw distance multiplied by the score is a different
+      curve with a different ranking.
+    """
     from sklearn.neighbors import NearestNeighbors
 
-    nn = NearestNeighbors(n_neighbors=k).fit(anchor_pos)
-    dist, idx = nn.kneighbors(query_emb)
-    return dist, idx
+    # RunIntegration lowers k.weight to the anchor count first, and only then
+    # does FindWeights refuse when there are fewer distinct anchor cells left.
+    if len(anchor_cells) < k_weight:
+        warnings.warn(
+            f"Number of anchors ({len(anchor_cells)}) is less than k_weight "
+            f"({k_weight}); lowering k_weight to {len(anchor_cells)}.",
+            stacklevel=2,
+        )
+        k_weight = len(anchor_cells)
+    uniq, src = np.unique(anchor_cells, return_inverse=True)
+    if len(uniq) < k_weight:
+        raise ValueError(
+            f"Number of anchor cells ({len(uniq)}) is less than k_weight "
+            f"({k_weight}). Lower k_weight below {len(uniq)}, or raise k_anchor "
+            "to find more anchors."
+        )
+    pos = query_emb[uniq, :]
+    dist, idx = NearestNeighbors(n_neighbors=k_weight).fit(pos).kneighbors(query_emb)
+    far = dist[:, -1:].copy()
+    far[far == 0] = 1.0
+    dscaled = 1.0 - dist / far
+
+    rows_for: dict[int, list[int]] = {}
+    for a, p in enumerate(src):
+        rows_for.setdefault(int(p), []).append(a)
+
+    weights = np.zeros((len(anchor_cells), query_emb.shape[0]))
+    scale = (2.0 / sd_weight) ** 2
+    for c in range(query_emb.shape[0]):
+        filled = 0
+        for slot in range(idx.shape[1]):
+            if filled >= k_weight:
+                break
+            for a in rows_for.get(int(idx[c, slot]), ()):
+                if filled >= k_weight:
+                    break
+                weights[a, c] = 1.0 - np.exp(-dscaled[c, slot] * scores[a] / scale)
+                filled += 1
+    total = weights.sum(axis=0, keepdims=True)
+    total[total == 0] = 1.0
+    return weights / total

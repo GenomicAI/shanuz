@@ -228,10 +228,20 @@ def _integrate_anchor_reduction(
     for obj in objects:
         scale_data(obj, assay=assay)
 
-    anchors = find_integration_anchors(
-        objects, reduction=reduction, seed=seed, **kwargs
+    # Seurat corrects the SMALLER dataset onto the larger one:
+    # PairwiseIntegrateReference reverses the merge pair whenever the second
+    # object has more cells, so the reference is whichever batch is biggest.
+    # Taking the first batch instead is invisible on equal splits and pulls the
+    # wrong way on real ones — ifnb is CTRL 6,548 vs STIM 7,451.
+    reference = kwargs.pop(
+        "reference", int(np.argmax([len(o.cell_names()) for o in objects]))
     )
-    merged = integrate_data(anchors, k_weight=k_weight, sd_weight=sd_weight)
+    anchors = find_integration_anchors(
+        objects, reduction=reduction, reference=reference, seed=seed, **kwargs
+    )
+    merged = integrate_data(
+        anchors, k_weight=k_weight, sd_weight=sd_weight, seed=seed
+    )
 
     scale_data(merged, assay="integrated")
     run_pca(
