@@ -895,8 +895,10 @@ regime. Don't "simplify" them.
   one fixed.** `BPCells` was installed for the final one (GitHub, not CRAN;
   needs libhdf5) after fingerprinting ten Seurat references to prove it was
   inert for ordinary input. **T-vis (Visium) was added afterwards** as a
-  seventeenth, on the same method but with the reference question reopened —
-  see *Beyond the four waves* below. **The visualization gallery never became its own
+  seventeenth, on the same method but with the reference question reopened, and
+  **T-int (anchor internals) as an eighteenth** — bringing the totals to
+  **18 tutorials and 42 defects, every one fixed** — see *Beyond the four
+  waves* below. **The visualization gallery never became its own
   tutorial**: `dot_plot` was the last plotting export uncovered and was folded
   into the pbmc3k gallery in T-sp.
 - **Wave 0 — ✅ delivered (#38).** The data plumbing every side-by-side needs:
@@ -1174,10 +1176,45 @@ regime. Don't "simplify" them.
     shared variable features and a 1.9e-3 PCA gap. Isolated rather than
     tolerated: on Seurat's own feature list the decompositions agree to
     **2.49e-05**, so the gap is feature selection, not the PCA.
+  - **T-int anchor internals — ✅ delivered. Twelve defects, all fixed.**
+    `find_integration_anchors` / `integrate_data` against
+    `FindIntegrationAnchors` / `IntegrateData` on a 2,400-cell ifnb subsample,
+    2,000 shared anchor features, both reductions (`anchors_vignette.md`).
+    **RPCA agrees on 100 % of Seurat's anchors** (649/649, 99.5 % of scores
+    identical to the last bit); **CCA on 99.9 %**, up from 70.0 % at 60.3 %
+    precision. Corrected expression over the query half: `mean|Δ| 0.0993`
+    against Seurat's `0.0992`.
+    **Why T6 missed all of it:** T6 compares *clusterings*. A partition survives
+    a great deal of damage before an adjusted Rand index notices, and the anchor
+    set underneath it was barely two-thirds right the whole time. Anchors are
+    also where a compiled reference has to be read rather than guessed —
+    `FindWeightsC` and `IntegrateDataC` were pinned by calling them directly
+    with controlled inputs (`w = 1 − exp(−d̃·score/(2/sd)²)`,
+    `corrected = query − Wᵀ(query − ref)`, both reproducing to `max|diff| = 0`).
+    **The dominant defect:** `RunCCA` **standardizes** each cell where shanuz
+    L2-normalized it — a correlation matrix between cells versus a
+    cosine-similarity one, hence different singular vectors and a different
+    anchor for every cell. **The subtlest:** `_pca_loadings` used sklearn's
+    *randomized* SVD, fine in the leading components and drifting in the
+    trailing ones (12–14 of 30 PCs matched irlba above 0.99). Reciprocal PCA
+    standardizes each projected dimension by its own SD, which is **not
+    rotation-invariant**, so a drifted trailing axis silently became a different
+    reciprocal space — RPCA recall 44.9 % → 100 %.
+    **A metric got worse before it got better.** Fixing the weight kernel
+    *dropped* RPCA's batch mixing from 0.867 to 0.689 — the correct kernel had
+    stopped masking the bad anchors, because a broad undiscriminating Gaussian
+    smears batches together whether or not the anchors are right, and batch-mix
+    entropy rewards exactly that. Restoring it to keep 0.867 would have meant
+    reinstating a bug to flatter a metric; chasing the anchors instead is what
+    found the SVD defect. Second time in this port — see `project_data`.
+    **Left standing:** RPCA still trails on the full dataset (0.883 batch mixing
+    vs Seurat's 0.914) on the **v5 `IntegrateLayers`** path with unequal batches,
+    a different Seurat code path from the v4 one measured here. The guide tree
+    (`BuildSampleTree`, three or more datasets) remains out of scope.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
-  **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two**, **T-lazy seven**
-  and **T-vis one** (plus two in Seurat itself) —
+  **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two**, **T-lazy seven**,
+  **T-vis one** (plus two in Seurat itself) and **T-int twelve** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer

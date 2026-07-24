@@ -44,13 +44,14 @@ import pandas as pd
 
 from .anchors import (
     _anchor_feature_matrix,
+    _anchor_weights,
     _cca,
     _filter_anchors,
     _integration_features,
     _l2_normalize_cols,
     _l2_normalize_rows,
-    _mutual_nn,
-    _pairwise_to_anchors,
+    _mutual_nn_from,
+    _neighbor_sets,
     _pca_loadings,
     _score_anchors,
 )
@@ -205,16 +206,18 @@ def find_transfer_anchors(
         ref_emb = _l2_normalize_rows(ref_scaled.T @ load_ref)
         query_emb = _l2_normalize_rows(query_scaled.T @ load_ref)
     else:  # cca — a jointly-learned shared space
-        ref_emb, query_emb = _cca(ref_scaled, query_scaled, used)
+        ref_emb, query_emb, _loadings = _cca(ref_scaled, query_scaled, used)
 
-    pairs = _mutual_nn(ref_emb, query_emb, query_emb, ref_emb, k_anchor)
-    combined = np.vstack([ref_emb, query_emb])
+    # FindTransferAnchors goes through the same FindAnchors internals as
+    # FindIntegrationAnchors, so it gets the same four-way neighbour tables.
+    nbrs = _neighbor_sets(ref_emb, query_emb, max(k_anchor, k_score))
+    pairs = _mutual_nn_from(nbrs, k_anchor)
     n_ref = ref_emb.shape[0]
-    scores = _score_anchors(pairs, combined, n_ref, k_score)
+    # Filter first: the score is rescaled against the percentiles of the set it
+    # is handed, so scoring before filtering shifts every surviving score.
     if k_filter:
-        pairs, scores = _filter_anchors(
-            pairs, scores, ref_scaled, query_scaled, k_filter
-        )
+        pairs = _filter_anchors(pairs, ref_scaled, query_scaled, k_filter)
+    scores = _score_anchors(pairs, nbrs, n_ref, k_score)
 
     rows = [(int(i), int(j), float(s)) for (i, j), s in zip(pairs, scores)]
     anchors = pd.DataFrame(rows, columns=["cell1", "cell2", "score"])
@@ -308,28 +311,14 @@ def _anchor_weight_matrix(
 ) -> np.ndarray:
     """Per-query-cell weight over the anchors (``n_query × n_anchor``).
 
-    Each query cell weights its ``k_weight`` nearest anchors (located at their
-    query positions in the shared space) with a Gaussian kernel scaled by the
-    anchor score, normalized to sum to 1 — matching ``IntegrateData``.
+    ``TransferData`` weights through the same ``FindWeights`` as
+    ``IntegrateData``; only the space differs (the query projected into the
+    reference, rather than a PCA of the merged pair). So this is
+    :func:`~shanuz.anchors._anchor_weights` transposed.
     """
-    n_query = query_emb.shape[0]
-    n_anchor = len(anchor_query_idx)
-    anchor_pos = query_emb[anchor_query_idx]  # n_anchor × dims
-    k = min(k_weight, n_anchor)
-
-    nn_dist, nn_idx = _pairwise_to_anchors(query_emb, anchor_pos, k)  # n_query × k
-    bandwidth = nn_dist[:, -1:].copy()
-    bandwidth[bandwidth == 0] = 1.0
-    w = np.exp(-((nn_dist / (bandwidth / sd_weight)) ** 2))
-    w = w * anchor_scores[nn_idx]
-    wsum = w.sum(axis=1, keepdims=True)
-    wsum[wsum == 0] = 1.0
-    w = w / wsum
-
-    weights = np.zeros((n_query, n_anchor))
-    rows = np.repeat(np.arange(n_query), k)
-    weights[rows, nn_idx.ravel()] = w.ravel()
-    return weights
+    return _anchor_weights(
+        query_emb, anchor_query_idx, anchor_scores, k_weight, sd_weight
+    ).T
 
 
 def _transfer_labels(

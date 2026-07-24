@@ -149,7 +149,7 @@ print(sobj.meta_data.head())
 
 ## Tutorials
 
-Seventeen end-to-end tutorials — from basic guided clustering through multimodal
+Eighteen end-to-end tutorials — from basic guided clustering through multimodal
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
 reference mapping, cell-cycle scoring, PC-significance testing, leverage-score
 sketching and the object model itself to Xenium spatial — each pairing R Seurat
@@ -174,6 +174,8 @@ See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tuto
 | 14 | [Spatial Statistics & the Spatial Container](https://github.com/GenomicAI/shanuz/blob/main/tutorials/svf_vignette.md) | 36,602 cells · 10x Xenium mouse brain | Advanced |
 | 15 | [The Differential-Expression Test Suite](https://github.com/GenomicAI/shanuz/blob/main/tutorials/de_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
 | 16 | [Out of Core — `LazyMatrix` vs BPCells](https://github.com/GenomicAI/shanuz/blob/main/tutorials/lazy_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 17 | [Visium — the Spatial Container](https://github.com/GenomicAI/shanuz/blob/main/tutorials/visium_vignette.md) | 2,695 spots · 10x mouse brain | Spatial |
+| 18 | [Anchor Internals — CCA & RPCA](https://github.com/GenomicAI/shanuz/blob/main/tutorials/anchors_vignette.md) | 2,400 cells · ifnb | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -376,9 +378,9 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 613 tests pass.
+All 770 tests pass.
 
-Seventeen further tests run the tutorials end-to-end against real data. They are opt-in
+Twenty-five further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in
 CI:
 

@@ -21,6 +21,62 @@ Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
 spatial, scale, and the specialized assays — plus one breaking fix. All of it is
 on `main`; none of it is on PyPI.
 
+### Fixed
+
+*The v4 anchor path, against `FindIntegrationAnchors` / `IntegrateData`
+(Seurat 5.5.1). Twelve defects; anchor agreement went from 70.0 % to 99.9 %
+for CCA and to 100 % for RPCA.*
+
+- **`find_integration_anchors(reduction="cca")` built the wrong shared space.**
+  `RunCCA` **standardizes** each cell (z-score) before the cross-covariance SVD;
+  shanuz L2-normalized it. That is a correlation matrix between cells versus a
+  cosine-similarity one — different singular vectors, so every anchor moved.
+- **Anchor features constant in either object are now dropped**, as
+  `RunCCA`'s `CheckFeatures` does (83 of 2,000 on ifnb). Standardizing works
+  down each *cell*, so a constant gene still shifted that cell's mean and SD.
+- **The anchor filter now runs on `TopDimFeatures` of the `data` layer.**
+  `FilterAnchors` uses at most 200 genes chosen from the CCA loadings and the
+  log-normalized values; shanuz used all 2,000 anchor features of `scale.data`.
+- **The anchor score now uses four neighbour tables.** `ScoreAnchors` gives each
+  member `k.score` neighbours within its own dataset **plus** `k.score` in the
+  other. A single pooled kNN is nearly all same-batch when a batch effect is
+  present, collapsing every score toward the floor.
+- **Filtering now happens before scoring.** The score is rescaled against the
+  1st/90th percentiles of the set it is handed, so scoring first took those
+  percentiles from anchors that were then discarded — shifting every surviving
+  value (mean 0.5477 vs Seurat's 0.4971, only 10.5 % identical).
+- **`k_filter` now retains every anchor** when either dataset is smaller than
+  it, as Seurat does, instead of clamping `k` to the query size.
+- **`_pca_loadings` now uses an exact SVD.** sklearn's `PCA` switches to a
+  *randomized* solver above `max(shape) > 500`, which drifts in the trailing
+  components — only 12–14 of 30 PCs matched irlba above 0.99. Reciprocal PCA
+  standardizes each projected dimension by its own SD, which is not
+  rotation-invariant, so a drifted axis became a different reciprocal space:
+  RPCA anchor recall **44.9 % → 100 %**.
+- **`integrate_data` now weights in a PCA of the merged pair.**
+  `RunIntegration` re-scales the reference and query together on the anchor
+  features and runs a fresh PCA; shanuz reused the CCA embedding, a space built
+  to make the batches overlap.
+- **The weight kernel now matches `FindWeightsC`** —
+  `1 − exp(−d̃ · score / (2/sd)²)` over `d̃ = 1 − d/dₖ`, with the score inside
+  the exponent — instead of a Gaussian in the raw distance times the score.
+  `sd_weight` now widens the kernel as it grows, which is the opposite of what
+  the old bandwidth did.
+- **`k_weight` counts anchors, not anchor cells.** The neighbour search runs
+  over the **unique** query anchor cells and expands each into all of its anchor
+  rows, stopping at `k_weight` entries.
+- **`integrate_data` raises when there are fewer distinct query anchor cells
+  than `k_weight`**, as `FindWeights` does, instead of silently shrinking `k`
+  and averaging over far fewer anchors than asked for.
+- **`integrate_layers` now corrects onto the larger batch.**
+  `PairwiseIntegrateReference` reverses the merge pair when the second object is
+  bigger; shanuz always took the first. Invisible on an even split, and ifnb is
+  CTRL 6,548 vs STIM 7,451.
+
+These also reach `find_transfer_anchors` / `transfer_data`, which share the
+scoring, filtering and weighting helpers: `panc8` label-transfer accuracy went
+0.9845 → 0.9862 and per-cell concordance with R 0.9871 → 0.9883.
+
 ### Changed — BREAKING
 
 *The Visium loader, aligned to `Read10X_Image` / `Load10X_Spatial`*

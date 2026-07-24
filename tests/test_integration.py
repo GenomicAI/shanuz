@@ -211,9 +211,27 @@ def test_integrate_data_rpca_clusters_by_celltype():
     batch = np.array(["1"] * len(objs[0]) + ["2"] * len(objs[1]))
 
     anchors = find_integration_anchors(objs, reduction="rpca")
-    merged = integrate_data(anchors)
+    # k_weight counts anchors and cannot exceed the number of distinct query
+    # anchor cells; the query here is only 100 cells, so the Seurat default of
+    # 100 is out of range for this fixture (as it would be in Seurat).
+    merged = integrate_data(anchors, k_weight=30)
     emb = _integrated_pca(merged)
     assert silhouette_score(emb, celltype) > silhouette_score(emb, batch)
+
+
+def test_integrate_data_refuses_k_weight_above_the_anchor_cell_count():
+    """Seurat stops rather than quietly narrowing the neighbourhood.
+
+    ``FindWeights`` errors when there are fewer distinct query anchor cells than
+    ``k.weight``. Silently shrinking k instead — which is what shanuz used to do
+    — hides that the correction is being averaged over far fewer anchors than
+    asked for.
+    """
+    objs, _ = _object_pair()
+    anchors = find_integration_anchors(objs, reduction="rpca")
+    n_query_cells = len(objs[1].cell_names())
+    with pytest.raises(ValueError, match="less than k_weight"):
+        integrate_data(anchors, k_weight=n_query_cells + 50)
 
 
 def _unequal_pair(n_ref=40, n_query=70, seed=0):
@@ -334,7 +352,8 @@ def test_integrate_layers_cca_mixes_batches():
 
 def test_integrate_layers_rpca_produces_a_reduction():
     obj = _batched_object()
-    integrate_layers(obj, method="rpca", group_by="batch", new_reduction="int_rpca")
+    integrate_layers(obj, method="rpca", group_by="batch",
+                     new_reduction="int_rpca", k_weight=30)
     assert "int_rpca" in obj.reductions
     assert obj.reductions["int_rpca"].cell_embeddings.shape[0] == len(obj)
 
