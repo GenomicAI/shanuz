@@ -117,6 +117,11 @@ def _umap_from_graph(
         )
     g = seurat.graphs[graph]
     mat = g.tocsr() if hasattr(g, "tocsr") else sp.csr_matrix(g)
+    # RunUMAP.Graph opens with `diag(x = object) <- 0`. An SNN graph carries a
+    # diagonal of 1 (every cell shares its neighbourhood with itself), and a
+    # self-edge is a zero-length attraction the layout cannot use.
+    mat = (mat - sp.diags(mat.diagonal())).tocsr()
+    mat.eliminate_zeros()
     # UMAP expects a symmetric fuzzy-simplicial-set (affinity) graph.
     mat = mat.maximum(mat.T)
 

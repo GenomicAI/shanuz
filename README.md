@@ -363,7 +363,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 787 tests pass.
+All 798 tests pass.
 
 Twenty-five further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in

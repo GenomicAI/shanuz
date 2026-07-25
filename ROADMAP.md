@@ -897,7 +897,7 @@ regime. Don't "simplify" them.
   inert for ordinary input. **T-vis (Visium) was added afterwards** as a
   seventeenth, on the same method but with the reference question reopened, and
   **T-int (anchor internals) as an eighteenth** — bringing the totals to
-  **18 tutorials and 44 defects, every one fixed** — see *Beyond the four
+  **18 tutorials and 48 defects, every one fixed** — see *Beyond the four
   waves* below. **The visualization gallery never became its own
   tutorial**: `dot_plot` was the last plotting export uncovered and was folded
   into the pbmc3k gallery in T-sp.
@@ -1176,7 +1176,7 @@ regime. Don't "simplify" them.
     shared variable features and a 1.9e-3 PCA gap. Isolated rather than
     tolerated: on Seurat's own feature list the decompositions agree to
     **2.49e-05**, so the gap is feature selection, not the PCA.
-  - **T-int anchor internals — ✅ delivered. Fourteen defects, all fixed.**
+  - **T-int anchor internals — ✅ delivered. Eighteen defects, all fixed.**
     `find_integration_anchors` / `integrate_data` against
     `FindIntegrationAnchors` / `IntegrateData` on a 2,400-cell ifnb subsample,
     2,000 shared anchor features, both reductions (`anchors_vignette.md`).
@@ -1218,16 +1218,34 @@ regime. Don't "simplify" them.
     were read downstream but not once `IntegrateEmbeddings` corrects the
     embedding itself. Fixing both took the v5 embedding to **30/30 PCs above
     \|r\| = 0.99** (full 13,999-cell, unequal-batch ifnb) and RPCA batch mixing
-    from 0.883 to **0.991** — above Seurat's own 0.917. What's left is not
-    integration: clustering **Seurat's own** RPCA embedding through shanuz's
-    `find_neighbors`/`find_clusters` reproduces shanuz's numbers, not Seurat's,
-    so the two tools' Louvain implementations diverge on identical input — not
-    yet investigated. The guide tree (`BuildSampleTree`, three or more
-    datasets) remains out of scope.
+    from 0.883 to **0.991** — above Seurat's own 0.917.
+    **And the last remnant was not a bug at all — the third framing of this
+    same gap, and the one that finally holds.** Clustering **Seurat's own** RPCA
+    embedding through shanuz reproduces shanuz's numbers, not Seurat's, so the
+    divergence is downstream of the embedding. Split into three stages it
+    resolves cleanly: the KNN indices are *identical*, the SNN graphs agree
+    off-diagonal to 2.8e-08, and only the community detection differs. Seurat's
+    `n.start = 10` restarts find a partition 0.17 % higher in modularity than
+    shanuz's single igraph pass (0.899903 vs 0.898336, and 20 shanuz seeds
+    never reach it) — but that extra modularity is spent splitting **CD14 Mono**
+    into a 73.8 %-CTRL and an 83.3 %-STIM cluster, re-discovering the batch
+    effect integration had just removed. shanuz scores **ARI 0.9195** to
+    `seurat_annotations` against Seurat's **0.7368**, and 85 % of 20 seeds beat
+    Seurat. Searching less thoroughly is the advantage here, so the Louvain
+    search was left alone and no `n.start` equivalent added. **Four real
+    defects did fall out of proving that:** the `nn` graph was symmetrised
+    (Seurat's is directed, `nnz` = n·k, column sums carrying the in-degree),
+    the SNN diagonal was dropped (Seurat stores `SNN[i,i] = 1` on all 13,999),
+    `run_umap` didn't strip it the way `RunUMAP.Graph` does, and Jaccard ran in
+    float32. All four were invisible to `find_clusters`, whose igraph
+    conversion takes the strict upper triangle and discarded exactly the
+    entries that were missing. `GroupSingletons` is ported alongside them.
+    The guide tree (`BuildSampleTree`, three or more datasets) remains out of
+    scope, as does a faithful port of `RunModularityClusteringCpp`.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
   **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two**, **T-lazy seven**,
-  **T-vis one** (plus two in Seurat itself) and **T-int fourteen** —
+  **T-vis one** (plus two in Seurat itself) and **T-int eighteen** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer
