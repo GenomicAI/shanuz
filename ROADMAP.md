@@ -897,7 +897,7 @@ regime. Don't "simplify" them.
   inert for ordinary input. **T-vis (Visium) was added afterwards** as a
   seventeenth, on the same method but with the reference question reopened, and
   **T-int (anchor internals) as an eighteenth** — bringing the totals to
-  **18 tutorials and 42 defects, every one fixed** — see *Beyond the four
+  **18 tutorials and 44 defects, every one fixed** — see *Beyond the four
   waves* below. **The visualization gallery never became its own
   tutorial**: `dot_plot` was the last plotting export uncovered and was folded
   into the pbmc3k gallery in T-sp.
@@ -1176,7 +1176,7 @@ regime. Don't "simplify" them.
     shared variable features and a 1.9e-3 PCA gap. Isolated rather than
     tolerated: on Seurat's own feature list the decompositions agree to
     **2.49e-05**, so the gap is feature selection, not the PCA.
-  - **T-int anchor internals — ✅ delivered. Twelve defects, all fixed.**
+  - **T-int anchor internals — ✅ delivered. Fourteen defects, all fixed.**
     `find_integration_anchors` / `integrate_data` against
     `FindIntegrationAnchors` / `IntegrateData` on a 2,400-cell ifnb subsample,
     2,000 shared anchor features, both reductions (`anchors_vignette.md`).
@@ -1207,14 +1207,27 @@ regime. Don't "simplify" them.
     entropy rewards exactly that. Restoring it to keep 0.867 would have meant
     reinstating a bug to flatter a metric; chasing the anchors instead is what
     found the SVD defect. Second time in this port — see `project_data`.
-    **Left standing:** RPCA still trails on the full dataset (0.883 batch mixing
-    vs Seurat's 0.914) on the **v5 `IntegrateLayers`** path with unequal batches,
-    a different Seurat code path from the v4 one measured here. The guide tree
-    (`BuildSampleTree`, three or more datasets) remains out of scope.
+    **The "residual" on the v5 `IntegrateLayers` path was two more bugs, not an
+    implementation gap.** `RPCAIntegration`/`CCAIntegration` don't call
+    `IntegrateData` — they call **`IntegrateEmbeddings`**, which corrects the
+    PCA embedding directly by transposing it into a fake assay; shanuz's
+    `integrate_layers` was running the v4 workflow (correct expression,
+    re-scale, re-PCA) behind that name, agreeing with Seurat's actual output on
+    1 of 30 dimensions. Alongside it, `run_pca` itself carried the same
+    randomized-SVD drift as defect 8 above, invisible while only leading PCs
+    were read downstream but not once `IntegrateEmbeddings` corrects the
+    embedding itself. Fixing both took the v5 embedding to **30/30 PCs above
+    \|r\| = 0.99** (full 13,999-cell, unequal-batch ifnb) and RPCA batch mixing
+    from 0.883 to **0.991** — above Seurat's own 0.917. What's left is not
+    integration: clustering **Seurat's own** RPCA embedding through shanuz's
+    `find_neighbors`/`find_clusters` reproduces shanuz's numbers, not Seurat's,
+    so the two tools' Louvain implementations diverge on identical input — not
+    yet investigated. The guide tree (`BuildSampleTree`, three or more
+    datasets) remains out of scope.
 - **Expect bugs, and read a mismatch as a bug report.** Wave 1 went T7, T9 and T8
   clean, while **T6 found the first two defects**, **T-dr the next two**,
   **T-sk two more**, **T-obj eleven**, **T-sp three**, **T-de two**, **T-lazy seven**,
-  **T-vis one** (plus two in Seurat itself) and **T-int twelve** —
+  **T-vis one** (plus two in Seurat itself) and **T-int fourteen** —
   exactly the point: a green synthetic suite (balanced batches, self-consistent
   fixtures) hid a crash, a 4× under-integration, a mis-specified permutation null,
   the wrong significance test, a flattened sampling weight and a label transfer

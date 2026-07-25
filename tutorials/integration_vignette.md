@@ -152,15 +152,16 @@ scoreboard:
 
 | method | sil_batch ↓ | sil_celltype ↑ | n_clusters | ARI→celltype ↑ | batch-mix ↑ |
 |--------|---:|---:|---:|---:|---:|
-| uncorrected (PCA) | 0.108 | 0.139 | 16 | 0.524 | 0.164 |
-| **Harmony** | **0.008** | 0.192 | 12 | **0.917** | **0.991** |
-| **CCA** | **0.001** | 0.190 | 15 | **0.884** | **0.990** |
-| **RPCA** | **0.008** | 0.185 | 14 | **0.677** | **0.867** |
+| uncorrected (PCA) | 0.107 | 0.141 | 16 | 0.519 | 0.161 |
+| **Harmony** | **0.008** | 0.194 | 12 | **0.911** | **0.991** |
+| **CCA** | **0.004** | 0.231 | 14 | **0.918** | **0.991** |
+| **RPCA** | **0.005** | 0.220 | 14 | **0.922** | **0.991** |
 
-Uncorrected, the cells separate by condition (batch-mix 0.164 — clusters are
+Uncorrected, the cells separate by condition (batch-mix 0.161 — clusters are
 nearly single-condition). All three methods collapse that while *raising*
-cell-type recovery: Harmony and CCA almost completely (batch-mix 0.99), RPCA
-strongly (0.87). Getting RPCA there took two fixes — see the concordance section.
+cell-type recovery, and now land within a point of each other (batch-mix
+0.991 across the board). Getting RPCA here took real work — see the
+concordance section.
 
 <table>
 <tr><th>R — uncorrected, by condition</th><th>Shanuz — uncorrected, by condition</th></tr>
@@ -191,7 +192,7 @@ After Harmony they interleave, while the cell types stay apart:
 
 ---
 
-## The headline · R-vs-Python concordance, and two RPCA bugs (both fixed)
+## The headline · R-vs-Python concordance, and four RPCA bugs (all fixed)
 
 Because integration embeddings are not coordinate-comparable across tools, the
 concordance is **partition-based**: the adjusted Rand index between the two tools'
@@ -202,51 +203,63 @@ batch mixing (`mix`, 1 = fully mixed). All are computed from the cluster labels
 
 | method | ARI(py,R) | py ARI→type | R ARI→type | py mix | R mix |
 |--------|---:|---:|---:|---:|---:|
-| PCA (baseline) | 0.96 | 0.524 | 0.520 | 0.164 | 0.164 |
-| **Harmony** | 0.95 | 0.917 | 0.930 | **0.991** | **0.991** |
-| **CCA** | 0.84 | 0.884 | 0.873 | **0.990** | **0.991** |
-| **RPCA** | 0.76 | **0.677** | **0.735** | **0.867** | **0.914** |
+| PCA (baseline) | 0.970 | 0.519 | 0.518 | 0.161 | 0.163 |
+| **Harmony** | 0.935 | 0.911 | 0.931 | **0.991** | **0.991** |
+| **CCA** | 0.972 | 0.918 | 0.927 | **0.991** | **0.991** |
+| **RPCA** | 0.774 | **0.922** | 0.736 | **0.991** | 0.917 |
 
-**Harmony and CCA match Seurat almost exactly.** The uncorrected baseline is
-identical to three decimals (mix 0.164 either way — the harness is calibrated),
-and both real methods land their batch mixing and cell-type recovery right on top
-of Seurat's. This is the confirmation the initiative was built to get: shanuz's
-two primary integration paths reproduce Seurat's result on the standard benchmark.
+**Harmony and CCA match Seurat closely on every axis**, partition agreement
+included. This is the confirmation the initiative was built to get: shanuz's
+two most-used integration paths reproduce Seurat's result on the standard
+benchmark, cluster-for-cluster.
 
-**RPCA needed two fixes — and the tutorial's own concordance table is what caught
-both.** On the first run the `mix` columns diverged sharply: Seurat's RPCA
-integrates ifnb nearly as well as CCA (0.914), while shanuz's barely moved the
-batches (0.222), with cell-type recovery (0.444) *below* the uncorrected baseline.
-Investigating surfaced **two distinct defects** — both now fixed:
+**RPCA took four bugs to get here, in two rounds.** The first two were caught
+by an earlier pass of this tutorial and are described in
+[the anchor-internals vignette](anchors_vignette.md): a crash on unequal batch
+sizes (#41), and an under-integration where shanuz scaled batches globally
+instead of per-object and searched the raw reciprocal projection instead of
+Seurat's SD-standardized, L2-normalized one (#42). Those took RPCA's batch
+mixing from 0.222 to **0.867** and cell-type recovery from 0.444 (below the
+uncorrected baseline) to **0.677** — real fixes, but still short of Seurat's
+0.914 / 0.735. At the time that residual read as "the expected implementation
+gap" — exact vs. approximate neighbours, scikit-learn vs. irlba PCA.
 
-1. **A crash on unequal batch sizes (fixed in #41).** The reciprocal-PCA branch
-   passed its mutual-nearest-neighbour helper the ref/query arrays in the wrong
-   order, so whenever the query was larger than the reference (i.e. every real
-   dataset) it indexed past the neighbour list and raised `IndexError`. The unit
-   tests used *balanced* synthetic batches, which never trip it — precisely the
-   blind spot this initiative exists to close.
+**It wasn't a gap. It was two more bugs**, found by
+[T-int](anchors_vignette.md) treating "the expected implementation gap" as a
+claim to verify rather than a place to stop:
 
-2. **Under-integration (fixed in this PR).** With the crash gone RPCA still
-   under-integrated ~4×. Reading the real Seurat source (`ReciprocalProject`,
-   `FindNN`) alongside an anchor-count probe showed shanuz diverging in three
-   faithful-to-Seurat ways: it scaled the batches *globally* rather than
-   per-object, so each batch's mean shift stayed in PC1 and reciprocal PCA
-   under-found mutual pairs (~2× too few); it searched the *raw* projection
-   instead of standardising each dimension by its SD and then L2-normalising each
-   cell (Seurat's `l2.norm`), so PC1's variance swamped the neighbour search; and
-   it applied the expression-space anchor filter that Seurat disables for
-   reciprocal PCA. Correcting all three lifts RPCA's batch mixing from **0.222 to
-   0.867** and its cell-type recovery from 0.444 (below baseline) to **0.677**
-   (above it). The residual to Seurat's 0.914 is the expected implementation gap —
-   exact vs. approximate (annoy) neighbours, and scikit-learn vs. irlba PCA — the
-   same reason RPCA lands ~5% off while CCA, whose shared space is more robust,
-   matches to three decimals.
+1. **`integrate_layers` was running the wrong algorithm.** Seurat v5's
+   `IntegrateLayers(method = CCAIntegration/RPCAIntegration)` does not call
+   `IntegrateData` — it calls **`IntegrateEmbeddings`**, which corrects the
+   *PCA embedding itself* by transposing it into a fake assay and running the
+   same anchor machinery over it. shanuz was running the v4 workflow instead
+   (correct expression, re-scale, re-run PCA) — a different object with the
+   same shape, which is why the two agreed on only 1 of 30 output dimensions
+   above \|r\| = 0.99 on a matched-size probe.
+2. **`run_pca` used sklearn's randomized SVD.** It switches solvers once
+   `max(shape) > 500`, accurate in the leading components and drifting in the
+   trailing ones — only 15 of 30 PCs matched Seurat's irlba above \|r\| = 0.99,
+   with one PC down at 0.006. Harmless when only the leading PCs matter
+   downstream, but `IntegrateEmbeddings` corrects the embedding directly, so
+   the drift landed straight in the output. Swapping in ARPACK (deterministic,
+   6× faster on this data, and exact enough to match irlba on all 30 PCs)
+   fixed it without slowing the normal path.
 
-That is the R-fidelity net doing exactly its job: the first real integration
-benchmark turned a green synthetic suite into a fixed crash and a fixed
-under-integration bug — neither of which any synthetic fixture reproduces (both a
-three-type and a hard six-type unequal-batch fixture integrate fine on the
-*pre*-fix code), which is the whole argument for comparing against real Seurat.
+Fixing both took embedding agreement from 1/30 to **30/30 PCs above \|r\| = 0.99**
+on the full 13,999-cell, unequal-batch dataset (STIM 7,451 is the reference,
+Seurat's own `PairwiseIntegrateReference` rule), reference-half cells copied
+through at **exactly** zero difference. RPCA's batch mixing rose to **0.991**
+— now *higher* than Seurat's own 0.917 — and cell-type recovery to **0.922**,
+above Seurat's 0.736.
+
+**What that leaves is not an integration gap — it's a clustering one.**
+`ARI(py,R)` for RPCA is still only 0.774, which looks like a leftover
+disagreement, but it isn't upstream of `find_clusters`: clustering **Seurat's
+own** RPCA embedding with shanuz's `find_neighbors` + `find_clusters` gives
+batch-mix 0.990 and ARI→type 0.920 — almost identical to shanuz's own
+end-to-end numbers, and nothing like Seurat's 0.917 / 0.736 on that same
+embedding. The embeddings agree; the two tools' Louvain implementations, given
+an identical input, do not. That's now the open question, not integration.
 
 ---
 

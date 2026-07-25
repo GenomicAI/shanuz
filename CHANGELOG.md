@@ -77,6 +77,37 @@ These also reach `find_transfer_anchors` / `transfer_data`, which share the
 scoring, filtering and weighting helpers: `panc8` label-transfer accuracy went
 0.9845 → 0.9862 and per-cell concordance with R 0.9871 → 0.9883.
 
+*The v5 `IntegrateLayers` path, against `CCAIntegration` / `RPCAIntegration`
+(Seurat 5.5.1). Two more defects, found by treating what had looked like an
+"expected implementation gap" on the v4 path (above) as a claim to check.
+Embedding agreement on a 2,400-cell probe went from 1/30 PCs above \|r\| = 0.99
+to 30/30 for both reductions; on the full 13,999-cell, unequal-batch ifnb,
+RPCA batch mixing rose from 0.867 to 0.991 (Seurat: 0.917).*
+
+- **`integrate_layers(method="cca"|"rpca")` was running the wrong algorithm.**
+  Seurat's `IntegrateLayers(method = CCAIntegration/RPCAIntegration)` does not
+  call `IntegrateData` — it calls **`IntegrateEmbeddings`**, which corrects the
+  input PCA embedding directly (transposed into a fake per-dimension assay and
+  pushed through the same anchor-weighting machinery) and returns it in the
+  same basis, loadings included. shanuz was running the v4 workflow behind
+  that name — correct expression, re-scale, re-run PCA — landing in a
+  different basis with the same shape. Added `integrate_embeddings`
+  (`shanuz.anchors`), which `integrate_layers` now calls; `k_filter=None` for
+  both methods (Seurat forces `k.filter <- NA` on this path) and only
+  `rpca` re-scales each batch (`CCAIntegration` slices the object's existing,
+  pooled `scale.data`; `RPCAIntegration` runs `ScaleData` per batch).
+- **`run_pca` used sklearn's randomized SVD.** It switches solvers once
+  `max(shape) > 500`, matching only 15 of 30 PCs above \|r\| = 0.99 against
+  Seurat's irlba (one PC at 0.006) — the same drift `_pca_loadings` (above) had
+  already needed an exact SVD to avoid. Invisible while only leading PCs were
+  read downstream; not invisible once `integrate_embeddings` corrects the
+  embedding itself. Replaced with ARPACK (`scipy.sparse.linalg.svds`, seeded
+  for determinism), which matches irlba to six decimals and runs 6× faster on
+  data this shape; small inputs still take an exact dense SVD, since ARPACK
+  misbehaves as `k` approaches the matrix rank. Also fixed to match
+  `RunPCA.default`: `sdev = d / sqrt(ncol(object) - 1)` rather than the
+  embedding's own SD, and no re-centring of `scale.data`.
+
 ### Changed — BREAKING
 
 *The Visium loader, aligned to `Read10X_Image` / `Load10X_Spatial`*
