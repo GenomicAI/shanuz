@@ -126,6 +126,17 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **`shanuz/command.py` began with a UTF-8 BOM.** CPython decodes source as
+  `utf-8-sig`, so the file imported, introspected, linted and type-checked
+  without complaint — which is how three bytes survived unnoticed. What they
+  broke is reading the source back as text: `Path.read_text()` defaults to plain
+  utf-8, keeps the U+FEFF, and `ast.parse` then rejects the file outright with
+  `invalid non-printable character`. The AST walk added alongside this had to
+  decode around it, and any codemod, doc generator or source-level lint would
+  hit the same wall on a file that looks fine. The BOM is gone, and
+  `test_no_source_file_starts_with_a_byte_order_mark` scans the whole repo — not
+  just the package — so another cannot arrive quietly.
+
 - **Twenty-one annotations named symbols that existed nowhere at module scope.**
   Seventeen plotting functions were declared `-> "plt.Figure"` while `plt` was
   only ever a local inside each body (`plt = _mpl()`); `Graph.as_neighbor`,
