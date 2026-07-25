@@ -129,6 +129,7 @@ write.csv(data.frame(
   gene        = rownames(hvf),
   mean        = hvf[["mean"]],
   variance    = hvf[["variance"]],
+  var.expected = hvf[["variance.expected"]],
   var.std     = hvf[["variance.standardized"]],
   # rank in the selection (1 = most variable), NA for the genes not selected
   hvg_rank    = match(rownames(hvf), selected)),

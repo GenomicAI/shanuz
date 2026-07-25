@@ -461,18 +461,18 @@ def write_anchors(pbmc, all_markers) -> None:
     cells.to_csv(FIGURES / "py_cell_meta.csv", index=False)
 
     rna = pbmc.assays["RNA"]
-    # shanuz stores the VST statistics on the assay's meta_data under `means` /
-    # `variances` / `variances.standardized`; Seurat's HVFInfo() spells the same
-    # three columns `mean` / `variance` / `variance.standardized`. Renamed here
-    # so the handoff joins, but the divergence is real and lives in the object.
+    # shanuz stores the VST statistics on the assay's meta_data under the names
+    # HVFInfo() uses, so these columns carry straight through to the R side of
+    # the handoff without being renamed on the way out.
     hvf = rna.meta_data
     selected = list(rna.variable_features)
     rank = {g: i + 1 for i, g in enumerate(selected)}
     pd.DataFrame({
         "gene": _r_symbols(hvf.index),
-        "mean": hvf["means"].to_numpy(),
-        "variance": hvf["variances"].to_numpy(),
-        "var.std": hvf["variances.standardized"].to_numpy(),
+        "mean": hvf["mean"].to_numpy(),
+        "variance": hvf["variance"].to_numpy(),
+        "var.expected": hvf["variance.expected"].to_numpy(),
+        "var.std": hvf["variance.standardized"].to_numpy(),
         "hvg_rank": [rank.get(g, np.nan) for g in hvf.index],
     }).to_csv(FIGURES / "py_hvg.csv", index=False)
 
@@ -547,11 +547,21 @@ def report() -> None:
     genes = ph.index.intersection(rh.index)
     print(f"\n  Variable features (VST) — {len(genes)} shared genes "
           f"of {len(ph)} / {len(rh)}")
-    print(f"  {'per-gene statistic':<20}{'max|diff|':>14}")
-    print(f"  {'-' * 34}")
-    for col in ("mean", "variance", "var.std"):
-        d = np.abs(ph.loc[genes, col].to_numpy() - rh.loc[genes, col].to_numpy()).max()
-        print(f"  {col:<20}{d:>14.3e}")
+    print(f"  {'per-gene statistic':<20}{'max|diff|':>14}{'max rel':>14}")
+    print(f"  {'-' * 48}")
+    # `var.expected` is the LOESS fit, and `var.std` is proportional to its
+    # reciprocal — so the two columns carry the same disagreement, and having
+    # both is what separates "the standardization drifted" from "the fit did".
+    #
+    # Relative as well as absolute, because these four live on wildly different
+    # scales: an expected variance runs into the hundreds for an abundant gene,
+    # so its absolute gap reads as enormous next to a mean's and says nothing.
+    for col in ("mean", "variance", "var.expected", "var.std"):
+        a = ph.loc[genes, col].to_numpy()
+        b = rh.loc[genes, col].to_numpy()
+        d = np.abs(a - b)
+        rel = d / np.maximum(np.abs(b), np.finfo(float).tiny)
+        print(f"  {col:<20}{d.max():>14.3e}{rel.max():>14.3e}")
     py_sel = set(ph.index[ph["hvg_rank"].notna()])
     r_sel = set(rh.index[rh["hvg_rank"].notna()])
     both = py_sel & r_sel

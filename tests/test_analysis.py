@@ -148,8 +148,8 @@ def test_vst_clipping_suppresses_single_cell_outliers():
     base[0, 0] = 50.0
     mat = sp.csc_matrix(base)
 
-    _, _, _, vs_clipped = _vst_hvg(mat, nfeatures=n_genes)            # clip = sqrt(N)
-    _, _, _, vs_unclipped = _vst_hvg(mat, nfeatures=n_genes, clip_max=1e12)
+    _, _, _, _, vs_clipped = _vst_hvg(mat, nfeatures=n_genes)         # clip = sqrt(N)
+    _, _, _, _, vs_unclipped = _vst_hvg(mat, nfeatures=n_genes, clip_max=1e12)
 
     assert vs_clipped[0] < 0.5 * vs_unclipped[0]
 

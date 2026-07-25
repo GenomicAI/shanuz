@@ -562,12 +562,12 @@ def variable_feature_plot(
     # Prefer pre-computed VST stats stored by find_variable_features
     md = getattr(assay_obj, "meta_data", None)
     use_std_var = (md is not None
-                   and "variances.standardized" in md.columns
-                   and "means" in md.columns)
+                   and "variance.standardized" in md.columns
+                   and "mean" in md.columns)
 
     if use_std_var:
-        means = md["means"].values
-        y_vals = md["variances.standardized"].values
+        means = md["mean"].values
+        y_vals = md["variance.standardized"].values
         y_label = "Standardized Variance"
         # clip extreme standardized values for readability
         y_vals = np.clip(y_vals, 0, np.percentile(y_vals[y_vals > 0], 99.5))

@@ -101,6 +101,51 @@ on `main`; none of it is on PyPI.
 
 ### Changed
 
+- **BREAKING: `find_variable_features` now writes the column names
+  `HVFInfo()` returns.** On an Assay5 the per-feature statistics land in
+  `assay.meta_data`, which — unlike SeuratObject, where they sit behind a
+  `vf_vst_counts_` prefix that `HVFInfo()` strips — *is* the user-facing table.
+  It spelled them `means` / `variances` / `variances.standardized` against
+  Seurat's `mean` / `variance` / `variance.standardized`, so the same quantity
+  read differently in the two languages and the PBMC 3k handoff had to rename
+  all three on the way out for the join to work. Now:
+
+  | method | columns |
+  |---|---|
+  | `"vst"` | `mean`, `variance`, `variance.expected`, `variance.standardized` |
+  | `"mvp"` / `"dispersion"` / `"mean.var.plot"` | `mvp.mean`, `mvp.dispersion`, `mvp.dispersion.scaled` |
+
+  Code reading `meta_data["means"]` and friends must be updated; the old names
+  are gone rather than aliased, since keeping both is what let the divergence
+  live in the object unnoticed. `highly_variable` is unchanged — it is shanuz's
+  own flag, and `HVFInfo(status = TRUE)`'s `variable` has no other counterpart.
+
+  Two things fall out of the rename. **`variance.expected` is new**: the vst
+  LOESS fit was computed, used to standardize, and then discarded, so nothing
+  downstream could tell a genuinely variable gene from one sitting where the fit
+  was poor. On PBMC 3k it agrees with Seurat to **2.50e-2 relative** against
+  `variance.standardized`'s **2.56e-2** — the two carry the same disagreement,
+  as they must, since the standardization is proportional to its reciprocal.
+  That is the whole of the VST gap, now attributable: the mean and the observed
+  variance match to 1.5e-14 and 5.1e-14, so what the two tools disagree about is
+  the LOESS fit and nothing else. And **the mvp path no
+  longer writes vst's names**: it had been storing scaled dispersions in a
+  column called `variances.standardized` and the raw variance in one called
+  `variances`, neither of which is a quantity `HVFInfo(method = "mvp")` reports.
+  Those values differ from Seurat's in definition as well as in name — shanuz
+  computes them on log-normalized data where Seurat round-trips through
+  `expm1` — so this fixes the labels, not the numbers.
+
+  `variable_feature_plot` reads the stored statistics and silently falls back to
+  recomputing a raw dispersion when it cannot find them, so a consumer left on
+  the old spelling would have kept drawing a plot — a different one, on a
+  different axis, with no error. `tests/test_hvf_column_names.py` pins the
+  column names against a recorded Seurat 5.5.1 probe, pins `variance.expected`'s
+  *contents* through the identity `variance.standardized = variance /
+  variance.expected` (exact wherever the clip does not bite), and asserts the
+  plot takes the stored-statistics branch. The PBMC 3k handoff now carries
+  `var.expected` on both sides, which is what separates "the standardization
+  drifted" from "the LOESS fit did".
 - **The SCTransform vignette's ±1 cluster gap is closed and its docstring
   corrected.** The vignette described shanuz resolving 13 clusters against
   Seurat's 12, blamed on the RNG and the differing clustering libraries. Both

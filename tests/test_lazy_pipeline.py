@@ -343,8 +343,8 @@ def test_variable_features_are_bit_identical_between_lazy_and_sparse(tmp_path):
     counts = _counts()
     lazy = write_lazy_matrix(counts, tmp_path / "m", overwrite=True)
 
-    idx_sparse, mean_s, var_s, vst_s = _vst_hvg(counts, nfeatures=20)
-    idx_lazy, mean_l, var_l, vst_l = _vst_hvg(lazy, nfeatures=20)
+    idx_sparse, mean_s, var_s, exp_s, vst_s = _vst_hvg(counts, nfeatures=20)
+    idx_lazy, mean_l, var_l, exp_l, vst_l = _vst_hvg(lazy, nfeatures=20)
 
     np.testing.assert_array_equal(idx_sparse, idx_lazy)
     np.testing.assert_array_equal(mean_s, mean_l)
@@ -457,7 +457,7 @@ def test_hvg_ties_break_by_ascending_index_like_r_order():
     """`head(order(x, decreasing = TRUE), n)` breaks ties by ascending original
     index; `argsort(x)[::-1]` breaks them descending, and unstably."""
     counts = _counts()
-    idx, _, _, var_standardized = _vst_hvg(counts, nfeatures=len(counts.toarray()))
+    idx, _, _, _, var_standardized = _vst_hvg(counts, nfeatures=len(counts.toarray()))
 
     ranked = var_standardized[idx]
     assert np.all(np.diff(ranked) <= 0), "must be ordered by descending score"
