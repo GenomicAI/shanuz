@@ -3,13 +3,13 @@ from __future__ import annotations
 import os
 import re
 from abc import ABC, abstractmethod
-from typing import Optional, Type, Union
+from typing import Optional, Self, Type, Union
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from ._sparse import as_sparse, empty_sparse, is_matrix_empty
+from ._sparse import as_dense, as_sparse, empty_sparse, is_matrix_empty
 from ._utils import validate_cell_names, validate_feature_names
 from .lazy import is_lazy
 from .logmap import LogMap
@@ -297,7 +297,7 @@ class StdAssay(KeyMixin, ABC):
         """
         return self._split_stems.get(name)
 
-    def join_layers(self, layers: Optional[list[str]] = None) -> "StdAssay":
+    def join_layers(self, layers: Optional[list[str]] = None) -> Self:
         """Rejoin split layers, restoring the name, order and contents.
 
         Mirrors R's ``JoinLayers``. Each split *stem* is rejoined separately —
@@ -360,7 +360,7 @@ class StdAssay(KeyMixin, ABC):
                                feature_names=features, cell_names=ordered)
         return new_obj
 
-    def split_layers(self, f: list[str], layer: Optional[str] = None) -> "StdAssay":
+    def split_layers(self, f: list[str], layer: Optional[str] = None) -> Self:
         """Split one layer into per-group layers, as R's ``split()`` does.
 
         The parts are named ``<layer>.<group>`` — Seurat's spelling, which users
@@ -397,13 +397,13 @@ class StdAssay(KeyMixin, ABC):
     # Cast assay layer types
     # ------------------------------------------------------------------
 
-    def cast_assay(self, to_sparse: bool = True) -> "StdAssay":
+    def cast_assay(self, to_sparse: bool = True) -> Self:
         new_obj = self._copy()
         for name, mat in new_obj.layers.items():
             if to_sparse and not sp.issparse(mat):
                 new_obj.layers[name] = sp.csc_matrix(mat)
             elif not to_sparse and sp.issparse(mat):
-                new_obj.layers[name] = mat.toarray()
+                new_obj.layers[name] = as_dense(mat)
         return new_obj
 
     # ------------------------------------------------------------------
@@ -414,7 +414,7 @@ class StdAssay(KeyMixin, ABC):
         self,
         cells: Optional[list[str]] = None,
         features: Optional[list[str]] = None,
-    ) -> "StdAssay":
+    ) -> Self:
         all_feat = self._all_feature_names
         all_cells = self._all_cell_names
         feat_set = set(all_feat)
@@ -472,7 +472,7 @@ class StdAssay(KeyMixin, ABC):
     # Cell renaming
     # ------------------------------------------------------------------
 
-    def rename_cells(self, new_names: list[str]) -> "StdAssay":
+    def rename_cells(self, new_names: list[str]) -> Self:
         if len(new_names) != len(self._all_cell_names):
             raise ValueError("new_names must match the number of cells.")
         obj = self._copy()
@@ -485,9 +485,9 @@ class StdAssay(KeyMixin, ABC):
 
     def merge(
         self,
-        y: Union["StdAssay", list["StdAssay"]],
+        y: Union[Self, list[Self]],
         add_cell_ids: Optional[list[str]] = None,
-    ) -> "StdAssay":
+    ) -> Self:
         others = [y] if isinstance(y, StdAssay) else y
         all_assays = [self] + others
 
@@ -574,7 +574,7 @@ class StdAssay(KeyMixin, ABC):
     # Copy helper
     # ------------------------------------------------------------------
 
-    def _copy(self) -> "StdAssay":
+    def _copy(self) -> Self:
         new = self.__class__(
             layers={k: v.copy() if hasattr(v, "copy") else v for k, v in self.layers.items()},
             feature_names=list(self._all_feature_names),
