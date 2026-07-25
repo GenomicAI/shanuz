@@ -94,6 +94,13 @@ tutorials/figures_visium/py_anchors.json
 tutorials/figures_visium/r_anchors.json
 tutorials/figures_visium/py_variable_features.txt
 tutorials/figures_visium/r_variable_features.txt
+# CITE-seq tutorial — CLR summary + per-cell WNN weights (figures are committed)
+tutorials/figures_multimodal/py_adt_clr.csv
+tutorials/figures_multimodal/r_adt_clr.csv
+tutorials/figures_multimodal/py_cell_weights.csv
+tutorials/figures_multimodal/r_cell_weights.csv
+tutorials/figures_multimodal/py_anchors.json
+tutorials/figures_multimodal/r_anchors.json
 # SCTransform tutorial — the per-gene model handoff (figures are committed)
 tutorials/figures_sctransform/py_sct_model.csv
 tutorials/figures_sctransform/r_sct_model.csv

@@ -17,9 +17,10 @@ and read protein levels on the RNA-derived UMAP.
 > weight and clustering both modalities jointly.
 
 ```bash
-python tutorials/cbmc_citeseq_tutorial.py     # printed validation
+python tutorials/cbmc_citeseq_tutorial.py     # printed validation + the numeric handoff
 python tutorials/generate_multimodal_plots.py # writes figures_multimodal/  (Shanuz figures)
-Rscript tutorials/cbmc_citeseq_verify.R       # writes figures_multimodal/r_*  (R Seurat figures)
+Rscript tutorials/cbmc_citeseq_verify.R       # R figures + r_adt_clr.csv / r_cell_weights.csv
+python tutorials/cbmc_citeseq_tutorial.py --report   # the side-by-side, per protein and per cell
 ```
 
 > **About the figures.** Each step shows a genuine **side-by-side comparison**:
@@ -425,9 +426,15 @@ RNA.
 **Progenitor is the one row that does not line up** — 0.35 here against R's 0.29,
 where every other type agrees to 0.02. It is a 146-cell population, and the two
 sides do not cut quite the same cells into it (R's progenitor cluster carries
-mean CD34 1.31, Shanuz's 1.5), so this looks like small-population clustering
-noise rather than a difference in the WNN maths. That is a reading, not
-something this tutorial establishes.
+mean CD34 1.31, Shanuz's 1.5).
+
+This used to be as far as the tutorial could go: it read like small-population
+clustering noise rather than a difference in the WNN maths, but that was a
+reading. **It is now established.** Re-grouping Shanuz's *own* per-cell weights
+by *R's* labels puts progenitor at **0.283** against R's 0.285 — the weights
+agree to three decimals, and the gap was entirely in which cells carry the
+label. See [How close is this to Seurat?](#how-close-is-this-to-seurat) for the
+per-cell comparison that shows it.
 
 ### Reading the plots
 
@@ -470,19 +477,40 @@ description of a typical cell:
 
 ### How close is this to Seurat?
 
-Close. Both WNN stages are ported from the R/C++ source and both sides run the
-same CLR, so the weights are comparable rather than merely correlated: eight of
-the nine cell types agree with Seurat to **0.02 or better**, with progenitor
-(0.06, discussed above) the exception. Both sides find 16 RNA clusters and 21
-WNN clusters at `resolution = 0.6`, and both resolve the same nine lineages with
-the same multiplicities — three CD4 T clusters, five CD14+ Mono, two erythroid,
-one each of the rest.
+Close, and now measured rather than asserted. `--report` compares three things
+against a live Seurat 5.5.1 run:
 
-The remaining gaps are real but small. The neighbour search is exact here and
-approximate (annoy) in R, and the two Louvain implementations are not the same
-code, so cluster boundaries differ slightly and small populations feel it most.
-Each side still groups by *its own* `annotate_cells` output — but the thresholds
-are now identical between the two scripts, so the labels describe the same cells.
+| Quantity | Agreement |
+|---|---|
+| **ADT CLR** — per-protein mean · sd · min · max | max abs diff **4.2e-15** (no RNG anywhere in it) |
+| **WNN modality weight**, per cell on 8,617 shared barcodes | Pearson **0.9847** · Spearman 0.9816 · median abs diff **0.0152** |
+| Mean ADT weight, whole panel | 0.5539 against 0.5556 — relative 3.0e-03 |
+| Cell-type label, per cell | **99.29%** concordant (8,556 / 8,617) |
+| RNA clusters · WNN clusters · cells · genes · proteins | 16 · 21 · 8,617 · 20,379 · 13 — all identical |
+
+**The progenitor gap was never a WNN difference.** This section used to record
+progenitor at 0.06 away from Seurat while every other type agreed to 0.02, and
+attributed it to cluster boundaries. The per-cell dump settles it: re-group
+*shanuz's own weights* by *R's* labels and progenitor reads **0.283** against
+R's 0.285. The weights agree; the two tools put different cells in the bucket.
+
+| cell type | shanuz | R | shanuz's weights, R's labels | n (py / R) |
+|---|---|---|---|---|
+| Progenitor | 0.352 | 0.285 | **0.283** | 146 / 184 |
+| Erythroid | 0.378 | 0.397 | **0.400** | 606 / 566 |
+| every other type | — | — | moves by ≤0.003 | — |
+
+Those two rows are the same disagreement seen from both ends: 61 cells sit on
+the progenitor/erythroid boundary and land differently, which barely moves
+erythroid's 600-cell mean and visibly moves progenitor's 150-cell one. That is
+a small-population effect on an annotation threshold, not a modality-weighting
+difference — and it is the kind of thing a per-cell-type summary table can never
+distinguish, which is why the handoff is keyed by barcode.
+
+The residual causes are the usual two: the neighbour search is exact here and
+approximate (annoy) in R, and the two Louvain implementations are different
+code. Both sides run the same CLR and the same `annotate_cells` thresholds,
+shared verbatim between the two scripts.
 
 > **This table used to look much worse, and the cause was not in the WNN code.**
 > Shanuz's CLR had its `margin` flag inverted relative to Seurat: `margin=2`

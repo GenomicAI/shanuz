@@ -5,12 +5,15 @@ signal and checks the combined protein-priority / RNA-fallback gating in
 annotate_cells(), the run_wnn() joint-clustering flow, and the figures the
 walkthrough's Step 8 embeds. Network-free.
 """
+import json
 import sys
 from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import numpy as np
+import pandas as pd
+import pytest
 import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -203,3 +206,86 @@ def test_group_panel_colours_labels_consistently():
     assert axes[0].get_legend() is None
     assert [t.get_text() for t in axes[1].get_legend().get_texts()] == ["A", "B"]
     plt.close(fig)
+
+
+# ----------------------------------------------------------------------
+# The numeric handoff against R
+# ----------------------------------------------------------------------
+
+
+def _handoff_object():
+    """A WNN-run object carrying the three metadata columns the dump reads."""
+    obj, n = _wnn_ready_object()
+    run_wnn(obj, rna_dims=range(10), resolution=0.6)
+    obj.meta_data["rna_clusters"] = ["0"] * (n // 2) + ["1"] * (n - n // 2)
+    obj.meta_data["protein_celltype"] = ["B"] * (n // 2) + ["NK"] * (n - n // 2)
+    return obj, n
+
+
+def test_adt_clr_summary_is_per_protein_across_cells(tmp_path, monkeypatch):
+    """One row per protein, summarising over cells — not the transpose.
+
+    The axis matters and has been wrong in this codebase before: CLR's `margin`
+    was inverted against Seurat's for a whole release. A transposed summary here
+    would still write a well-formed CSV, and the report would compare it against
+    R's happily, so this checks the numbers against an independent row-wise
+    computation rather than checking the file merely exists.
+    """
+    from tutorials import cbmc_citeseq_tutorial as T
+
+    obj, _ = _handoff_object()
+    monkeypatch.setattr(T, "FIGURES", tmp_path)
+    T.write_anchors(obj)
+
+    got = pd.read_csv(tmp_path / "py_adt_clr.csv")
+    adt = obj.assays["ADT"]
+    data = adt.layers["data"]
+    dense = data.toarray() if sp.issparse(data) else np.asarray(data)
+
+    assert list(got["protein"]) == list(adt._all_feature_names)
+    assert len(got) == dense.shape[0], "one row per protein, not per cell"
+    assert got["mean"].to_numpy() == pytest.approx(dense.mean(axis=1), abs=1e-12)
+    assert got["max"].to_numpy() == pytest.approx(dense.max(axis=1), abs=1e-12)
+    # A transpose would only be caught by the values if the matrix were square.
+    assert dense.shape[0] != dense.shape[1]
+
+
+def test_cell_weights_are_written_in_object_order(tmp_path, monkeypatch):
+    """The whole R comparison joins on barcode, so the key must align.
+
+    If the `cell` column were ever written independently of the weights — a
+    sorted copy, say — every downstream number would be a silent mismatch of
+    cell to weight while still looking like a clean join.
+    """
+    from tutorials import cbmc_citeseq_tutorial as T
+
+    obj, n = _handoff_object()
+    monkeypatch.setattr(T, "FIGURES", tmp_path)
+    T.write_anchors(obj)
+
+    got = pd.read_csv(tmp_path / "py_cell_weights.csv")
+    assert list(got["cell"]) == list(obj.cell_names())
+    assert len(got) == n
+    assert got["ADT.weight"].to_numpy() == pytest.approx(
+        obj.meta_data["ADT.weight"].to_numpy(), abs=1e-12)
+    # The two modality weights are a softmax pair, so they must sum to one
+    # per cell — a guard that a re-ordering of one column alone would break.
+    assert (got["RNA.weight"] + got["ADT.weight"]).to_numpy() == pytest.approx(
+        np.ones(n), abs=1e-9)
+
+
+def test_anchor_scalars_describe_the_object(tmp_path, monkeypatch):
+    from tutorials import cbmc_citeseq_tutorial as T
+
+    obj, n = _handoff_object()
+    monkeypatch.setattr(T, "FIGURES", tmp_path)
+    T.write_anchors(obj)
+
+    got = json.loads((tmp_path / "py_anchors.json").read_text())
+    assert got["n_cells"] == n
+    assert got["n_proteins"] == len(obj.assays["ADT"]._all_feature_names)
+    assert got["n_rna_clusters"] == 2
+    assert got["mean_adt_weight"] == pytest.approx(
+        float(obj.meta_data["ADT.weight"].mean()))
+    assert got["adt_weight_sum"] == pytest.approx(
+        got["mean_adt_weight"] * n, rel=1e-9)

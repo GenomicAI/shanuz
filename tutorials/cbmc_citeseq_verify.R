@@ -7,6 +7,9 @@
 # WNN joint clustering. Writes the R-side figures for the side-by-side tables
 # into tutorials/figures_multimodal/:
 #   * r_01_rna_umap_clusters.png ... r_10_adt_weight_by_celltype.png
+#   * r_adt_clr.csv        per-protein CLR summary (mean/sd/min/max)
+#   * r_cell_weights.csv   per-cell WNN modality weights, keyed by barcode
+#   * r_anchors.json       scalars: cell/gene/protein counts, cluster counts
 #
 # Data: reads the same cache the Python tutorial downloads to. Run
 #   python tutorials/cbmc_citeseq_tutorial.py   # downloads ~15 MB first
@@ -14,8 +17,10 @@
 #   Rscript tutorials/cbmc_citeseq_verify.R
 # Override the data folder with the CBMC_DATA environment variable.
 #
-# Needs: Seurat, ggplot2, patchwork.
-suppressPackageStartupMessages({ library(Seurat); library(ggplot2); library(patchwork) })
+# Needs: Seurat, ggplot2, patchwork, jsonlite, Matrix.
+suppressPackageStartupMessages({
+  library(Seurat); library(ggplot2); library(patchwork); library(jsonlite); library(Matrix)
+})
 set.seed(0)
 
 .args <- commandArgs(trailingOnly = FALSE)
@@ -146,6 +151,44 @@ cat(sprintf("WNN clusters (res=0.6): %d | mean weight RNA %.2f | ADT %.2f\n",
             length(unique(obj$wnn_clusters)), mean(obj$RNA.weight), mean(obj$ADT.weight)))
 cat("Mean ADT weight by protein cell type:\n")
 print(round(sort(tapply(obj$ADT.weight, obj$protein_celltype, mean), decreasing = TRUE), 3))
+
+# ======================= NUMERIC HANDOFF ====================================
+# The figures are compared by eye; these files are not.
+#
+# The per-cell weights are dumped keyed by *barcode* on purpose. Comparing mean
+# ADT weight per cell type — which is all the printed table above does — asks
+# two different cluster partitions the same question and cannot tell a weight
+# difference from a labelling difference. Same-barcode weights can.
+adt_data <- GetAssayData(obj, assay = "ADT", layer = "data")
+write.csv(data.frame(
+  protein = rownames(adt_data),
+  mean = Matrix::rowMeans(adt_data),
+  sd   = apply(as.matrix(adt_data), 1, sd),
+  min  = apply(as.matrix(adt_data), 1, min),
+  max  = apply(as.matrix(adt_data), 1, max)),
+  file.path(FIG, "r_adt_clr.csv"), row.names = FALSE)
+
+write.csv(data.frame(
+  cell             = colnames(obj),
+  RNA.weight       = as.numeric(obj$RNA.weight),
+  ADT.weight       = as.numeric(obj$ADT.weight),
+  rna_cluster      = as.character(obj$rna_clusters),
+  protein_celltype = as.character(obj$protein_celltype)),
+  file.path(FIG, "r_cell_weights.csv"), row.names = FALSE)
+
+anchors <- list(
+  n_cells         = ncol(obj),
+  n_genes         = nrow(obj[["RNA"]]),
+  n_proteins      = nrow(obj[["ADT"]]),
+  n_rna_clusters  = length(levels(obj$rna_clusters)),
+  n_wnn_clusters  = length(unique(obj$wnn_clusters)),
+  mean_rna_weight = mean(obj$RNA.weight),
+  mean_adt_weight = mean(obj$ADT.weight),
+  adt_weight_sum  = sum(obj$ADT.weight)
+)
+writeLines(jsonlite::toJSON(anchors, digits = 22, auto_unbox = TRUE, pretty = TRUE),
+           file.path(FIG, "r_anchors.json"))
+cat("Wrote r_adt_clr.csv, r_cell_weights.csv and r_anchors.json to", FIG, "\n")
 
 # ============================ FIGURES =======================================
 sv <- function(p, name, w = 8, h = 6.5)

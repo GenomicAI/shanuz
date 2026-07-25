@@ -23,6 +23,26 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+- **The CITE-seq tutorial now compares the CLR transform and the WNN weights,
+  per protein and per cell.** `cbmc_citeseq_verify.R` dumps the per-protein CLR
+  summary and the per-cell modality weights **keyed by barcode**; `--report`
+  compares them. Keying by barcode is the point: a mean-per-cell-type table asks
+  two different cluster partitions the same question and cannot separate "the
+  weights differ" from "the labels differ".
+
+  Measured against Seurat 5.5.1: ADT CLR agrees to **4.2e-15** on every
+  statistic, per-cell ADT weight correlates at Pearson **0.9847** (Spearman
+  0.9816, median abs diff 0.0152) over 8,617 shared barcodes, cell-type labels
+  are **99.29%** concordant, and cells, genes, proteins, RNA clusters and WNN
+  clusters all match exactly.
+
+  **This settles the progenitor question the vignette had left open.** It
+  recorded progenitor 0.06 away from Seurat where every other cell type agreed
+  to 0.02, and said explicitly that the small-population-noise explanation was
+  "a reading, not something this tutorial establishes". Re-grouping shanuz's own
+  weights by R's labels puts progenitor at **0.283** against R's 0.285 — the
+  weights agree; 61 of 8,617 cells sit on the progenitor/erythroid boundary and
+  land differently. Not a WNN difference.
 - **The SCTransform tutorial now compares the fitted model, not just the
   figures.** `pbmc3k_sctransform_verify.R` dumps Seurat's own
   `SCTModel.list[[1]]@feature.attributes` plus the ranked variable features and
