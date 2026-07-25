@@ -53,7 +53,7 @@ the right shape, full of exactly the right numbers, in the wrong order.
 
 | Anchor | Result |
 |---|---|
-| **Anchors matching Seurat exactly** | **89 / 91** |
+| **Anchors matching Seurat exactly** | **91 / 91** |
 | Cells — count and order (md5 of the barcode vector) | **identical** (`e9278a0983c2`) |
 | Features — count and order | **identical**, 13,714 |
 | Variable features — the shared 2,000-gene basis | **identical** (`fbd5a143114e`) |
@@ -68,7 +68,7 @@ the right shape, full of exactly the right numbers, in the wrong order.
 | **`split` → `JoinLayers` round trip** | **identity** — name, cell order and matrix all restored |
 | Command log | 5 entries, `NormalizeData.RNA` … `FindNeighbors.RNA.pca` — **match** |
 | PCA standard deviations | agree to ~4e-4 relative (randomized SVD vs `irlba`) |
-| kNN / SNN graph edges | **differ** — see [what is left standing](#two-differences-left-standing) |
+| kNN / SNN graph edges | `RNA_nn` **54,000** = 2,700 × 20 and `RNA_snn` **199,616** on both |
 
 ---
 
@@ -409,19 +409,29 @@ lookup table users query, so it is data rather than decoration.
 default identity class — was never created. And `add_meta_data` rejected the
 plain vector that R's `AddMetaData` documents and every vignette passes it.
 
-### Two differences left standing
+### The two graph differences, since closed
 
-`FindNeighbors` builds a **symmetrized** kNN graph where Seurat's is directed.
-Seurat gives every cell exactly `k.param` neighbours — nnz is exactly
-2,700 × 20 = 54,000 — while shanuz's runs from 20 to 83, mean 28.1, for 75,740.
-Separately, its SNN drops the self-edge Seurat keeps, which accounts for about
-2,700 of the 4,044-edge gap (194,924 against 198,968).
+This tutorial originally reported two neighbour-graph differences it declined to
+fix, on the grounds that they belonged to `find_neighbors` rather than the object
+model. Both were investigated and fixed in **PR #55**, and both are now exact:
+
+- `find_neighbors` stored a **symmetrized** kNN graph where Seurat's is directed,
+  so its degree ran from 20 to 83 (mean 28.1, nnz 75,740) against Seurat's flat
+  `k.param`. It now stores the directed graph — degree is exactly 20 for every
+  cell and nnz is exactly 2,700 × 20 = **54,000**, matching Seurat.
+- The SNN dropped the self-edge Seurat keeps. It is now present on all 2,700
+  cells, and `RNA_snn` nnz is **199,616** on both sides.
 
 ![kNN degree distribution](figures_objects/py_03_nn_degree.png)
 
-Both are `find_neighbors`, not the object model, and both change what clustering
-consumes — so they belong to their own comparison rather than riding along with
-an object-model change. They are recorded rather than quietly absorbed.
+One wrinkle is worth keeping, because it made the comparison lie for a while
+after the fix had landed. `FindNeighbors` defaults to `nn.method = "annoy"`,
+which is *approximate*, while shanuz's neighbour search is exact — so the two
+sides were building their graphs from different neighbour tables. That cost 182
+SNN edges (199,434 against 199,616) and read as a shanuz defect. This tutorial's
+R script now pins `nn.method = "rann"` so both sides use exact neighbours, and
+the graphs agree. If you change the neighbour method on one side only, expect
+this anchor to move.
 
 ---
 
@@ -437,16 +447,16 @@ an object-model change. They are recorded rather than quietly absorbed.
 | `reductions` | 5 | 5 |
 | `variable_features` | 4 | 4 |
 | `features` · `cells` · `assay` | 4 each | 4 each |
-| `graphs` | 4 | **2** |
+| `graphs` | 4 | 4 |
 | `meta` | 3 | 3 |
 | `shape` · `join_all_layers` | 2 each | 2 each |
 | `commands` | 1 | 1 |
-| **Total** | **91** | **89** |
+| **Total** | **91** | **91** |
 
-The two shortfalls are the neighbour-graph differences above. Every other
-anchor is an exact match; the only tolerances applied anywhere are on the two
-fields that read a PCA, and they are named explicitly in `FLOAT_TOLERANCES`
-rather than applied across the board.
+Every anchor is an exact match; the only tolerances applied anywhere are on the
+two fields that read a PCA, and they are named explicitly in `FLOAT_TOLERANCES`
+rather than applied across the board. The `graphs` row was 2 of 4 when this
+tutorial was written — see [the two graph differences](#the-two-graph-differences-since-closed).
 
 ---
 

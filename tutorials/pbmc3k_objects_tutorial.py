@@ -79,12 +79,16 @@ Also: ``orig.ident`` — the first column of every Seurat object's metadata — 
 never created, and ``add_meta_data`` rejected the plain vector that R's
 ``AddMetaData`` documents and every vignette passes it.
 
-Two differences are left standing on purpose. ``FindNeighbors`` builds a
-*symmetrized* kNN graph where Seurat's is directed (nnz 75,740 against exactly
-2,700 × 20 = 54,000), and the SNN drops the self-edge Seurat keeps. Both are
-``find_neighbors``, not the object model, and both change what clustering
-consumes, so they belong to their own comparison rather than to this one. They
-are recorded rather than quietly absorbed.
+Two differences were left standing here on purpose and closed later, in PR #55.
+``FindNeighbors`` built a *symmetrized* kNN graph where Seurat's is directed
+(nnz 75,740 against exactly 2,700 × 20 = 54,000), and the SNN dropped the
+self-edge Seurat keeps. Both belonged to ``find_neighbors`` rather than to the
+object model, so they got their own comparison; both now match exactly.
+
+The R side pins ``nn.method = "rann"``. Seurat defaults to the approximate
+``annoy`` while this port's neighbour search is exact, so the default compared
+two different neighbour tables and charged the difference — 182 SNN edges — to
+the object model.
 
 Conventions
 -----------
