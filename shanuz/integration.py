@@ -128,8 +128,10 @@ def integrate_layers(
     Parameters
     ----------
     method         : 'harmony', 'cca', or 'rpca'.
-    orig_reduction : reduction to integrate (only used by 'harmony';
-                     default 'pca')
+    orig_reduction : reduction to integrate (default 'pca'). Every method
+                     corrects this reduction and writes a new one of the same
+                     shape — the anchor methods included, which is what makes
+                     them interchangeable with Harmony here.
     new_reduction  : storage key for the integrated reduction
                      (defaults to '{method}')
     group_by       : batch column identifying the layers/batches to integrate
@@ -160,6 +162,7 @@ def integrate_layers(
             group_by=group_by,
             reduction=reduction,
             new_reduction=new_reduction,
+            orig_reduction=orig_reduction,
             assay=assay,
             **kwargs,
         )
@@ -175,22 +178,37 @@ def _integrate_anchor_reduction(
     group_by: str,
     reduction: str,
     new_reduction: str,
+    orig_reduction: str = "pca",
     assay: Optional[str] = None,
-    n_pcs: int = 30,
     seed: int = 42,
     **kwargs,
 ) -> None:
     """CCA/RPCA layer integration → a corrected reduction (Seurat v5 path).
 
-    Splits the object by ``group_by`` into per-batch datasets, finds anchors
-    between them (:func:`shanuz.anchors.find_integration_anchors`), builds the
-    batch-corrected ``"integrated"`` assay (:func:`shanuz.anchors.integrate_data`),
-    then runs ``scale_data`` + ``run_pca`` on it and stores the resulting
-    embedding under ``new_reduction`` (reindexed to the object's cell order).
+    Mirrors ``CCAIntegration`` / ``RPCAIntegration``: split the object by
+    ``group_by``, find anchors between the batches, and hand them to
+    :func:`shanuz.anchors.integrate_embeddings`, which corrects
+    ``orig_reduction`` in place of the expression matrix.
+
+    This is **not** the v4 ``IntegrateData`` workflow, and the difference is not
+    cosmetic. v4 corrects expression and then re-scales and re-runs PCA, which
+    lands you in a *new* basis; v5 corrects the existing embedding, so the
+    output stays in ``orig_reduction``'s basis and keeps its loadings. Running
+    the v4 workflow behind this API produced an embedding that agreed with
+    Seurat's on 1 of 30 dimensions — not because the correction was wrong, but
+    because it was a different object with the same shape.
+
+    Two further details are carried over from the R:
+
+    * ``k.filter`` is ``NA`` for **both** methods here, so the expression-space
+      anchor filter never runs (v4 applies it to CCA);
+    * ``RPCAIntegration`` runs ``ScaleData`` on each batch, while
+      ``CCAIntegration`` slices the object's *existing* ``scale.data``. Scaling
+      per batch centres each on its own mean, which is what reciprocal PCA
+      needs and what CCA is deliberately not given.
     """
-    from .anchors import find_integration_anchors, integrate_data
+    from .anchors import find_integration_anchors, integrate_embeddings
     from .preprocessing import scale_data
-    from .reduction import run_pca
 
     if isinstance(group_by, (list, tuple)):
         if len(group_by) != 1:
@@ -201,8 +219,18 @@ def _integrate_anchor_reduction(
     if group_by not in seurat.meta_data.columns:
         raise KeyError(f"group_by column {group_by!r} not found in meta_data.")
 
+    if orig_reduction not in seurat.reductions:
+        raise KeyError(
+            f"orig_reduction {orig_reduction!r} not found. "
+            "IntegrateLayers corrects an existing reduction — run run_pca() first."
+        )
+
     k_weight = kwargs.pop("k_weight", 100)
     sd_weight = kwargs.pop("sd_weight", 1.0)
+    dims_to_integrate = kwargs.pop("dims_to_integrate", None)
+    # CCAIntegration and RPCAIntegration both call FindIntegrationAnchors with
+    # k.filter = NA. v4's default of 200 only applies to the object-list API.
+    kwargs.setdefault("k_filter", None)
 
     groups = list(pd.unique(seurat.meta_data[group_by]))
     if len(groups) < 2:
@@ -217,16 +245,15 @@ def _integrate_anchor_reduction(
         for g in groups
     ]
 
-    # Seurat's anchor workflow scales each batch independently (SplitObject →
-    # ScaleData per object → per-object PCA), so every batch's features are
-    # centred on that batch's own mean before the shared space is built. The
-    # object arrives here scaled globally (upstream ScaleData over all cells);
-    # re-scale each batch so the (reciprocal-)PCA spaces line up the way
-    # Seurat's do. This is what lets reciprocal PCA find enough good anchors —
-    # global scaling leaves each batch's mean shift in, and RPCA then under-finds
-    # mutual pairs and under-integrates.
-    for obj in objects:
-        scale_data(obj, assay=assay)
+    # RPCAIntegration re-scales each batch (ScaleData per object → per-object
+    # PCA), so every batch is centred on its own mean before the reciprocal
+    # spaces are built; global scaling leaves the batch mean-shift in PC1 and
+    # RPCA then under-finds mutual pairs. CCAIntegration does the opposite — it
+    # assigns each batch a *slice* of the object's existing scale.data — and
+    # subsetting already carried that slice through, so CCA is left alone.
+    if reduction == "rpca":
+        for obj in objects:
+            scale_data(obj, assay=assay)
 
     # Seurat corrects the SMALLER dataset onto the larger one:
     # PairwiseIntegrateReference reverses the merge pair whenever the second
@@ -239,20 +266,14 @@ def _integrate_anchor_reduction(
     anchors = find_integration_anchors(
         objects, reduction=reduction, reference=reference, seed=seed, **kwargs
     )
-    merged = integrate_data(
-        anchors, k_weight=k_weight, sd_weight=sd_weight, seed=seed
+    corrected = integrate_embeddings(
+        anchors,
+        seurat.reductions[orig_reduction],
+        new_reduction=new_reduction,
+        dims_to_integrate=dims_to_integrate,
+        k_weight=k_weight,
+        sd_weight=sd_weight,
     )
 
-    scale_data(merged, assay="integrated")
-    run_pca(
-        merged,
-        n_pcs=n_pcs,
-        assay="integrated",
-        reduction_name=new_reduction,
-        seed=seed,
-    )
-
-    # Reindex the integrated embedding back to the original cell order.
-    seurat.reductions[new_reduction] = merged.reductions[new_reduction].subset(
-        cells=all_cells
-    )
+    # Reindex the corrected embedding back to the original cell order.
+    seurat.reductions[new_reduction] = corrected.subset(cells=all_cells)

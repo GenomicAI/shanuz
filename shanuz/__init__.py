@@ -28,6 +28,7 @@ from .integration import run_harmony, integrate_layers
 from .anchors import (
     find_integration_anchors,
     integrate_data,
+    integrate_embeddings,
     IntegrationAnchors,
 )
 from .transfer import (
@@ -163,6 +164,7 @@ __all__ = [
     "integrate_layers",
     "find_integration_anchors",
     "integrate_data",
+    "integrate_embeddings",
     "IntegrationAnchors",
     "find_transfer_anchors",
     "transfer_data",

@@ -20,6 +20,7 @@ import scipy.sparse as sp
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from shanuz.anchors import (  # noqa: E402
+    _anchor_feature_matrix,
     _anchor_weights,
     _cca,
     _check_features,
@@ -33,7 +34,9 @@ from shanuz.anchors import (  # noqa: E402
     find_integration_anchors,
     integrate_data,
 )
+from shanuz.integration import integrate_layers  # noqa: E402
 from shanuz.preprocessing import normalize_data, scale_data  # noqa: E402
+from shanuz.reduction import run_pca  # noqa: E402
 from shanuz.shanuz import create_shanuz_object  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -476,12 +479,14 @@ def test_integrate_layers_makes_the_largest_batch_the_reference():
     small = objs[0].subset(cells=objs[0].cell_names()[:40])
     merged = small.merge([objs[1]])
     merged.meta_data["batch"] = (["a"] * 40) + (["b"] * 90)
+    scale_data(merged)
+    run_pca(merged, n_pcs=10)
 
     A.find_integration_anchors = spy
     try:
         _integrate_anchor_reduction(
             merged, group_by="batch", reduction="cca",
-            new_reduction="int", k_weight=15, n_pcs=10,
+            new_reduction="int", k_weight=15, dims=10,
         )
     finally:
         A.find_integration_anchors = original
@@ -514,3 +519,153 @@ def test_integrate_data_leaves_the_reference_untouched():
     qraw = objs[1].get_assay().layer_data("data", features=feats)
     qraw = qraw.toarray() if sp.issparse(qraw) else np.asarray(qraw)
     assert not np.allclose(got[:, query_cols], qraw), "the query must move"
+
+
+# ----------------------------------------------------------------------
+# IntegrateEmbeddings — the Seurat v5 IntegrateLayers path
+#
+# These pin the v5 path as a *different algorithm* from v4's IntegrateData,
+# not a wrapper over it. Running v4 behind this API produced an embedding that
+# agreed with Seurat's on 1 of 30 dimensions, and the suite could not tell:
+# both routes return a (cells x dims) array of the right shape.
+# ----------------------------------------------------------------------
+
+
+def _batched(n_a=90, n_b=140, n_pcs=10):
+    """One object with two batches, scaled and reduced — the v5 entry state."""
+    objs = _pair(n=max(n_a, n_b))
+    a = objs[0].subset(cells=objs[0].cell_names()[:n_a])
+    b = objs[1].subset(cells=objs[1].cell_names()[:n_b])
+    merged = a.merge([b])
+    merged.meta_data["batch"] = (["a"] * n_a) + (["b"] * n_b)
+    scale_data(merged)
+    run_pca(merged, n_pcs=n_pcs)
+    return merged, n_a, n_b
+
+
+@pytest.mark.parametrize("method", ["cca", "rpca"])
+def test_integrate_layers_corrects_the_input_reduction_not_a_fresh_pca(method):
+    """The v5 output must live in ``orig_reduction``'s basis.
+
+    The sharpest observable: ``IntegrateEmbeddings`` copies the *reference*
+    batch through untouched, so those rows are bit-identical to the input
+    reduction. The v4 route (correct expression, re-scale, re-run PCA) moves
+    every cell, reference included, and lands in a new basis entirely.
+    """
+    merged, n_a, n_b = _batched()
+    before = np.asarray(merged.reductions["pca"].cell_embeddings).copy()
+    cells = merged.cell_names()
+
+    integrate_layers(merged, method=method, group_by="batch",
+                     new_reduction="out", k_weight=15, dims=10)
+    after = np.asarray(merged.reductions["out"].cell_embeddings)
+
+    assert after.shape == before.shape
+    # batch "b" is larger, so it is the reference and must be untouched
+    ref = np.array([c.startswith("b2_") for c in cells])
+    assert ref.sum() == n_b
+    assert np.abs(after[ref] - before[ref]).max() == 0.0, (
+        "reference cells moved — this is not IntegrateEmbeddings"
+    )
+    assert np.abs(after[~ref] - before[~ref]).max() > 0.0, "the query must move"
+
+
+def test_integrate_embeddings_keeps_the_input_loadings():
+    """``CreateDimReducObject(..., loadings = Loadings(reductions)[, dims])`` —
+    the corrected reduction still maps back to genes. A re-run PCA would have
+    its own, different loadings."""
+    merged, _a, _b = _batched()
+    integrate_layers(merged, method="rpca", group_by="batch",
+                     new_reduction="out", k_weight=15, dims=10)
+    got = merged.reductions["out"].feature_loadings
+    want = merged.reductions["pca"].feature_loadings
+    assert got is not None and np.array_equal(np.asarray(got), np.asarray(want))
+
+
+@pytest.mark.parametrize("method", ["cca", "rpca"])
+def test_v5_path_disables_the_anchor_filter(method):
+    """``CCAIntegration``/``RPCAIntegration`` both call FindIntegrationAnchors
+    with ``k.filter = NA``. v4's default of 200 belongs to the object-list API
+    only, and applying it here drops ~15% of Seurat's CCA anchors."""
+    import shanuz.anchors as A
+
+    captured = {}
+    original = A.find_integration_anchors
+
+    def spy(objects, **kw):
+        captured.update(kw)
+        return original(objects, **kw)
+
+    merged, _a, _b = _batched()
+    A.find_integration_anchors = spy
+    try:
+        integrate_layers(merged, method=method, group_by="batch",
+                         new_reduction="out", k_weight=15, dims=10)
+    finally:
+        A.find_integration_anchors = original
+
+    assert captured, "the spy must actually have run"
+    assert captured["k_filter"] is None, (
+        f"v5 must pass k_filter=None, got {captured['k_filter']!r}"
+    )
+
+
+def test_rpca_rescales_each_batch_but_cca_does_not():
+    """The two v5 methods differ here and it is deliberate: ``RPCAIntegration``
+    runs ``ScaleData`` per object, ``CCAIntegration`` slices the object's
+    existing ``scale.data``. Reciprocal PCA needs each batch centred on its own
+    mean; CCA is given the pooled centring on purpose."""
+    import shanuz.anchors as A
+
+    seen = {}
+    original = A.find_integration_anchors
+
+    def spy(objects, **kw):
+        seen[kw["reduction"]] = [
+            _anchor_feature_matrix(o, o.feature_names(), "scale.data")
+            for o in objects
+        ]
+        return original(objects, **kw)
+
+    A.find_integration_anchors = spy
+    try:
+        for method in ("cca", "rpca"):
+            merged, _a, _b = _batched()
+            integrate_layers(merged, method=method, group_by="batch",
+                             new_reduction="out", k_weight=15, dims=10)
+    finally:
+        A.find_integration_anchors = original
+
+    # per-batch scaling drives each batch's own gene means to ~0; pooled
+    # scaling leaves each batch offset by its share of the batch effect.
+    rpca_off = max(abs(m.mean(axis=1)).max() for m in seen["rpca"])
+    cca_off = max(abs(m.mean(axis=1)).max() for m in seen["cca"])
+    assert rpca_off < 1e-8, f"rpca batches are not re-scaled (offset {rpca_off:.3g})"
+    assert cca_off > 1e-3, (
+        f"cca batches were re-scaled (offset {cca_off:.3g}); it must inherit "
+        "the pooled scale.data"
+    )
+
+
+def test_integrate_layers_requires_the_reduction_to_exist():
+    """v5 corrects an existing reduction, so a missing one is a user error to
+    report, not something to silently compute."""
+    objs = _pair(n=90)
+    merged = objs[0].merge([objs[1]])
+    merged.meta_data["batch"] = (["a"] * 90) + (["b"] * 90)
+    with pytest.raises(KeyError, match="orig_reduction"):
+        integrate_layers(merged, method="cca", group_by="batch", k_weight=15)
+
+
+def test_integrate_embeddings_rejects_a_reduction_missing_cells():
+    """A reduction that does not span every dataset would silently correct a
+    subset; Seurat errors on the same condition in ValidateParams."""
+    from shanuz.anchors import integrate_embeddings
+
+    merged, n_a, _b = _batched()
+    objs = _pair(n=90)
+    anchors = find_integration_anchors(objs, reduction="cca", dims=10)
+    # a reduction covering only the first batch's cells
+    partial = merged.reductions["pca"].subset(cells=merged.cell_names()[:n_a])
+    with pytest.raises(ValueError, match="absent from reduction"):
+        integrate_embeddings(anchors, partial, k_weight=15)

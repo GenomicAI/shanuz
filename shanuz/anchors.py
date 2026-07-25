@@ -46,6 +46,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+from .dimreduc import DimReduc
+
 REDUCTIONS = ("cca", "rpca")
 
 
@@ -717,6 +719,102 @@ def integrate_data(
     merged.assays[new_assay] = integrated_assay
     merged.active_assay = new_assay
     return merged
+
+
+def integrate_embeddings(
+    anchors: IntegrationAnchors,
+    reduction,
+    new_reduction: str = "integrated_dr",
+    dims_to_integrate: Optional[list[int]] = None,
+    k_weight: int = 100,
+    sd_weight: float = 1.0,
+) -> DimReduc:
+    """Batch-correct an existing reduction (Seurat's ``IntegrateEmbeddings``).
+
+    The v5 counterpart to :func:`integrate_data`, and a genuinely different
+    algorithm rather than a wrapper over it. ``IntegrateData`` corrects
+    *expression* and leaves you to re-scale and re-run PCA; ``IntegrateEmbeddings``
+    corrects the **embedding itself**, so the output lives in the input
+    reduction's basis and keeps its loadings.
+
+    Seurat implements it by transposing the embedding into a fake assay whose
+    "features" are the dimensions (``drtointegrate-1 …``) and pushing that
+    through the very same anchor machinery, which is why this shares
+    :func:`_anchor_weights` with :func:`integrate_data`. The one substantive
+    difference is the weight space: ``RunIntegration``'s ``dims = NULL`` branch
+    hands ``FindWeights`` the ``drtointegrate`` matrix itself, so neighbours are
+    measured in the *uncorrected embedding* — not in the fresh per-pair PCA
+    that the expression path builds.
+
+    Parameters
+    ----------
+    anchors           : an :class:`IntegrationAnchors` from
+                        :func:`find_integration_anchors`.
+    reduction         : a :class:`DimReduc` covering every cell in
+                        ``anchors.objects`` — the reduction to correct.
+    new_reduction     : key for the returned reduction.
+    dims_to_integrate : which dimensions to correct (0-indexed; default all).
+    k_weight          : anchors used to weight each query cell's correction.
+    sd_weight         : bandwidth of the anchor kernel; enters as ``(2/sd)²``.
+
+    Returns
+    -------
+    DimReduc
+        The corrected embedding, cells in merged order (reference first).
+    """
+    objects = anchors.objects
+    ref = anchors.reference
+
+    emb = np.asarray(reduction.cell_embeddings)
+    pos = {c: i for i, c in enumerate(reduction.cells())}
+    dims = list(range(emb.shape[1])) if dims_to_integrate is None \
+        else list(dims_to_integrate)
+
+    missing = [c for o in objects for c in o.cell_names() if c not in pos]
+    if missing:
+        raise ValueError(
+            f"{len(missing)} cell(s) in the anchor objects are absent from "
+            f"reduction {reduction.key!r} (first: {missing[0]!r}). "
+            "IntegrateEmbeddings needs a reduction spanning every dataset."
+        )
+
+    def block(d):
+        """The dataset's embedding as dims × cells — Seurat's drtointegrate."""
+        cells = objects[d].cell_names()
+        return emb[[pos[c] for c in cells]][:, dims].T
+
+    order = [ref] + [d for d in range(len(objects)) if d != ref]
+    ref_block = block(ref)
+    blocks = {ref: ref_block}
+
+    for d in order[1:]:
+        query_block = block(d)
+        pair = anchors.anchors[anchors.anchors["dataset2"] == d]
+        if len(pair) == 0:
+            blocks[d] = query_block
+            continue
+        i_idx = pair["cell1"].to_numpy()
+        j_idx = pair["cell2"].to_numpy()
+        bv = ref_block[:, i_idx] - query_block[:, j_idx]  # dims × n_anchor
+        weights = _anchor_weights(
+            query_block.T, j_idx, pair["score"].to_numpy(), k_weight, sd_weight
+        )
+        blocks[d] = query_block + bv @ weights
+
+    corrected = np.hstack([blocks[d] for d in order]).T  # cells × dims
+    cells = [c for d in order for c in objects[d].cell_names()]
+    loadings = None
+    if reduction.feature_loadings is not None and len(reduction.feature_loadings):
+        loadings = np.asarray(reduction.feature_loadings)[:, dims]
+    key = f"{new_reduction.replace('_', '').replace('.', '')}_"
+    return DimReduc(
+        cell_embeddings=corrected,
+        feature_loadings=loadings,
+        assay_used=reduction.assay_used,
+        key=key,
+        cell_names=cells,
+        feature_names=(reduction.features() if loadings is not None else None),
+    )
 
 
 def _pair_weight_embedding(
