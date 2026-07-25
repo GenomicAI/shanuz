@@ -239,3 +239,148 @@ def test_negbinom_is_not_a_likelihood_ratio_test():
         f"negbinom still matches the old moment-dispersion LRT "
         f"(got {got:.3e}, old LRT {old:.3e})"
     )
+
+
+# ---------------------------------------------------------------------------
+# find_all_markers — Seurat's return.thresh, and the order rows come back in
+# ---------------------------------------------------------------------------
+#
+# T1's handoff found this. On PBMC 3k, two clusters ended up with *identical*
+# cell membership on both sides; on those two, shanuz returned 190 and 383
+# genes against Seurat's 151 and 242. Every extra row was a gene shanuz agreed
+# with Seurat about numerically (max |avg_log2FC diff| 4.9e-15) and that Seurat
+# simply does not return: `FindAllMarkers(return.thresh = 1e-2)` drops
+# everything with p_val >= 0.01. Applying the same filter reproduced Seurat's
+# gene sets exactly, 151/151 and 242/242.
+
+def _three_cluster_object():
+    """3 clusters x 30 cells, each with one strong private marker.
+
+    The rest of the genes are pure noise, which is what makes the threshold
+    test meaningful: without a filter they still pass the pct and logfc
+    pre-filters often enough to reach the output table.
+    """
+    rng = np.random.default_rng(4)
+    g, n = 30, 30
+    counts = rng.negative_binomial(4, 0.4, size=(g, 3 * n)).astype(float)
+    counts[0, :n] += 30          # g0 marks cluster A
+    counts[1, n:2 * n] += 30     # g1 marks cluster B
+    counts[2, 2 * n:] += 30      # g2 marks cluster C
+    obj = create_shanuz_object(
+        sp.csc_matrix(counts), assay="RNA",
+        feature_names=[f"g{i}" for i in range(g)],
+        cell_names=[f"c{i}" for i in range(3 * n)],
+    )
+    normalize_data(obj)
+    obj.idents = ["0"] * n + ["1"] * n + ["2"] * n
+    return obj
+
+
+def test_find_all_markers_applies_seurats_return_thresh():
+    from shanuz.markers import find_all_markers
+
+    obj = _three_cluster_object()
+    unfiltered = find_all_markers(obj, return_thresh=None)
+    default = find_all_markers(obj)
+
+    # Anti-vacuity: the fixture must actually produce rows the filter removes,
+    # or "all p_val < 0.01" below would hold no matter what the code did.
+    assert (unfiltered["p_val"] >= 1e-2).any(), (
+        "fixture yields no non-significant rows — the threshold assertions "
+        "below would be vacuous"
+    )
+    assert len(default) < len(unfiltered)
+    assert (default["p_val"] < 1e-2).all()
+    # and the filter is the *only* difference: same rows otherwise
+    kept = unfiltered[unfiltered["p_val"] < 1e-2]
+    assert set(zip(default["cluster"], default["gene"])) == \
+        set(zip(kept["cluster"], kept["gene"]))
+
+
+def test_find_all_markers_return_thresh_is_configurable():
+    from shanuz.markers import find_all_markers
+
+    obj = _three_cluster_object()
+    loose = find_all_markers(obj, return_thresh=0.5)
+    tight = find_all_markers(obj, return_thresh=1e-6)
+    assert len(tight) < len(loose)
+    assert (loose["p_val"] < 0.5).all()
+    assert (tight["p_val"] < 1e-6).all()
+
+
+def _tied_marker_object():
+    """Six markers that separate the two groups *perfectly*, at six magnitudes.
+
+    A Wilcoxon test on a perfect separation gives the maximal U statistic no
+    matter how large the gap is, so all six genes come back with the same
+    p-value while their fold changes differ by an order of magnitude. That is
+    the real situation this ordering exists for: on PBMC 3k, Seurat reported
+    between 40 and 302 genes per cluster tied at exactly p = 0.
+
+    The `arange` matters. Every marker must have the *same* pattern of ties
+    within itself — 25 distinct positive values against 25 zeros — because the
+    normal approximation carries a tie correction that depends on that pattern.
+    Draw the group-A values randomly and the six p-values land within a few
+    parts in a thousand of each other instead of on top of each other, which is
+    close enough to look tied and not close enough to be.
+    """
+    rng = np.random.default_rng(7)
+    g, n = 20, 25
+    counts = rng.integers(0, 3, size=(g, 2 * n)).astype(float)
+    for i, lift in enumerate([10, 20, 40, 80, 160, 320]):
+        counts[i, :n] = lift + np.arange(n)                 # group A, well clear
+        counts[i, n:] = 0.0
+    obj = create_shanuz_object(
+        sp.csc_matrix(counts), assay="RNA",
+        feature_names=[f"g{i}" for i in range(g)],
+        cell_names=[f"c{i}" for i in range(2 * n)],
+    )
+    normalize_data(obj)
+    obj.idents = ["0"] * n + ["1"] * n
+    return obj
+
+
+def test_find_all_markers_breaks_p_value_ties_on_fold_change():
+    """Seurat orders each cluster by `order(gde$p_val, -gde[, 2])`.
+
+    This is not cosmetic. Without the tie-break, "the top N markers" — which is
+    what every tutorial in the suite prints — is decided by incoming row order
+    among the genes that tie, and the strongest markers are exactly the ones
+    that tie.
+    """
+    from shanuz.markers import find_all_markers
+
+    got = find_all_markers(_tied_marker_object())
+    checked = 0
+    for cluster, block in got.groupby("cluster", sort=False):
+        p = block["p_val"].to_numpy()
+        fc = block["avg_log2FC"].to_numpy()
+        assert np.all(np.diff(p) >= 0), f"cluster {cluster} not sorted by p_val"
+        ties = p[:-1] == p[1:]
+        checked += int(ties.sum())
+        assert np.all(np.diff(fc)[ties] <= 0), (
+            f"cluster {cluster} does not break p_val ties on descending log2FC"
+        )
+    # Anti-vacuity: with no tied pairs anywhere, the loop above asserts nothing.
+    assert checked >= 4, (
+        f"fixture produced only {checked} tied adjacent pairs — the tie-break "
+        f"assertion would be vacuous"
+    )
+
+
+def test_cluster_labels_are_ordered_numerically_past_ten():
+    """`sorted()` on strings puts "10" before "2".
+
+    Seurat's identities are a factor ordered 0, 1, ... 10, 11, so a dataset
+    with eleven or more clusters came back in a different cluster order —
+    silently, and only past ten clusters, which is why every tutorial in the
+    suite (eight and nine clusters on PBMC 3k) missed it.
+    """
+    from shanuz.markers import _ident_sort_key
+
+    labels = [str(i) for i in range(12)]
+    assert sorted(labels, key=_ident_sort_key) == labels
+    assert sorted(labels) != labels          # the bug this replaces
+    # non-numeric labels still sort, and sort after the numeric ones
+    mixed = sorted(["B", "2", "10", "CD4 T"], key=_ident_sort_key)
+    assert mixed == ["2", "10", "B", "CD4 T"]

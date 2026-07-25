@@ -23,6 +23,42 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+- **The PBMC 3k and PBMC 8k tutorials now have numeric handoffs against R
+  Seurat, closing the last two compared entirely by eye.** Every R panel in the
+  PBMC 3k walkthrough links a canonical satijalab.org image, so nothing failed
+  if the numbers behind those pictures drifted. `pbmc3k_verify.R` now writes
+  per-cell QC and PCA keyed by barcode, per-gene VST statistics, the marker
+  table and a set of scalar anchors; `pbmc8k_subclustering_verify.R` writes the
+  global cell table and the T/NK compartment's membership. Both tutorials gained
+  a `--report` that compares them. Neither side is pinned to the other — both
+  run their own pipeline from the same 10x bytes, which is what makes the
+  comparison mean anything.
+
+  PBMC 3k against Seurat 5.5.1: **the same 2,638 barcodes** survive QC (nCount
+  and nFeature exact, percent.mt to 5.3e-15), the VST means agree to 4.8e-14,
+  **1,998 of 2,000** variable features are shared, PCA over the 10 dims the
+  clustering uses matches at **|r| 0.9988** with no reordering, the kNN graph is
+  52,760 edges on both sides, and the clusters agree at **ARI 0.938**
+  (8 vs 9 — the one Seurat has and shanuz does not is a 32-cell dendritic-cell
+  population whose cells land, all 32, in shanuz's CD14+ Mono cluster).
+
+  PBMC 8k: **the same 7,475 barcodes**, global clusters at **ARI 0.977**, and
+  the T/NK compartment handed to the subclustering stage matches at **Jaccard
+  0.9991** — 4,631 of 4,635 cells are the same barcodes. Subclusters then agree
+  at ARI 0.916 and the subset labels at 98.2%. The compartment is compared by
+  barcode on purpose: everything in stage two is conditioned on which cells
+  stage one selected, so a compartment of the right size drawn from the wrong
+  clusters would pass a count check and make every later number incomparable.
+
+  Two stale claims fell out. `tutorials/README.md` recorded "Clusters at
+  resolution 0.5: 9 ✅" and "All 6 canonical cell types recovered … DC ✅" for
+  PBMC 3k; shanuz finds 8 and does not separate DC on that dataset. Both, and
+  the vignette's "**9 clusters** in both R and Python", are now the measured
+  numbers with the provenance traced from the LOESS fit down to the 286 SNN
+  edges that move the boundary. PBMC 8k runs the *opposite* way — there shanuz
+  splits Seurat's merged Platelet/DC cluster in two — so neither run is
+  uniformly finer, which the docs now say.
+
 - **The CITE-seq tutorial now compares the CLR transform and the WNN weights,
   per protein and per cell.** `cbmc_citeseq_verify.R` dumps the per-protein CLR
   summary and the per-cell modality weights **keyed by barcode**; `--report`
@@ -89,6 +125,28 @@ on `main`; none of it is on PyPI.
   now record them as closed.
 
 ### Fixed
+
+- **`find_all_markers` was missing Seurat's `return.thresh`, and did not break
+  p-value ties.** `FindAllMarkers` defaults to `return.thresh = 1e-2` and
+  returns only genes below it; shanuz returned everything that survived the
+  `min_pct` and `logfc_threshold` pre-filters, including plainly
+  non-significant rows. The PBMC 3k handoff found it the decisive way: two
+  clusters came out with *identical* cell membership on both sides, and on
+  those two shanuz returned 190 and 383 genes against Seurat's 151 and 242 —
+  every extra row a gene the two agreed about numerically (max `avg_log2FC`
+  difference 4.9e-15) and that Seurat simply does not return. Applying the same
+  filter reproduces Seurat's gene sets **exactly**, 151/151 and 242/242.
+
+  Rows are now also ordered by `p_val` ascending then `avg_log2FC` descending
+  within each cluster, matching `order(gde$p_val, -gde[, 2])`. This is not
+  cosmetic: Wilcoxon p-values tie at exactly 0 for the strongest markers — 40
+  to 302 genes per cluster on PBMC 3k — so without the tie-break "the top N
+  markers", which is what every tutorial prints, was decided by incoming row
+  order. Pass `return_thresh=None` for the old unfiltered table.
+
+  Cluster labels are also now iterated numerically rather than
+  lexicographically, so a dataset with eleven or more clusters comes back in
+  Seurat's factor order instead of 0, 1, 10, 11, 2, …
 
 *The neighbour graphs, against `FindNeighbors` / `FindClusters` (Seurat 5.5.1).
 Four defects, found while establishing that the clustering divergence left open

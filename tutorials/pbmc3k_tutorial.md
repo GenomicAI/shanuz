@@ -531,7 +531,7 @@ pbmc <- FindClusters(
 find_neighbors(pbmc, dims=range(10), k_param=20)
 find_clusters(
     pbmc,
-    resolution  = 0.5,   # → 9 clusters
+    resolution  = 0.5,   # → 8 clusters (see the note below)
     algorithm   = 1,     # 1=Louvain, 2=Leiden
     random_seed = 0,
 )
@@ -542,8 +542,26 @@ find_clusters(
 </tr>
 </table>
 
-> Both use Louvain community detection via `igraph`.
-> `resolution=0.5` gives **9 clusters** in both R and Python.
+> Both use Louvain community detection via `igraph`. At `resolution = 0.5`
+> Seurat returns **9** clusters here and shanuz **8** — the two runs agree
+> about 2,554 of the 2,638 cells (**ARI 0.938**), and the single cluster
+> Seurat has and shanuz does not is a 32-cell dendritic-cell population whose
+> cells land, **all 32 of them**, in shanuz's CD14+ Mono cluster. DCs are
+> monocyte-lineage, so this is one borderline split at this resolution, not a
+> scattered disagreement.
+>
+> Where it comes from is traceable: the two runs keep the **same 2,638
+> barcodes** and agree on the per-gene VST means to 4.8e-14, but
+> `variance.standardized` depends on a degree-2 LOESS fit that differs by up to
+> 2.6e-2 relative. That flips **2 of the 2,000** variable features (both at
+> ranks 1,982–2,000, and 0.03 apart in the fit), which moves the PCA slightly
+> — matched \|r\| 0.9988 over the 10 dims clustering uses — which moves 286 of
+> ~194,000 SNN edges, which moves this one boundary.
+>
+> Run `Rscript tutorials/pbmc3k_verify.R` then
+> `python tutorials/pbmc3k_tutorial.py --report` to reproduce every number in
+> this note. Tutorial 2 shows the same boundary going the other way, with
+> shanuz resolving a DC population that Seurat merges.
 
 ---
 
@@ -841,6 +859,8 @@ DimPlot(
 <td>
 
 ```python
+# Eight clusters here, not Seurat's nine: DC is absorbed
+# into CD14+ Mono at this resolution (see Step 11's note).
 cell_type_map = {
     "0": "Naive CD4 T",
     "1": "CD14+ Mono",
@@ -849,8 +869,7 @@ cell_type_map = {
     "4": "CD8 T",
     "5": "FCGR3A+ Mono",
     "6": "NK",
-    "7": "DC",
-    "8": "Platelet",
+    "7": "Platelet",
 }
 pbmc.rename_idents(cell_type_map)
 
@@ -985,13 +1004,58 @@ cd shanuz
 uv venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -e ".[analysis]"
 python tutorials/generate_plots.py     # Shanuz plots -> tutorials/figures/
-Rscript tutorials/pbmc3k_verify.R      # R Seurat RidgePlot -> tutorials/figures/r_12_ridge_plot.png
+Rscript tutorials/pbmc3k_verify.R      # R Seurat RidgePlot + the numeric handoff
 ```
 
 Every other R panel in this tutorial links the canonical
 [Seurat vignette](https://satijalab.org/seurat/articles/pbmc3k_tutorial) image;
 only the RidgePlot (which the vignette omits) is generated locally by
 `pbmc3k_verify.R`.
+
+## Checking the numbers, not the pictures
+
+Because the R panels are canonical images, every step above is compared by
+eye. `pbmc3k_verify.R` also writes a numeric handoff — per-cell QC and PCA
+keyed by barcode, per-gene VST statistics, the marker table, and a set of
+scalar anchors — which `--report` compares:
+
+```bash
+python tutorials/pbmc3k_tutorial.py    # writes the Python side
+Rscript tutorials/pbmc3k_verify.R      # writes the R side
+python tutorials/pbmc3k_tutorial.py --report
+```
+
+Neither side is pinned to the other: both run their own pipeline from the same
+10x bytes, which is what makes the comparison worth anything. What it reports
+on this dataset:
+
+| | shanuz vs Seurat 5.5.1 |
+|---|---|
+| Cells surviving QC | **the same 2,638 barcodes**; nCount and nFeature exact, percent.mt to 5.3e-15 |
+| VST per gene (13,714) | mean 4.8e-14 · variance 1.6e-11 · `variance.standardized` 2.6e-2 relative |
+| Variable features | **1,998 of 2,000 shared**, rank Spearman 0.9999 |
+| PCA (10 dims) | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
+| kNN graph | **52,760 on both** (2,638 × 20) |
+| Clusters | 8 vs 9 — **ARI 0.938**, concordance 0.968 (see Step 11) |
+| Markers, where the clusters hold identical cells | **identical gene sets** (151/151, 242/242), `avg_log2FC` to 4.9e-15 |
+
+That last row is the one to read carefully. Two clusters — B cells and
+Platelets — came out with exactly the same membership on both sides, and on
+those two the differential expression agrees gene for gene and to machine
+precision. So the marker differences elsewhere are downstream of the
+clustering, not of the DE code.
+
+Two notes on reading the report's marker table:
+
+- **`top10 by p` is not the right column to judge.** R's Wilcoxon p-values
+  underflow to exactly 0 for the strongest markers — between 40 and 302 genes
+  per cluster on this dataset — so Seurat's own top-10 ordering is decided by
+  its fold-change tie-break, not by p. `top10 by FC`, which both tools resolve
+  exactly, runs 8–10 of 10.
+- Building this handoff found a real defect in `find_all_markers`: it was
+  missing Seurat's `return.thresh = 0.01`, so it returned rows Seurat does not.
+  It now applies the same filter and breaks p-value ties on descending
+  `avg_log2FC` the way `FindAllMarkers` does.
 
 ---
 

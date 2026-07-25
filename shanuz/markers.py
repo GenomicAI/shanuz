@@ -19,6 +19,18 @@ from .lazy import is_lazy
 PSEUDOCOUNT = 1.0
 
 
+def _ident_sort_key(label: str):
+    """Sort cluster labels numerically when they are all numeric.
+
+    Seurat's identities are a factor whose levels for `FindClusters` output are
+    0, 1, ... in numeric order. Plain string sorting puts "10" before "2", so a
+    dataset with eleven or more clusters would come back in a different cluster
+    order from Seurat's — silently, and only past ten clusters.
+    """
+    text = str(label)
+    return (0, int(text), "") if text.lstrip("-").isdigit() else (1, 0, text)
+
+
 def _roc_auc(x1: np.ndarray, x2: np.ndarray) -> tuple[float, float]:
     """Return (AUC, power) for classifying group 1 vs group 2 by expression.
 
@@ -495,14 +507,30 @@ def find_all_markers(
     sample_col: Optional[str] = None,
     max_cells_per_ident: Optional[int] = None,
     random_seed: int = 1,
+    return_thresh: float = 1e-2,
 ) -> pd.DataFrame:
     """Find marker genes for each cluster vs all others.
 
     Mirrors R's FindAllMarkers(pbmc, only.pos = TRUE).
 
     Returns a single DataFrame with an extra 'cluster' column.
+
+    ``return_thresh`` is Seurat's ``return.thresh``: only genes with
+    ``p_val < return_thresh`` are returned (for ``test_use="roc"``, only genes
+    whose ``myAUC`` is further than ``return_thresh`` from 0.5 in either
+    direction, since ROC reports no p-value). Pass ``None`` for the unfiltered
+    table. Without it shanuz returned every gene that survived the pct and
+    logfc pre-filters, including plainly non-significant ones: on PBMC 3k that
+    was 3,036 rows against Seurat's 3,446 spread over one fewer cluster, and on
+    the two clusters whose membership matched Seurat exactly the filtered table
+    reproduces Seurat's gene set exactly (151 and 242 genes).
+
+    Rows are ordered by ``p_val`` ascending and then ``avg_log2FC`` descending
+    within each cluster, matching Seurat's ``order(gde$p_val, -gde[, 2])``.
+    The tie-break matters: Wilcoxon p-values tie at 0 for the strongest
+    markers, so without it "the top 10 markers" depends on incoming row order.
     """
-    clusters = sorted(set(str(i) for i in seurat.idents))
+    clusters = sorted(set(str(i) for i in seurat.idents), key=_ident_sort_key)
     all_results = []
 
     for cluster in clusters:
@@ -535,8 +563,21 @@ def find_all_markers(
         )
 
     combined = pd.concat(all_results, axis=0)
+    if return_thresh is not None:
+        if test_use == "roc":
+            # ROC has no p-value; Seurat thresholds on distance from chance.
+            auc = combined["myAUC"]
+            combined = combined[(auc > return_thresh) | (auc < 1 - return_thresh)]
+        else:
+            combined = combined[combined["p_val"] < return_thresh]
+    if test_use == "roc":
+        cols = ["cluster", "gene", "myAUC", "avg_diff", "power", "avg_log2FC",
+                "pct.1", "pct.2"]
+        cols = [c for c in cols if c in combined.columns]
+        return combined[cols].sort_values(["cluster", "myAUC"], ascending=[True, False])
     combined = combined[["cluster", "gene", "p_val", "avg_log2FC", "pct.1", "pct.2", "p_val_adj"]]
-    return combined.sort_values(["cluster", "p_val"])
+    return combined.sort_values(["cluster", "p_val", "avg_log2FC"],
+                                ascending=[True, True, False])
 
 
 def find_conserved_markers(
