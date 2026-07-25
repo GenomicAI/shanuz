@@ -259,7 +259,89 @@ own** RPCA embedding with shanuz's `find_neighbors` + `find_clusters` gives
 batch-mix 0.990 and ARI→type 0.920 — almost identical to shanuz's own
 end-to-end numbers, and nothing like Seurat's 0.917 / 0.736 on that same
 embedding. The embeddings agree; the two tools' Louvain implementations, given
-an identical input, do not. That's now the open question, not integration.
+an identical input, do not.
+
+---
+
+## The clustering divergence is not a defect
+
+That last gap was chased down, and for once the answer was that shanuz is
+right. The investigation ran Seurat's own RPCA embedding through both tools in
+three stages — neighbours, graph, community detection — with
+`nn.method = "rann"` on the R side so the neighbour search is exact on both.
+
+**Stages one and two agree.** The k-nearest-neighbour indices are *identical*,
+cell for cell. Fed the same neighbour table, the two SNN graphs agree
+off-diagonal to 2.8e-08 — pure float32 rounding, since fixed. Whatever is
+happening, it is not the graph.
+
+**Stage three is where they part**, and only in how hard each searches.
+Seurat's `FindClusters` runs its own modularity optimiser with `n.start = 10`
+restarts and keeps the best; shanuz runs a single pass of igraph's multilevel
+Louvain. On this graph Seurat's partition scores **0.899903** and shanuz's
+**0.898336** under igraph's own modularity at γ = 0.5 — Seurat wins by 0.17%,
+and 20 different shanuz seeds never reach it. So shanuz genuinely finds a
+shallower optimum. It searched less hard and it shows.
+
+**But the deeper optimum is the worse answer.** shanuz's partition is a
+strict *coarsening* of Seurat's: no Seurat cluster is split, and exactly one
+shanuz cluster absorbs two of Seurat's. Those two are both **CD14 Mono** —
+2,587 and 1,729 cells of it — and they are split along the batch axis:
+
+| Seurat cluster | cells | CTRL | STIM |
+|---|---|---|---|
+| 0 | 2,607 | **73.8%** | 26.2% |
+| 1 | 1,740 | 16.7% | **83.3%** |
+| *dataset* | 13,999 | 46.8% | 53.2% |
+
+The extra 0.17% of modularity is bought by re-discovering the batch effect
+that integration just removed. Against the dataset's own `seurat_annotations`,
+shanuz scores **ARI 0.9195** to Seurat's **0.7368**, and batch mixing
+**0.8937** to **0.8328**.
+
+This is not a lucky seed. Across 20 seeds shanuz gives 15 clusters 17 times,
+**85% of seeds beat Seurat's cell-type ARI**, and **none** reaches its
+modularity. The pattern is consistent in both directions: shanuz optimises
+less thoroughly, and on this dataset that is an advantage.
+
+So the Louvain search was left exactly as it is, and no `n.start` equivalent
+was added — the knob's main effect here would be to converge harder onto the
+batch split. The honest caveat is that shanuz's single pass is more
+seed-sensitive than Seurat's best-of-10: cell-type ARI ranged 0.72–0.93 over
+those 20 seeds. If you need stability more than you need this particular
+result, cluster at a few seeds and compare.
+
+### Four graph defects found on the way
+
+Establishing that the graphs agree meant comparing them to Seurat's element by
+element, which turned up four things that were simply wrong. None changed
+`find_clusters` output — `_sparse_to_igraph` takes the strict upper triangle,
+which silently discarded the very entries that were missing — but the graphs
+are stored objects users read directly.
+
+| | was | Seurat | now |
+|---|---|---|---|
+| `nn` graph | symmetrised | directed, `nnz` = n·k exactly | directed |
+| `snn` diagonal | dropped | `SNN[i,i] = 1`, all 13,999 | kept |
+| `snn` precision | float32 (~3e-08 off) | double | float64 (4.4e-16) |
+| singletons | left alone | `GroupSingletons` absorbs them | ported |
+
+Symmetrising the KNN graph was the costliest: Seurat's `nn` is the raw ranked
+table, so every row sums to `k` while column sums vary from 21 to 68 — that
+spread *is* the in-degree, the signal that says which cells are hubs, and
+`mat + mat.T` erased it. Both in-tree consumers already symmetrise at the point
+of use, exactly as Seurat's own do.
+
+Restoring the SNN diagonal also required following Seurat to the consumer:
+`RunUMAP.Graph` opens with `diag(x = object) <- 0`, so `run_umap` now strips it
+rather than feeding the layout n zero-length self-edges.
+
+`find_clusters` gains `group_singletons` (default `True`), porting Seurat's
+rule: a size-1 cluster joins whichever non-singleton cluster it is most
+connected to, scored by **mean** SNN weight — a sum would just hand it to the
+biggest cluster — with the candidate list fixed before the loop so one
+singleton cannot absorb another. ifnb has no singletons at this resolution, so
+none of this moved its numbers; it fires on smaller or sparser graphs.
 
 ---
 

@@ -23,6 +23,46 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+*The neighbour graphs, against `FindNeighbors` / `FindClusters` (Seurat 5.5.1).
+Four defects, found while establishing that the clustering divergence left open
+above is **not** a defect — given the same embedding the two tools' KNN indices
+are identical and their SNN graphs agree to 2.8e-08, and the partitions differ
+only because Seurat's `n.start = 10` restarts find 0.17 % more modularity by
+splitting CD14 Mono along the batch axis (73.8 % CTRL / 83.3 % STIM). shanuz
+scores ARI 0.9195 to `seurat_annotations` against Seurat's 0.7368, so the
+Louvain search was deliberately left alone.*
+
+- **`find_neighbors` symmetrised the KNN graph.** Seurat's `nn` is the raw
+  ranked neighbour table — `sparseMatrix(i, j, x = 1)`, no symmetrisation — so
+  `nnz` is exactly `n * k`, every row sums to `k`, and the column sums vary
+  with in-degree (21 to 68 on ifnb). `mat + mat.T` inflated `nnz` and flattened
+  that spread, discarding which cells are hubs. Both in-tree consumers
+  (`run_umap`, the graph branch of `run_spca`) already symmetrise at the point
+  of use, as Seurat's own do.
+- **`find_neighbors` deleted the SNN diagonal.** `ComputeSNN` stores
+  `SNN[i,i] = k / (2k − k) = 1` for every cell; all 13,999 were present in
+  Seurat's graph and none in shanuz's. It was invisible to `find_clusters`,
+  whose igraph conversion takes the strict upper triangle and so discarded
+  precisely the entries that were missing.
+- **`run_umap` did not strip that diagonal.** `RunUMAP.Graph` opens with
+  `diag(x = object) <- 0`. With the diagonal restored above, omitting this
+  would feed the layout `n` zero-length self-edges.
+- **`find_neighbors` computed Jaccard weights in float32.** ~3e-08 off Seurat
+  on every weight, now 4.4e-16. This never changed which edges were pruned — a
+  weak Python `prune_snn` is cast down to float32 for the comparison, so both
+  sides round identically — only the stored values.
+
+### Added
+
+- **`find_clusters(group_singletons=True)`**, porting Seurat's
+  `GroupSingletons`. Size-1 clusters are absorbed into whichever non-singleton
+  cluster they are most connected to, scored by *mean* SNN weight (a sum would
+  hand them to the largest cluster instead), with the candidate list fixed
+  before the loop so one singleton cannot absorb another. `False` pools them
+  into a single `"singleton"` cluster, again matching Seurat.
+
+### Fixed
+
 *The v4 anchor path, against `FindIntegrationAnchors` / `IntegrateData`
 (Seurat 5.5.1). Twelve defects; anchor agreement went from 70.0 % to 99.9 %
 for CCA and to 100 % for RPCA.*

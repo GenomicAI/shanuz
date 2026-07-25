@@ -235,9 +235,9 @@ agreement with R (`ARI(py,R)`) is still only 0.774 even with the embedding
 matching to 30/30 dims. Clustering **Seurat's own** RPCA embedding through
 shanuz's `find_neighbors` + `find_clusters` gives batch-mix 0.990 and
 ARI→type 0.920 — essentially shanuz's own numbers, not Seurat's 0.917 / 0.736
-on that identical input. The two tools' Louvain implementations diverge on
-identical embeddings; that is a different, smaller question than the one this
-section answers, and it is not yet investigated.
+on that identical input. That divergence was chased separately and turned out
+**not** to be a defect: see
+[the clustering section of the integration vignette](integration_vignette.md#the-clustering-divergence-is-not-a-defect).
 
 ---
 
@@ -281,8 +281,12 @@ Not addressed here:
 - **The guide tree.** shanuz integrates reference-to-query; Seurat builds a
   `BuildSampleTree` merge order for three or more datasets. Two-dataset
   integration is unaffected.
-- **The clustering divergence.** With the embedding gap closed, RPCA's
-  partition agreement with R (`ARI(py,R)` 0.774) now comes entirely from
-  `find_neighbors` / `find_clusters` disagreeing with `FindNeighbors` /
-  `FindClusters` on an input the two tools compute almost identically — see
-  the v5 section above. Not yet investigated.
+- **Matching Seurat's modularity search.** The clustering divergence *was*
+  investigated (see
+  [the integration vignette](integration_vignette.md#the-clustering-divergence-is-not-a-defect)):
+  the graphs agree, and the remaining difference is that Seurat runs 10
+  restarts of its own modularity optimiser where shanuz runs one igraph pass.
+  shanuz's shallower optimum is the better one on ifnb, so the search was
+  deliberately left alone and no `n.start` equivalent was added. A
+  faithful port of `RunModularityClusteringCpp` would close `ARI(py,R)`
+  at the cost of that result.
