@@ -221,13 +221,36 @@ def test_dot_plot_returns_figure():
 # ---------------------------------------------------------------------------
 
 def _two_group_object():
+    """Two groups, one unambiguous marker each, drawn overdispersed.
+
+    Two properties here are load-bearing, and the original fixture had neither.
+
+    **The counts are negative-binomial, not Poisson-plus-a-constant.** Adding a
+    fixed offset to ``poisson(0.5)`` produces a gene whose variance is far below
+    its mean — *under*-dispersed — which drives the negative-binomial MLE's
+    dispersion to the boundary at alpha = 0. There the Hessian is singular, and
+    ``statsmodels`` returns ``nan`` standard errors while still reporting
+    ``converged=True``. Whether any particular gene came back finite then
+    depended on the BLAS build, so ``negbinom`` p-values flipped between this
+    machine and Linux CI and the top-ranked gene flipped with them.
+
+    **The two markers are deliberately unequal.** ``g0`` and ``g1`` used to get
+    the same ``+8``, making them mirror images. Every test below asserts ``g0``
+    ranks first, but ``find_markers`` ranks by a two-sided p-value (as Seurat
+    does), so a marker of group B is just as significant as a marker of group A
+    and the ordering between two equally strong ones is arbitrary. ``g1`` now
+    gets a real but weaker signal: it stays a genuine marker, and it cannot win.
+
+    Together these put ~47 orders of magnitude between the two p-values
+    (g0 ~2e-56, g1 ~5e-09), which no platform noise closes.
+    """
     rng = np.random.default_rng(0)
-    a = rng.poisson(0.5, size=(40, 40))
-    a[0, :] += 8                       # g0 marks group A
-    b = rng.poisson(0.5, size=(40, 40))
-    b[1, :] += 8                       # g1 marks group B
+    a = rng.negative_binomial(2, 0.4, size=(40, 40)).astype(float)
+    b = rng.negative_binomial(2, 0.4, size=(40, 40)).astype(float)
+    a[0, :] += 12                      # g0 marks group A — the strong marker
+    b[1, :] += 4                       # g1 marks group B — real, but weaker
     obj = create_shanuz_object(
-        counts=sp.csc_matrix(np.hstack([a, b]).astype(float)), assay="RNA",
+        counts=sp.csc_matrix(np.hstack([a, b])), assay="RNA",
         feature_names=[f"g{i}" for i in range(40)],
         cell_names=[f"c{i}" for i in range(80)],
     )
@@ -244,6 +267,14 @@ def test_de_pvalue_tests_rank_marker_top(test_use):
     assert list(res.columns) == ["p_val", "avg_log2FC", "pct.1", "pct.2", "p_val_adj"]
     assert res.index[0] == "g0"
     assert res.loc["g0", "p_val"] < 0.01
+    # g1 is group B's marker, so it must be *found* — a p-value of exactly 1.0
+    # here means the fit collapsed and `_negbinom_pvalue` fell back to "no
+    # evidence", which is what used to make this test's ordering a coin flip.
+    assert np.isfinite(res.loc["g1", "p_val"])
+    assert res.loc["g1", "p_val"] < 0.01
+    # ...and it must lose to g0 by a margin no platform difference can close.
+    assert res.loc["g0", "p_val"] < res.loc["g1", "p_val"] / 1e3
+    assert res.loc["g0", "avg_log2FC"] > 0 > res.loc["g1", "avg_log2FC"]
 
 
 def test_roc_test_returns_auc_power_and_ranks_marker():
