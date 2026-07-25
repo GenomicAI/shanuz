@@ -21,7 +21,8 @@ from pathlib import Path
 
 import pytest
 
-PKG = Path(__file__).resolve().parent.parent / "shanuz"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PKG = REPO_ROOT / "shanuz"
 
 # Modules whose annotations depend on a `TYPE_CHECKING` block, and the symbol
 # each one defers. Listed explicitly so deleting a block is a failure with a
@@ -125,11 +126,44 @@ def _annotations(tree: ast.Module):
 
 
 def _sources():
-    # utf-8-sig: shanuz/command.py carries a UTF-8 BOM, which ast.parse rejects
-    # outright. Reading it away here keeps this check from being the thing that
-    # reports it; the BOM itself is tracked separately.
+    # utf-8-sig rather than utf-8: no source carries a BOM any more (see
+    # `test_no_source_file_starts_with_a_byte_order_mark`), but decoding one
+    # away here keeps a stray BOM from surfacing as a confusing SyntaxError
+    # inside an annotation test. The dedicated guard below is what names it.
     return [(p, ast.parse(p.read_text(encoding="utf-8-sig"), filename=str(p)))
             for p in sorted(PKG.rglob("*.py"))]
+
+
+def test_no_source_file_starts_with_a_byte_order_mark():
+    """A UTF-8 BOM is legal Python and breaks every tool that reads the text.
+
+    CPython's import machinery decodes source as `utf-8-sig`, so a BOM never
+    shows up as a runtime failure — `import`, `inspect.getsource`, ruff and mypy
+    all handle `shanuz/command.py` without complaint, which is why one survived
+    in it unnoticed. What breaks is the ordinary idiom for reading source back:
+
+        ast.parse(Path(mod.__file__).read_text())
+
+    `Path.read_text()` defaults to plain utf-8 and keeps the U+FEFF, and
+    `ast.parse` then rejects the file with `invalid non-printable character`.
+    That is not hypothetical — the AST walk in this very module had to decode
+    around it, and any future contributor writing a codemod, a doc generator or
+    a source-level lint hits the same wall on a file that looks fine.
+
+    Scans the whole repo rather than just the package: the reason the BOM is
+    worth removing has nothing to do with which directory it lives in.
+    """
+    offenders = [
+        p.relative_to(REPO_ROOT)
+        for p in sorted(REPO_ROOT.rglob("*.py"))
+        if ".venv" not in p.parts and "build" not in p.parts
+        and p.read_bytes().startswith(b"\xef\xbb\xbf")
+    ]
+    assert not offenders, (
+        "Python sources beginning with a UTF-8 BOM — these import fine but "
+        "cannot be read with Path.read_text() and parsed:\n  "
+        + "\n  ".join(str(p) for p in offenders)
+    )
 
 
 def test_every_annotation_names_a_module_scope_binding():
