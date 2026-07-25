@@ -184,10 +184,10 @@ def run_spca(
 
     features = _default_features(assay_obj, features)
 
-    X = _get_scaled_data(assay_obj, features, layer).T      # cells × features
-    if sp.issparse(X):
-        X = X.toarray()
-    X = np.asarray(X, dtype=float)
+    # `_get_scaled_data` densifies on the way out, so there is nothing left to
+    # convert here — the `sp.issparse` branch that used to stand between these
+    # two lines could not run.
+    X = np.asarray(_get_scaled_data(assay_obj, features, layer).T, dtype=float)
     n_cells, n_features = X.shape
 
     G = seurat.graphs[graph].tocsr()
@@ -252,9 +252,7 @@ def run_ica(
     features = _default_features(assay_obj, features)
 
     scaled = _get_scaled_data(assay_obj, features, layer)  # (features × cells)
-    data_t = scaled.T  # (cells × features)
-    if sp.issparse(data_t):
-        data_t = data_t.toarray()
+    data_t = scaled.T  # (cells × features) — already dense, see run_pca
 
     nics = min(nics, min(data_t.shape))
 
@@ -355,7 +353,7 @@ def _flip_signs(vectors: np.ndarray) -> np.ndarray:
 def _get_scaled_data(assay_obj, features: list[str], layer: str) -> np.ndarray:
     """Extract scaled data for the given features as a (features × cells) array."""
     from .assay5 import Assay5
-    from ._sparse import is_matrix_empty
+    from ._sparse import as_dense, is_matrix_empty
 
     if isinstance(assay_obj, Assay5):
         if layer in assay_obj.layers:
@@ -365,18 +363,25 @@ def _get_scaled_data(assay_obj, features: list[str], layer: str) -> np.ndarray:
             feat_idx_map = {f: i for i, f in enumerate(scaled_features)}
             valid = [f for f in features if f in feat_idx_map]
             idx = [feat_idx_map[f] for f in valid]
-            if sp.issparse(mat):
-                return mat[idx, :].toarray().astype(float)
-            return np.asarray(mat)[idx, :].astype(float)
+            return as_dense(mat[idx, :]).astype(float)
         else:
-            # Fall back to log-normalized data
-            data = assay_obj.layers.get("data") or assay_obj.layers.get("counts")
+            # Fall back to log-normalized data. Selected with an explicit
+            # `is None` rather than `a or b`: `or` evaluates `bool(a)`, and
+            # scipy raises "truth value of an array ... is ambiguous" for any
+            # matrix with more than one entry — so this fallback raised on
+            # every call that reached it, which is every `run_pca` on an
+            # Assay5 that had not been through `scale_data()`.
+            data = assay_obj.layers.get("data")
+            if data is None:
+                data = assay_obj.layers.get("counts")
+            if data is None:
+                raise ValueError(
+                    f"assay has no {layer!r}, 'data' or 'counts' layer to draw "
+                    f"from; run normalize_data() and scale_data() first."
+                )
             all_feats = assay_obj._all_feature_names
             feat_idx = [all_feats.index(f) for f in features if f in all_feats]
-            if sp.issparse(data):
-                sub = data[feat_idx, :].toarray().astype(float)
-            else:
-                sub = np.asarray(data)[feat_idx, :].astype(float)
+            sub = as_dense(data[feat_idx, :]).astype(float)
             # Center in-place
             sub -= sub.mean(axis=1, keepdims=True)
             return sub
@@ -385,17 +390,11 @@ def _get_scaled_data(assay_obj, features: list[str], layer: str) -> np.ndarray:
             sd = assay_obj.scale_data
             all_feats = assay_obj._feature_names
             feat_idx = [all_feats.index(f) for f in features if f in all_feats]
-            if sp.issparse(sd):
-                return sd[feat_idx, :].toarray().astype(float)
-            return np.asarray(sd)[feat_idx, :].astype(float)
+            return as_dense(sd[feat_idx, :]).astype(float)
         else:
             # Fall back to data
             all_feats = assay_obj._feature_names
             feat_idx = [all_feats.index(f) for f in features if f in all_feats]
-            mat = assay_obj.data
-            if sp.issparse(mat):
-                sub = mat[feat_idx, :].toarray().astype(float)
-            else:
-                sub = np.asarray(mat)[feat_idx, :].astype(float)
+            sub = as_dense(assay_obj.data[feat_idx, :]).astype(float)
             sub -= sub.mean(axis=1, keepdims=True)
             return sub

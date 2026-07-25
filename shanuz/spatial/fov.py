@@ -220,6 +220,7 @@ def create_fov(
 
     type_ : 'centroids' | 'segmentation' | 'molecules'
     """
+    boundary: BoundaryType
     if type_ == "centroids":
         boundary = create_centroids(coords, nsides=nsides, radius=radius, theta=theta, assay=assay)
         return FOV(boundaries={"centroids": boundary}, assay=assay, key=key)

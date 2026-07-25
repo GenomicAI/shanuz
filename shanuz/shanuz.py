@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -499,8 +499,26 @@ class Shanuz:
         for aname in shared_assay_names:
             base = all_objects[0].assays[aname]
             rest = [obj.assays[aname] for obj in all_objects[1:]]
+            # A v3 Assay and a v5 Assay5 keep their cells in different slots
+            # (`_cell_names` vs `_all_cell_names`), so merging across the two
+            # reaches for a slot the other does not have and dies partway
+            # through with a bare AttributeError naming a private attribute.
+            # Refuse it here, where the assay and both classes can be named.
+            wrong = {type(a).__name__ for a in rest} - {type(base).__name__}
+            if wrong:
+                raise TypeError(
+                    f"cannot merge assay {aname!r}: it is a "
+                    f"{type(base).__name__} in the first object and a "
+                    f"{'/'.join(sorted(wrong))} in another. The two assay "
+                    f"classes store cells differently and cannot be combined. "
+                    f"Rebuild one side so both match — the `use_v5=` argument "
+                    f"to `create_shanuz_object` chooses the class."
+                )
+            # `rest` is now all `type(base)`, which only the check above makes
+            # true. mypy cannot carry that fact through a list, and filtering
+            # the list to prove it would read as a silent drop.
             new_assays[aname] = base.merge(
-                rest, add_cell_ids=add_cell_ids
+                cast(Any, rest), add_cell_ids=add_cell_ids
             )
 
         # Merged ident
@@ -603,8 +621,13 @@ def create_shanuz_object(
     """
     key = f"{assay.lower()}_"
 
+    # Each branch keeps its own narrowly-typed name and widens once, at the
+    # end: the two classes hold their cells in differently-named slots, so a
+    # single `assay_obj` reused across both branches has no type under which
+    # both reads are valid.
+    assay_obj: AnyAssay
     if use_v5:
-        assay_obj = create_assay5_object(
+        v5 = create_assay5_object(
             counts=counts,
             min_cells=min_cells,
             min_features=min_features,
@@ -612,9 +635,10 @@ def create_shanuz_object(
             cell_names=cell_names,
             key=key,
         )
-        cells = assay_obj._all_cell_names
+        cells = v5._all_cell_names
+        assay_obj = v5
     else:
-        assay_obj = create_assay_object(
+        v3 = create_assay_object(
             counts=counts,
             min_cells=min_cells,
             min_features=min_features,
@@ -622,10 +646,17 @@ def create_shanuz_object(
             cell_names=cell_names,
             key=key,
         )
-        cells = assay_obj._cell_names
+        cells = v3._cell_names
+        assay_obj = v3
 
-    # Build metadata
-    raw_meta = assay_obj.calc_n() if hasattr(assay_obj, "calc_n") else _calc_n_for_assay5(assay_obj)
+    # Build metadata. Both assay classes define `calc_n`, so the
+    # `hasattr(assay_obj, "calc_n")` fallback that used to stand here was
+    # unreachable — a second implementation of the same naming that nothing
+    # exercised, deriving the suffix from the assay's *key* rather than from
+    # the `assay` argument, and hardcoding `nCount_RNA` when the assay had no
+    # default layer. The two agree for an ordinary RNA object, which is why
+    # neither the tests nor the type checker had reason to look at it.
+    raw_meta = assay_obj.calc_n()
     base_meta = raw_meta.rename(columns={"nCount": f"nCount_{assay}", "nFeature": f"nFeature_{assay}"})
     # `orig.ident` is the first column of every Seurat object's metadata and the
     # default identity class; scripts group and split on it. Seeded with the
@@ -650,21 +681,3 @@ def create_shanuz_object(
     )
     return obj
 
-
-def _calc_n_for_assay5(assay: Assay5) -> pd.DataFrame:
-    from ._utils import calc_n as _calc_n
-
-    default_layer = assay.default_layer
-    if default_layer is None:
-        n = len(assay._all_cell_names)
-        return pd.DataFrame(
-            {"nCount_RNA": np.zeros(n), "nFeature_RNA": np.zeros(n)},
-            index=assay._all_cell_names,
-        )
-    mat = assay.layers[default_layer]
-    ncount, nfeature = _calc_n(mat)
-    key_base = assay._key.rstrip("_").upper()
-    return pd.DataFrame(
-        {f"nCount_{key_base}": ncount, f"nFeature_{key_base}": nfeature},
-        index=assay._all_cell_names,
-    )

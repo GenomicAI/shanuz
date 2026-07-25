@@ -171,6 +171,50 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **`run_pca` on an Assay5 that had not been scaled raised "the truth value of
+  an array … is ambiguous".** `_get_scaled_data` chose its fallback layer with
+  `layers.get("data") or layers.get("counts")`. `or` evaluates `bool()` on its
+  left operand, and scipy refuses to answer for any matrix with more than one
+  entry — so the fallback raised on **every call that reached it**, which is
+  every `run_pca` or `run_ica` on a v5 object that had not been through
+  `scale_data()`. The v3 path never had it: it reads `assay_obj.data`
+  directly, so the two architectures silently disagreed about whether an
+  unscaled object could be reduced at all. Selected with an explicit `is None`
+  now, and if neither layer exists the error says which ones it looked for.
+  The v5 fallback returns **bit-identical** embeddings to the v3 one it mirrors.
+- **Merging a v3-backed and a v5-backed object died with an
+  `AttributeError` about a private slot.** `Assay` keeps its cells in
+  `_cell_names` and `Assay5` in `_all_cell_names`, so `Shanuz.merge` reached
+  for whichever the other did not have and failed partway through — after the
+  cell names and metadata had already been concatenated, from inside a method
+  the caller never named. It now raises a `TypeError` naming the assay and both
+  classes, and pointing at `create_shanuz_object(..., use_v5=)` as the way to
+  make the two sides match. Merging assays of the same class is unaffected.
+- **`StdAssay`'s methods returned the abstract base rather than the caller's
+  own class.** `join_layers`, `split_layers`, `cast_assay`, `subset`,
+  `rename_cells`, `merge` and `_copy` were annotated `-> "StdAssay"` while every
+  one of them builds its result from `self.__class__`, so an `Assay5` went in
+  and something typed as an ABC came out. Every caller downstream then had to
+  widen, which is what put `dict[str, Assay | StdAssay]` where `Shanuz` wanted
+  `dict[str, Assay | Assay5]`. Annotated `Self`, which is both accurate and what
+  the code already did. `tests/test_object_model_typing.py` pins the runtime
+  property that makes it true — a subclass gets its own class back from all
+  seven — since hardcoding `Assay5(...)` in any of them would leave the
+  annotation a promise the code does not keep and no other test would notice.
+- **An unreachable second implementation of the object's count columns is
+  gone.** `create_shanuz_object` dispatched on `hasattr(assay_obj, "calc_n")`,
+  which both assay classes satisfy, so the `_calc_n_for_assay5` fallback could
+  never run. It derived the `nCount_<ASSAY>` suffix from the assay's *key*
+  rather than from the `assay` argument and hardcoded `nCount_RNA` for an assay
+  with no default layer — agreeing with the live path for an ordinary RNA
+  object, which is why nothing had reason to look at it.
+
+  Together these clear **all 14 mypy errors** in the object-model modules
+  (`shanuz.py`, `assay5.py`, `reduction.py`, `spatial/fov.py`), taking the
+  advisory total from **60 to 46**. The remaining 46 are elsewhere: 40 in
+  `datasets.py` (one repeated idiom — a `cache_dir: Optional[str]` parameter
+  reassigned to a `Path`), and six spread over plotting, mixscape, multiseq,
+  sctransform, preprocessing, module_score and integration.
 - **`shanuz/command.py` began with a UTF-8 BOM.** CPython decodes source as
   `utf-8-sig`, so the file imported, introspected, linted and type-checked
   without complaint — which is how three bytes survived unnoticed. What they
