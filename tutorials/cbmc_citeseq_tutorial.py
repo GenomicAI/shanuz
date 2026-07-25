@@ -35,6 +35,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 
 _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
@@ -297,8 +298,155 @@ def run_full(data_dir=None, verbose=True):
     return obj, all_markers, anno
 
 
+# ---------------------------------------------------------------------------
+# Numeric handoff against R
+# ---------------------------------------------------------------------------
+#
+# The per-cell weights are written keyed by *barcode*, not summarised by cell
+# type. Mean ADT weight per cell type — the table printed above — asks two
+# different cluster partitions the same question, so it cannot separate "the
+# weights differ" from "the labels differ". Same-barcode weights can, and this
+# distinction is not hypothetical: the per-cell-type table showed Progenitor at
+# 0.35 against Seurat's 0.285 while every other type agreed to 0.02.
+
+FIGURES = Path(__file__).parent / "figures_multimodal"
+
+
+def write_anchors(obj):
+    """Dump the CLR summary, the per-cell weights and the scalars."""
+    import json
+
+    FIGURES.mkdir(exist_ok=True)
+    adt = obj.assays["ADT"]
+    data = adt.layers["data"]
+    dense = data.toarray() if sp.issparse(data) else np.asarray(data)
+    pd.DataFrame({
+        "protein": list(adt._all_feature_names),
+        "mean": dense.mean(axis=1),
+        "sd": dense.std(axis=1, ddof=1),
+        "min": dense.min(axis=1),
+        "max": dense.max(axis=1),
+    }).to_csv(FIGURES / "py_adt_clr.csv", index=False)
+
+    md = obj.meta_data
+    pd.DataFrame({
+        "cell": list(obj.cell_names()),
+        "RNA.weight": md["RNA.weight"].to_numpy(),
+        "ADT.weight": md["ADT.weight"].to_numpy(),
+        "rna_cluster": md["rna_clusters"].astype(str).to_numpy(),
+        "protein_celltype": md["protein_celltype"].astype(str).to_numpy(),
+    }).to_csv(FIGURES / "py_cell_weights.csv", index=False)
+
+    anchors = {
+        "n_cells": len(obj),
+        "n_genes": len(obj.assays["RNA"]._all_feature_names),
+        "n_proteins": len(adt._all_feature_names),
+        "n_rna_clusters": int(md["rna_clusters"].nunique()),
+        "n_wnn_clusters": int(md["wnn_clusters"].nunique()),
+        "mean_rna_weight": float(md["RNA.weight"].mean()),
+        "mean_adt_weight": float(md["ADT.weight"].mean()),
+        "adt_weight_sum": float(md["ADT.weight"].sum()),
+    }
+    (FIGURES / "py_anchors.json").write_text(json.dumps(anchors, indent=2))
+    print(f"\n  Wrote py_adt_clr.csv, py_cell_weights.csv and py_anchors.json "
+          f"to {FIGURES}")
+    print("  Next: Rscript tutorials/cbmc_citeseq_verify.R"
+          "  then  python tutorials/cbmc_citeseq_tutorial.py --report")
+
+
+def report():
+    """Compare the CLR transform, the WNN weights and the annotation."""
+    import json
+
+    from scipy.stats import pearsonr, spearmanr
+
+    need = ["py_adt_clr.csv", "r_adt_clr.csv", "py_cell_weights.csv",
+            "r_cell_weights.csv", "py_anchors.json", "r_anchors.json"]
+    missing = [f for f in need if not (FIGURES / f).exists()]
+    if missing:
+        print(f"  missing {missing} — run the tutorial and then "
+              f"`Rscript tutorials/cbmc_citeseq_verify.R`")
+        return
+
+    print("=" * 74)
+    print("shanuz vs Seurat 5.5.1 — CITE-seq: CLR, WNN weights, annotation")
+    print("=" * 74)
+
+    # ---- 1. the CLR transform, which depends on nothing stochastic ----------
+    py = pd.read_csv(FIGURES / "py_adt_clr.csv").set_index("protein")
+    r = pd.read_csv(FIGURES / "r_adt_clr.csv").set_index("protein")
+    prot = py.index.intersection(r.index)
+    print(f"\n  ADT CLR normalisation — {len(prot)} proteins, no RNG anywhere")
+    print(f"  {'statistic':<12}{'max|diff|':>14}")
+    print(f"  {'-' * 26}")
+    for col in ("mean", "sd", "min", "max"):
+        d = np.abs(py.loc[prot, col].to_numpy() - r.loc[prot, col].to_numpy()).max()
+        print(f"  {col:<12}{d:>14.3e}")
+
+    # ---- 2. the WNN weights, per cell, on shared barcodes -------------------
+    pw = pd.read_csv(FIGURES / "py_cell_weights.csv").set_index("cell")
+    rw = pd.read_csv(FIGURES / "r_cell_weights.csv").set_index("cell")
+    cells = pw.index.intersection(rw.index)
+    pw, rw = pw.loc[cells], rw.loc[cells]
+    a, b = pw["ADT.weight"].to_numpy(), rw["ADT.weight"].to_numpy()
+    print(f"\n  WNN modality weights — {len(cells)} shared barcodes")
+    print(f"    ADT weight  pearson {pearsonr(a, b).statistic:.4f}   "
+          f"spearman {spearmanr(a, b).statistic:.4f}")
+    print(f"    mean        shanuz {a.mean():.4f}   R {b.mean():.4f}   "
+          f"diff {abs(a.mean() - b.mean()):.4f}")
+    print(f"    max|diff| per cell {np.abs(a - b).max():.4f}   "
+          f"median|diff| {np.median(np.abs(a - b)):.4f}")
+
+    # ---- 3. is a per-cell-type gap the weights or the labels? ---------------
+    # Score each tool's weights under *both* labellings. If the gap follows the
+    # labels rather than the weights, it was never a WNN difference.
+    print("\n  Mean ADT weight by cell type — under each tool's own labels,")
+    print("  then shanuz's weights re-grouped by R's labels. A row that moves")
+    print("  in the third column was a labelling difference, not a weight one.")
+    print(f"\n  {'cell type':<14}{'shanuz':>9}{'R':>9}{'shanuz w/ R labels':>21}"
+          f"{'n py':>8}{'n R':>8}")
+    print(f"  {'-' * 69}")
+    py_by = pw.groupby("protein_celltype")["ADT.weight"].mean()
+    r_by = rw.groupby("protein_celltype")["ADT.weight"].mean()
+    cross = pw["ADT.weight"].groupby(rw["protein_celltype"]).mean()
+    py_n = pw["protein_celltype"].value_counts()
+    r_n = rw["protein_celltype"].value_counts()
+    for ct in sorted(set(py_by.index) | set(r_by.index)):
+        def f(s, w=9, fmt=".3f"):
+            return f"{s[ct]:{fmt}}".rjust(w) if ct in s.index else "—".rjust(w)
+        print(f"  {ct:<14}{f(py_by)}{f(r_by)}{f(cross, 21)}"
+              f"{f(py_n, 8, 'd')}{f(r_n, 8, 'd')}")
+
+    same = (pw["protein_celltype"].to_numpy() == rw["protein_celltype"].to_numpy())
+    print(f"\n  Per-cell cell-type concordance: {same.mean():.4f} "
+          f"({same.sum()}/{len(cells)})")
+
+    # ---- 4. scalars ---------------------------------------------------------
+    pa = json.loads((FIGURES / "py_anchors.json").read_text())
+    ra = json.loads((FIGURES / "r_anchors.json").read_text())
+    # Counts must be identical; the aggregate weights are means over a WNN fit
+    # that neither tool reproduces bit-for-bit, so they get a relative
+    # difference rather than a MATCH/differ verdict that would always read
+    # "differ" and tell you nothing.
+    print(f"\n  {'anchor':<20}{'shanuz':>20}{'R Seurat':>20}   verdict")
+    print(f"  {'-' * 68}")
+    for k in sorted(set(pa) & set(ra)):
+        x, y = pa[k], ra[k]
+        if isinstance(x, int) and isinstance(y, int):
+            verdict = "MATCH" if x == y else "differ"
+        else:
+            verdict = f"rel {abs(x - y) / max(abs(y), 1e-12):.2e}"
+        print(f"  {k:<20}{x!s:>20}{y!s:>20}   {verdict}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CBMC CITE-seq multimodal tutorial")
     parser.add_argument("--data-dir", default=None)
+    parser.add_argument("--report", action="store_true",
+                        help="compare against the R reference and exit")
     args = parser.parse_args()
-    run_full(data_dir=args.data_dir)
+    if args.report:
+        report()
+    else:
+        obj, _, _ = run_full(data_dir=args.data_dir)
+        write_anchors(obj)
