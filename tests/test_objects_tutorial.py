@@ -274,3 +274,28 @@ def test_layer_anchor_describes_every_layer():
     assert set(got) == {"counts"}
     assert got["counts"]["shape"] == [4, 6]
     assert got["counts"]["cells"]["n"] == 6
+
+
+def test_r_reference_pins_exact_neighbours():
+    """The R side must not fall back to Seurat's approximate `annoy`.
+
+    `FindNeighbors` defaults to `nn.method = "annoy"`, which is approximate,
+    while this port's neighbour search is exact. With the default, the two sides
+    build their graphs from different neighbour tables and the `graphs` anchors
+    report a difference that belongs to annoy — 182 SNN edges on pbmc3k, 199,434
+    against the exact 199,616 — which reads as a shanuz defect and cost a real
+    investigation once already.
+
+    This asserts the script text rather than running R, which CI has no Seurat
+    for. It therefore proves only that the pin is present, not that Seurat
+    honours it — but "the pin was silently dropped" is the regression that
+    actually happened, and it is the one this catches.
+    """
+    script = (Path(__file__).resolve().parent.parent
+              / "tutorials" / "pbmc3k_objects_verify.R").read_text()
+    calls = [ln for ln in script.splitlines() if "FindNeighbors(" in ln]
+    assert calls, "FindNeighbors call vanished from the R reference"
+    for call in calls:
+        assert 'nn.method = "rann"' in call, (
+            f"R reference uses Seurat's approximate default: {call.strip()!r}"
+        )
