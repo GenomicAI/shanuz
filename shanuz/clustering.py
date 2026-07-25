@@ -18,6 +18,7 @@ def find_clusters(
     graph_name: Optional[str] = None,
     random_seed: int = 0,
     n_iterations: int = -1,
+    group_singletons: bool = True,
 ) -> None:
     """Apply Louvain or Leiden clustering on the SNN graph.
 
@@ -33,6 +34,18 @@ def find_clusters(
     graph_name   : SNN graph to use (defaults to '{assay}_snn')
     random_seed  : for reproducibility
     n_iterations : Leiden iterations (-1 = until stable)
+    group_singletons : absorb size-1 clusters into their best-connected
+                   neighbour, as Seurat's ``GroupSingletons`` does. With
+                   ``False`` they are all pooled into one ``"singleton"``
+                   cluster instead — again matching Seurat.
+
+    Notes
+    -----
+    Seurat runs its own modularity optimiser with ``n.start = 10`` restarts and
+    keeps the highest-modularity partition; this runs a single pass of igraph's
+    multilevel Louvain. On the same graph that makes shanuz's partition land in
+    a slightly shallower optimum — measurably so, but not necessarily a worse
+    one. See the clustering section of ``tutorials/integration_vignette.md``.
     """
     assay_name = seurat.active_assay
     if graph_name is None:
@@ -65,13 +78,74 @@ def find_clusters(
             f"Unknown algorithm {algorithm!r}. Use 1 or 2 (Louvain) or 4 (Leiden)."
         )
 
-    cluster_series = pd.Categorical(
-        [str(c) for c in labels],
-        categories=[str(i) for i in sorted(set(labels))],
+    str_labels = _group_singletons(
+        np.asarray([str(c) for c in labels]), mat, group_singletons
     )
+    present = sorted(set(str_labels), key=lambda s: (not s.isdigit(), s.isdigit() and int(s), s))
+    cluster_series = pd.Categorical(str_labels, categories=present)
 
     seurat.meta_data["seurat_clusters"] = cluster_series
     seurat.idents = cluster_series
+
+
+# ------------------------------------------------------------------
+# Singleton absorption — Seurat's GroupSingletons
+# ------------------------------------------------------------------
+
+def _group_singletons(
+    ids: np.ndarray,
+    snn: sp.spmatrix,
+    group_singletons: bool,
+) -> np.ndarray:
+    """Absorb size-1 clusters, mirroring Seurat's ``GroupSingletons``.
+
+    Every cluster holding exactly one cell is reassigned to whichever
+    *non*-singleton cluster it is most connected to, scored as the mean SNN
+    weight from that cell to every cell of the candidate cluster (Seurat:
+    ``sum(subSNN) / (nrow * ncol)``). With ``group_singletons = False`` they are
+    instead pooled into a single ``"singleton"`` cluster.
+
+    Seurat breaks ties by ``sample()`` under ``set.seed(1)``; an R RNG draw is
+    not reproducible from Python, so the lowest-numbered cluster wins here.
+    Ties need two candidates to share a mean connectivity exactly, which the
+    Jaccard weights make rare.
+    """
+    ids = ids.copy()
+    values, counts = np.unique(ids, return_counts=True)
+    singletons = set(values[counts == 1].tolist())
+    if not singletons:
+        return ids
+    if not group_singletons:
+        # `ids` is a fixed-width unicode array sized to the labels it already
+        # holds, so a plain assignment would truncate "singleton" to "si".
+        ids = ids.astype(object)
+        ids[np.isin(ids, list(singletons))] = "singleton"
+        return ids.astype(str)
+
+    # Candidate targets are fixed before the loop, as in Seurat: a cluster that
+    # has just absorbed a singleton does not itself become a new target.
+    targets = [v for v in values if v not in singletons]
+    if not targets:
+        return ids
+    snn = snn.tocsr()
+    members = {t: np.flatnonzero(ids == t) for t in targets}
+
+    # Seurat iterates singletons in order of first appearance in `ids`.
+    order = sorted(singletons, key=lambda s: int(np.flatnonzero(ids == s)[0]))
+    for s in order:
+        cell = int(np.flatnonzero(ids == s)[0])
+        row = snn[cell].toarray().ravel()
+        best = max(targets, key=lambda t: (row[members[t]].mean(), -_key(t)))
+        ids[cell] = best
+    return ids
+
+
+def _key(label: str) -> float:
+    """Sort key that keeps numeric cluster labels in numeric order."""
+    try:
+        return float(label)
+    except ValueError:
+        return float("inf")
 
 
 # ------------------------------------------------------------------

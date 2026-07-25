@@ -104,17 +104,24 @@ def _build_knn(
 
 
 def _knn_to_sparse(nn_idx: np.ndarray, n_cells: int) -> sp.csc_matrix:
-    """Build a symmetric binary KNN adjacency matrix (nn_idx includes self)."""
+    """Build the binary KNN adjacency matrix (nn_idx includes self).
+
+    Seurat's ``nn`` graph is the raw *directed* KNN —
+    ``sparseMatrix(i = i, j = j, x = 1)`` over the ranked neighbour table, with
+    no symmetrisation. So every row has exactly ``k`` entries and the column
+    sums vary with how often a cell is chosen as someone else's neighbour;
+    ``nnz`` is exactly ``n * k``. Symmetrising here would both change those
+    counts and destroy the in-degree signal (hub cells appear in many
+    neighbourhoods). Consumers that need symmetry — ``run_umap``, the graph
+    branch of ``run_spca`` — symmetrise at the point of use, as Seurat does.
+    """
     n, k = nn_idx.shape
     rows = np.repeat(np.arange(n), k)
     cols = nn_idx.flatten()
     data = np.ones(len(rows), dtype=np.float64)
-
-    mat = sp.coo_matrix((data, (rows, cols)), shape=(n_cells, n_cells))
-    # Symmetrize
-    mat = mat + mat.T
-    mat.data = np.ones_like(mat.data)
-    return mat.tocsc()
+    return sp.coo_matrix(
+        (data, (rows, cols)), shape=(n_cells, n_cells)
+    ).tocsc()
 
 
 def _build_snn(
@@ -129,6 +136,13 @@ def _build_snn(
     ``k`` members (self included, matching Seurat). Edges with Jaccard below
     ``prune_snn`` are dropped.
 
+    The diagonal is *kept*: a cell shares its whole neighbourhood with itself,
+    so ``SNN[i,i] = k / (2k − k) = 1``. Seurat's ``ComputeSNN`` stores it (all
+    ``n`` diagonal entries are 1) and downstream code relies on that — notably
+    ``RunUMAP.Graph``, which zeroes the diagonal itself rather than assuming it
+    is absent. Dropping it here made the stored graph disagree with Seurat's in
+    both ``nnz`` and ``sum``.
+
     The intersection is computed via a sparse matrix product and kept sparse
     throughout — never materialised as a dense n×n array — so this scales to
     large cell counts.
@@ -138,11 +152,15 @@ def _build_snn(
     # so each row has exactly k ones.
     rows = np.repeat(np.arange(n), k)
     cols = nn_idx.flatten()
-    vals = np.ones(len(rows), dtype=np.float32)
-    M = sp.csr_matrix((vals, (rows, cols)), shape=(n_cells, n_cells), dtype=np.float32)
+    vals = np.ones(len(rows), dtype=np.float64)
+    M = sp.csr_matrix((vals, (rows, cols)), shape=(n_cells, n_cells), dtype=np.float64)
 
     # |NN(i) ∩ NN(j)| as a *sparse* product (nonzero only for overlapping
-    # neighbourhoods); the diagonal equals k (self-overlap) and is pruned below.
+    # neighbourhoods). Seurat computes this in double; float32 here put ~3e-08
+    # on every stored weight. That did not change *which* edges survive — the
+    # weak Python ``prune_snn`` is cast down to float32 for the comparison, so
+    # both sides round the same way — but the weights are exact ratios of small
+    # integers, so agreeing with Seurat to machine epsilon is free.
     inter = (M @ M.T).tocoo()
     r, c, inter_vals = inter.row, inter.col, inter.data
 
@@ -150,7 +168,7 @@ def _build_snn(
     union = 2 * k - inter_vals
     jaccard = inter_vals / np.maximum(union, 1.0)
 
-    keep = (jaccard >= prune_snn) & (r != c)
+    keep = jaccard >= prune_snn
     snn = sp.csc_matrix(
         (jaccard[keep], (r[keep], c[keep])), shape=(n_cells, n_cells)
     )
