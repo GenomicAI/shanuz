@@ -21,6 +21,23 @@ Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
 spatial, scale, and the specialized assays — plus one breaking fix. All of it is
 on `main`; none of it is on PyPI.
 
+### Changed
+
+- **The object-model tutorial's R reference now uses exact neighbours.**
+  `pbmc3k_objects_verify.R` called `FindNeighbors` with Seurat's default
+  `nn.method = "annoy"`, which is approximate, while shanuz's neighbour search
+  is exact — so the graph anchors compared two different neighbour tables and
+  reported a difference belonging to annoy rather than to either object model.
+  It cost 182 SNN edges (199,434 against 199,616). Pinning `nn.method = "rann"`
+  makes both sides exact, and the tutorial now matches **91 of 91** anchors,
+  up from 90. Confirmed two ways: Seurat under `rann` returns 199,616 directly,
+  and feeding Seurat's own `rann` indices into `_build_snn` reproduces both the
+  count and the weight sum.
+- `objects_vignette.md`, `tutorials/README.md`, `ROADMAP.md` and the tutorial's
+  own docstring described the symmetrised kNN graph and the dropped SNN
+  self-edge as open. Both were fixed below; the text and the kNN-degree figure
+  now record them as closed.
+
 ### Fixed
 
 *The neighbour graphs, against `FindNeighbors` / `FindClusters` (Seurat 5.5.1).

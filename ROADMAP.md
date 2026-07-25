@@ -1019,11 +1019,13 @@ regime. Don't "simplify" them.
     `orig.ident`; and `add_meta_data` rejected the plain vector R documents.
     **`join_layers`/`split_layers` had zero call sites and zero tests before
     this** — the defining feature of the v5 object model, never once run.
-    **Open, deliberately not fixed here:** `find_neighbors` symmetrizes the kNN
+    **Deferred here, closed in PR #55:** `find_neighbors` symmetrized the kNN
     graph where Seurat's is directed (nnz 75,740 against exactly 2,700 × 20 =
-    54,000; degree 20-83, mean 28.1), and `_build_snn` drops the self-edge Seurat
-    keeps (~2,700 of the 4,044-edge gap). Both change what clustering consumes
-    and need their own comparison.
+    54,000; degree 20-83, mean 28.1), and `_build_snn` dropped the self-edge
+    Seurat keeps (~2,700 of the 4,044-edge gap). Both were fixed with the rest of
+    the graph work, and the tutorial now matches **91 of 91** anchors — once its
+    R script pins `nn.method = "rann"`, because Seurat's default `annoy` is
+    approximate and was costing 182 SNN edges on its own.
   - **T-sp spatial statistics & the spatial container — ✅ delivered. Wave 2's
     last, three more defects.** `load_xenium` / `create_fov` / `create_centroids`
     / `create_segmentation` / `find_spatially_variable_features` on the Xenium
