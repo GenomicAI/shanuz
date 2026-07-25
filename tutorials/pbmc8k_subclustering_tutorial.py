@@ -221,6 +221,7 @@ def run_full(data_dir=None, verbose=True):
         section("1. Load PBMC 8k + QC")
     pbmc = load_object(data_dir)
     n_raw = len(pbmc)
+    pbmc.misc["n_cells_raw"] = n_raw   # not recoverable after qc_filter
     pbmc = qc_filter(pbmc)
     if verbose:
         print(f"  {n_raw} cells -> {len(pbmc)} after QC "
@@ -264,6 +265,7 @@ def run_full(data_dir=None, verbose=True):
     global_idents = pbmc.meta_data["global_clusters"].astype(str).values
     cells = pbmc.cell_names()
     lymphoid_cells = [c for c, g in zip(cells, global_idents) if g in set(lymphoid_clusters)]
+    pbmc.misc["n_lymphoid_clusters"] = len(lymphoid_clusters)
     if verbose:
         # map(str, ...) because these labels come back as numpy str_, whose repr
         # would render the list as [np.str_('1'), np.str_('2'), ...].
@@ -304,8 +306,201 @@ def run_full(data_dir=None, verbose=True):
     return pbmc, sub, all_markers, sub_markers, broad, sub_anno
 
 
+# ---------------------------------------------------------------------------
+# Numeric handoff against R
+# ---------------------------------------------------------------------------
+#
+# This tutorial's whole point is the second stage: isolate the T/NK compartment
+# and re-analyse it. So the handoff is keyed by barcode rather than summarised,
+# because the interesting failure mode here is silent — a subclustering fed
+# from the wrong global clusters still yields a compartment, still yields
+# subclusters, and a count check calls it a match. Only a barcode-level set
+# comparison can tell "the same 4,000 cells" from "4,000 cells".
+#
+# `match_partitions` is shared with the PBMC 3k tutorial (this one is its
+# advanced companion), so both tutorials score cluster agreement the same way:
+# Hungarian matching on the contingency table, then ARI alongside it.
+
+FIGURES = Path(__file__).parent / "figures_advanced"
+
+
+def write_anchors(pbmc, sub, all_markers, sub_markers) -> None:
+    """Dump the global and T/NK cell tables plus the scalars."""
+    import json
+
+    FIGURES.mkdir(exist_ok=True)
+    md = pbmc.meta_data
+    pd.DataFrame({
+        "cell": list(pbmc.cell_names()),
+        "nCount_RNA": md["nCount_RNA"].to_numpy(),
+        "nFeature_RNA": md["nFeature_RNA"].to_numpy(),
+        "percent.mt": md["percent.mt"].to_numpy(),
+        "global_cluster": md["global_clusters"].astype(str).to_numpy(),
+        "broad_celltype": md["broad_celltype"].astype(str).to_numpy(),
+    }).to_csv(FIGURES / "py_cell_meta.csv", index=False)
+
+    smd = sub.meta_data
+    pd.DataFrame({
+        "cell": list(sub.cell_names()),
+        "sub_cluster": smd["sub_clusters"].astype(str).to_numpy(),
+        "tnk_subset": smd["tnk_subset"].astype(str).to_numpy(),
+    }).to_csv(FIGURES / "py_tnk_cells.csv", index=False)
+
+    rna = pbmc.assays["RNA"]
+    anchors = {
+        "n_cells_raw": int(pbmc.misc["n_cells_raw"]),
+        "n_cells_qc": len(pbmc.cell_names()),
+        "n_genes": len(rna._all_feature_names),
+        "n_hvg": len(rna.variable_features),
+        "n_global_clusters": int(md["global_clusters"].astype(str).nunique()),
+        "n_markers": int(len(all_markers)),
+        "knn_nnz": int(pbmc.graphs["RNA_nn"].nnz),
+        "snn_nnz": int(pbmc.graphs["RNA_snn"].nnz),
+        "snn_weight_sum": float(pbmc.graphs["RNA_snn"].sum()),
+        "data_sum": float(rna.layers["data"].sum()),
+        "n_lymphoid_clusters": int(pbmc.misc["n_lymphoid_clusters"]),
+        "n_tnk_cells": len(sub.cell_names()),
+        "n_tnk_subclusters": int(smd["sub_clusters"].astype(str).nunique()),
+        "n_tnk_markers": int(len(sub_markers)),
+        "pc_stdev": [float(s) for s in pbmc.reductions["pca"].stdev[:10]],
+    }
+    (FIGURES / "py_anchors.json").write_text(json.dumps(anchors, indent=2))
+    print(f"\n  Wrote py_cell_meta.csv, py_tnk_cells.csv and py_anchors.json "
+          f"to {FIGURES}")
+    print("  Next: Rscript tutorials/pbmc8k_subclustering_verify.R"
+          "  then  python tutorials/pbmc8k_subclustering_tutorial.py --report")
+
+
+def report() -> None:
+    """Compare the two-stage workflow against the R reference."""
+    import json
+
+    from tutorials.pbmc3k_tutorial import match_partitions
+
+    need = ["py_cell_meta.csv", "r_cell_meta.csv", "py_tnk_cells.csv",
+            "r_tnk_cells.csv", "py_anchors.json", "r_anchors.json"]
+    missing = [f for f in need if not (FIGURES / f).exists()]
+    if missing:
+        print(f"  missing {missing} — run the tutorial and then "
+              f"`Rscript tutorials/pbmc8k_subclustering_verify.R`")
+        return
+
+    print("=" * 78)
+    print("shanuz vs Seurat 5.5.1 — PBMC 8k, global clustering then T/NK subclustering")
+    print("=" * 78)
+
+    pc = pd.read_csv(FIGURES / "py_cell_meta.csv").set_index("cell")
+    rc = pd.read_csv(FIGURES / "r_cell_meta.csv").set_index("cell")
+
+    # ---- 1. did QC keep the same cells? ------------------------------------
+    only_py, only_r = pc.index.difference(rc.index), rc.index.difference(pc.index)
+    cells = pc.index.intersection(rc.index)
+    print(f"\n  QC — cells retained: shanuz {len(pc)}, R {len(rc)}, shared {len(cells)}")
+    print(f"       only shanuz {len(only_py)}   only R {len(only_r)}   "
+          f"{'IDENTICAL CELL SET' if not len(only_py) and not len(only_r) else 'SETS DIFFER'}")
+    p, r = pc.loc[cells], rc.loc[cells]
+    print(f"\n  {'per-cell metric':<18}{'max|diff|':>14}")
+    print(f"  {'-' * 32}")
+    for col in ("nCount_RNA", "nFeature_RNA", "percent.mt"):
+        d = np.abs(p[col].to_numpy() - r[col].to_numpy()).max()
+        print(f"  {col:<18}{d:>14.3e}")
+
+    # ---- 2. stage one: the global clusters ---------------------------------
+    m = match_partitions(p["global_cluster"], r["global_cluster"])
+    print(f"\n  Stage 1 — global clusters: shanuz {m['n_a']}, R {m['n_b']}")
+    print(f"    adjusted Rand index {m['ari']:.4f}   "
+          f"best-match concordance {m['concordance']:.4f} "
+          f"({int(round(m['concordance'] * len(cells)))}/{len(cells)} cells)")
+    print(f"\n    {'shanuz':>8}{'R':>6}{'n py':>8}{'n R':>8}{'shared':>9}"
+          f"   lineage py / R")
+    print(f"    {'-' * 62}")
+    for a, b in m["mapping"].items():
+        ma, mb = p["global_cluster"].astype(str) == a, r["global_cluster"].astype(str) == b
+        la = p.loc[ma, "broad_celltype"].mode().iat[0]
+        lb = r.loc[mb, "broad_celltype"].mode().iat[0]
+        flag = "" if la == lb else "   <-- differs"
+        print(f"    {a:>8}{b:>6}{int(ma.sum()):>8}{int(mb.sum()):>8}"
+              f"{int(m['table'].loc[a, b]):>9}   {la} / {lb}{flag}")
+    # Whichever side has more clusters leaves some unpaired. Those unpaired
+    # clusters *are* the difference between the two runs, so print them rather
+    # than letting the matching quietly drop them off the table.
+    for label, side, other in (("shanuz", p, r), ("R", r, p)):
+        paired = set(m["mapping"]) if label == "shanuz" else set(m["mapping"].values())
+        for c in sorted(set(side["global_cluster"].astype(str)) - paired, key=int):
+            mask = side["global_cluster"].astype(str) == c
+            lands = other.loc[mask, "global_cluster"].astype(str).value_counts()
+            where = ", ".join(f"{k} ({v})" for k, v in lands.head(3).items())
+            print(f"    unmatched {label} cluster {c}: {int(mask.sum())} cells, "
+                  f"lineage {side.loc[mask, 'broad_celltype'].mode().iat[0]}")
+            print(f"      -> they sit in the other run's cluster {where}")
+
+    same = (p["broad_celltype"].astype(str).to_numpy()
+            == r["broad_celltype"].astype(str).to_numpy())
+    print(f"\n    Broad lineage label, per cell: {same.mean():.4f} "
+          f"({same.sum()}/{len(cells)})")
+
+    # ---- 3. the compartment handed to stage two ----------------------------
+    # The load-bearing check. Everything downstream is conditioned on this set,
+    # so two compartments of the same size drawn from different clusters would
+    # make every later number incomparable while looking fine.
+    pt = pd.read_csv(FIGURES / "py_tnk_cells.csv").set_index("cell")
+    rt = pd.read_csv(FIGURES / "r_tnk_cells.csv").set_index("cell")
+    sp_, sr = set(pt.index), set(rt.index)
+    inter, union = sp_ & sr, sp_ | sr
+    print(f"\n  The T/NK compartment — shanuz {len(sp_)} cells, R {len(sr)}")
+    print(f"    shared {len(inter)}   only shanuz {len(sp_ - sr)}   "
+          f"only R {len(sr - sp_)}   Jaccard {len(inter) / max(len(union), 1):.4f}")
+
+    # ---- 4. stage two: the subclusters, on the shared cells ----------------
+    shared = sorted(inter)
+    if len(shared) >= 2:
+        ms = match_partitions(pt.loc[shared, "sub_cluster"], rt.loc[shared, "sub_cluster"])
+        print(f"\n  Stage 2 — T/NK subclusters on the {len(shared)} shared cells: "
+              f"shanuz {ms['n_a']}, R {ms['n_b']}")
+        print(f"    adjusted Rand index {ms['ari']:.4f}   "
+              f"best-match concordance {ms['concordance']:.4f}")
+        sub_same = (pt.loc[shared, "tnk_subset"].astype(str).to_numpy()
+                    == rt.loc[shared, "tnk_subset"].astype(str).to_numpy())
+        print(f"    T/NK subset label, per cell: {sub_same.mean():.4f} "
+              f"({sub_same.sum()}/{len(shared)})")
+        py_n = pt.loc[shared, "tnk_subset"].value_counts()
+        r_n = rt.loc[shared, "tnk_subset"].value_counts()
+        print(f"\n    {'subset':<14}{'shanuz':>9}{'R':>9}")
+        print(f"    {'-' * 32}")
+        for s in sorted(set(py_n.index) | set(r_n.index)):
+            print(f"    {s:<14}{py_n.get(s, 0):>9}{r_n.get(s, 0):>9}")
+
+    # ---- 5. scalars ---------------------------------------------------------
+    pa, ra = (json.loads((FIGURES / f"{s}_anchors.json").read_text())
+              for s in ("py", "r"))
+    print(f"\n  {'anchor':<22}{'shanuz':>20}{'R Seurat':>20}   verdict")
+    print(f"  {'-' * 68}")
+    for k in ("n_cells_raw", "n_cells_qc", "n_genes", "n_hvg", "n_global_clusters",
+              "n_markers", "knn_nnz", "snn_nnz", "snn_weight_sum", "data_sum",
+              "n_lymphoid_clusters", "n_tnk_cells", "n_tnk_subclusters",
+              "n_tnk_markers"):
+        if k not in pa or k not in ra:
+            continue
+        x, y = pa[k], ra[k]
+        if isinstance(x, int) and isinstance(y, int):
+            verdict = "MATCH" if x == y else f"differ by {x - y:+d}"
+            xs, ys = str(x), str(y)
+        else:
+            verdict = f"rel {abs(x - y) / max(abs(y), 1e-12):.2e}"
+            xs, ys = f"{x:.6f}", f"{y:.6f}"
+        print(f"  {k:<22}{xs:>20}{ys:>20}   {verdict}")
+    sd = np.abs(np.array(pa["pc_stdev"]) - np.array(ra["pc_stdev"]))
+    print(f"  {'pc_stdev[1:10]':<22}{'':>40}   max|Δ| {sd.max():.3e}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PBMC 8k subclustering tutorial")
     parser.add_argument("--data-dir", default=None)
+    parser.add_argument("--report", action="store_true",
+                        help="compare against the R reference and exit")
     args = parser.parse_args()
-    run_full(data_dir=args.data_dir)
+    if args.report:
+        report()
+    else:
+        pbmc, sub, all_markers, sub_markers, _, _ = run_full(data_dir=args.data_dir)
+        write_anchors(pbmc, sub, all_markers, sub_markers)

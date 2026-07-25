@@ -101,6 +101,22 @@ tutorials/figures_multimodal/py_cell_weights.csv
 tutorials/figures_multimodal/r_cell_weights.csv
 tutorials/figures_multimodal/py_anchors.json
 tutorials/figures_multimodal/r_anchors.json
+# PBMC 3k guided tutorial — the end-to-end handoff (figures are committed)
+tutorials/figures/py_cell_meta.csv
+tutorials/figures/r_cell_meta.csv
+tutorials/figures/py_hvg.csv
+tutorials/figures/r_hvg.csv
+tutorials/figures/py_markers.csv
+tutorials/figures/r_markers.csv
+tutorials/figures/py_anchors.json
+tutorials/figures/r_anchors.json
+# PBMC 8k subclustering tutorial — global + T/NK compartment handoff
+tutorials/figures_advanced/py_cell_meta.csv
+tutorials/figures_advanced/r_cell_meta.csv
+tutorials/figures_advanced/py_tnk_cells.csv
+tutorials/figures_advanced/r_tnk_cells.csv
+tutorials/figures_advanced/py_anchors.json
+tutorials/figures_advanced/r_anchors.json
 # SCTransform tutorial — the per-gene model handoff (figures are committed)
 tutorials/figures_sctransform/py_sct_model.csv
 tutorials/figures_sctransform/r_sct_model.csv

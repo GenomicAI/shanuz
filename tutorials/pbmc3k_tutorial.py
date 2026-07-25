@@ -151,6 +151,11 @@ def run_tutorial(data_dir: str | None = None) -> None:
     n_feat = len(pbmc.assays["RNA"]._all_feature_names)
     n_cells = len(pbmc.cell_names())
     print(f"  {n_feat} features × {n_cells} cells  ({time.time() - t0:.1f}s)")
+    # Stash the pre-QC dimensions in `misc` (Seurat's own slot for this, and it
+    # survives subset()); both are handoff anchors, and once the QC filter runs
+    # they cannot be recovered from the object.
+    pbmc.misc["n_genes_raw"] = n_feat
+    pbmc.misc["n_cells_raw"] = n_cells
     validate("n_features after min.cells=3", n_feat, EXPECTED["n_features_raw"])
     validate("n_cells after min.features=200", n_cells, EXPECTED["n_cells_raw"])
 
@@ -303,6 +308,7 @@ def run_tutorial(data_dir: str | None = None) -> None:
     cluster_to_celltype = _assign_cell_types(all_markers, pbmc)
     names = new_cluster_ids = {str(k): v for k, v in cluster_to_celltype.items()}
     pbmc.rename_idents(names)
+    pbmc.meta_data["celltype"] = [str(i) for i in pbmc.idents]
 
     celltype_counts = pd.Series(list(pbmc.idents)).value_counts()
     print("\n  Cell type distribution:")
@@ -316,7 +322,7 @@ def run_tutorial(data_dir: str | None = None) -> None:
     print(f"\n  Total runtime: {total:.1f}s")
     print(f"\n{pbmc}")
 
-    return pbmc
+    return pbmc, all_markers
 
 
 def _assign_cell_types(
@@ -340,7 +346,11 @@ def _assign_cell_types(
         "Platelet":      ["PPBP"],
     }
 
-    clusters = sorted(set(str(i) for i in pbmc.idents))
+    # Sort numerically, not lexicographically: a type is consumed once assigned
+    # (`used_types` below), so the loop order is part of the definition, and
+    # string order would visit cluster 10 before cluster 2 and hand out the
+    # panels in a different sequence. `pbmc3k_verify.R` iterates the same way.
+    clusters = sorted(set(str(i) for i in pbmc.idents), key=int)
     cluster_top_genes: dict[str, set] = {}
     for cluster in clusters:
         sub = all_markers[all_markers["cluster"] == cluster].head(50)
@@ -368,6 +378,307 @@ def _assign_cell_types(
 
 
 # ---------------------------------------------------------------------------
+# Numeric handoff against R
+# ---------------------------------------------------------------------------
+#
+# Every figure in this tutorial links the canonical satijalab.org image, which
+# means the whole guided workflow was compared by eye. These files are not.
+#
+# Nothing is pinned across the two sides: R runs its own pipeline from the same
+# 10x bytes. That is deliberate. `pbmc3k_dimreduc_verify.R` pins Python's cells
+# and features to isolate the post-PCA machinery; here the question is the one
+# the tutorial itself makes — do two independent runs keep the same cells,
+# choose the same variable genes, and land on the same clusters and markers?
+#
+# Per-cell rows are keyed by barcode and per-gene rows by symbol so the report
+# can compare on a shared key. Cluster *numbering* is arbitrary in both tools,
+# so cluster comparisons match the two partitions one-to-one on overlap before
+# scoring; without that step a pure relabelling reads as total disagreement.
+
+FIGURES = Path(__file__).parent / "figures"
+
+# R's Read10X() rewrites underscores in gene symbols to dashes ("RP11-34P13_3"
+# -> "RP11-34P13-3"); shanuz's loader keeps the file's spelling. Map Python's
+# symbols through the same rule before joining, or ~30 genes silently drop out
+# of every per-gene comparison.
+def _r_symbols(genes) -> list:
+    return [str(g).replace("_", "-") for g in genes]
+
+
+def match_partitions(a, b) -> dict:
+    """Match two cluster labellings of the same cells one-to-one on overlap.
+
+    Cluster ids are arbitrary in both tools — shanuz's cluster 3 may be
+    Seurat's cluster 5 — so a coordinate-wise comparison of the labels answers
+    the wrong question. The Hungarian algorithm on the contingency table finds
+    the pairing that maximises the number of cells the two agree on, and
+    ``concordance`` is the fraction of cells that fall inside a matched pair.
+    ``ari`` is label-invariant already and needs no matching; it is reported
+    alongside because it also penalises splits and merges, which a
+    best-matching concordance quietly forgives.
+    """
+    from scipy.optimize import linear_sum_assignment
+    from sklearn.metrics import adjusted_rand_score
+
+    a = np.asarray([str(x) for x in a])
+    b = np.asarray([str(x) for x in b])
+    if a.shape != b.shape or a.size == 0:
+        raise ValueError("both labellings must cover the same non-empty cells")
+    la, lb = sorted(set(a)), sorted(set(b))
+    table = np.zeros((len(la), len(lb)), dtype=int)
+    for i, x in enumerate(la):
+        mask = a == x
+        for j, y in enumerate(lb):
+            table[i, j] = int(np.count_nonzero(mask & (b == y)))
+    rows, cols = linear_sum_assignment(-table)
+    return {
+        "ari": float(adjusted_rand_score(a, b)),
+        "concordance": float(table[rows, cols].sum() / a.size),
+        "mapping": {la[i]: lb[j] for i, j in zip(rows, cols)},
+        "table": pd.DataFrame(table, index=la, columns=lb),
+        "n_a": len(la),
+        "n_b": len(lb),
+    }
+
+
+def write_anchors(pbmc, all_markers) -> None:
+    """Dump the per-cell, per-gene and per-marker tables plus the scalars."""
+    import json
+
+    FIGURES.mkdir(exist_ok=True)
+    md = pbmc.meta_data
+    emb = pbmc.reductions["pca"].cell_embeddings[:, :10]
+    cells = pd.DataFrame({
+        "cell": list(pbmc.cell_names()),
+        "nCount_RNA": md["nCount_RNA"].to_numpy(),
+        "nFeature_RNA": md["nFeature_RNA"].to_numpy(),
+        "percent.mt": md["percent.mt"].to_numpy(),
+        "cluster": md["seurat_clusters"].astype(str).to_numpy(),
+        "celltype": md["celltype"].astype(str).to_numpy(),
+    })
+    for k in range(10):
+        cells[f"PC_{k + 1}"] = emb[:, k]
+    cells.to_csv(FIGURES / "py_cell_meta.csv", index=False)
+
+    rna = pbmc.assays["RNA"]
+    # shanuz stores the VST statistics on the assay's meta_data under `means` /
+    # `variances` / `variances.standardized`; Seurat's HVFInfo() spells the same
+    # three columns `mean` / `variance` / `variance.standardized`. Renamed here
+    # so the handoff joins, but the divergence is real and lives in the object.
+    hvf = rna.meta_data
+    selected = list(rna.variable_features)
+    rank = {g: i + 1 for i, g in enumerate(selected)}
+    pd.DataFrame({
+        "gene": _r_symbols(hvf.index),
+        "mean": hvf["means"].to_numpy(),
+        "variance": hvf["variances"].to_numpy(),
+        "var.std": hvf["variances.standardized"].to_numpy(),
+        "hvg_rank": [rank.get(g, np.nan) for g in hvf.index],
+    }).to_csv(FIGURES / "py_hvg.csv", index=False)
+
+    markers = all_markers.copy()
+    markers["gene"] = _r_symbols(markers["gene"])
+    markers[["cluster", "gene", "avg_log2FC", "pct.1", "pct.2",
+             "p_val", "p_val_adj"]].to_csv(FIGURES / "py_markers.csv", index=False)
+
+    knn = pbmc.graphs["RNA_nn"]
+    snn = pbmc.graphs["RNA_snn"]
+    sizes = md["seurat_clusters"].astype(str).value_counts()
+    anchors = {
+        "n_genes_raw": int(pbmc.misc["n_genes_raw"]),
+        "n_cells_raw": int(pbmc.misc["n_cells_raw"]),
+        "n_cells_qc": len(pbmc.cell_names()),
+        "n_hvg": len(selected),
+        "n_clusters": int(md["seurat_clusters"].nunique()),
+        "n_markers": int(len(all_markers)),
+        "knn_nnz": int(knn.nnz),
+        "snn_nnz": int(snn.nnz),
+        "snn_weight_sum": float(snn.sum()),
+        "data_sum": float(rna.layers["data"].sum()),
+        "pc_stdev": [float(s) for s in pbmc.reductions["pca"].stdev[:10]],
+        "cluster_sizes": {c: int(sizes[c]) for c in sorted(sizes.index, key=int)},
+    }
+    (FIGURES / "py_anchors.json").write_text(json.dumps(anchors, indent=2))
+    print(f"\n  Wrote py_cell_meta.csv, py_hvg.csv, py_markers.csv and "
+          f"py_anchors.json to {FIGURES}")
+    print("  Next: Rscript tutorials/pbmc3k_verify.R"
+          "  then  python tutorials/pbmc3k_tutorial.py --report")
+
+
+def report() -> None:
+    """Compare the whole guided workflow against the R reference."""
+    import json
+
+    from scipy.stats import pearsonr, spearmanr
+
+    need = ["py_cell_meta.csv", "r_cell_meta.csv", "py_hvg.csv", "r_hvg.csv",
+            "py_markers.csv", "r_markers.csv", "py_anchors.json", "r_anchors.json"]
+    missing = [f for f in need if not (FIGURES / f).exists()]
+    if missing:
+        print(f"  missing {missing} — run the tutorial and then "
+              f"`Rscript tutorials/pbmc3k_verify.R`")
+        return
+
+    print("=" * 78)
+    print("shanuz vs Seurat 5.5.1 — PBMC 3k guided clustering, end to end")
+    print("=" * 78)
+
+    pc = pd.read_csv(FIGURES / "py_cell_meta.csv").set_index("cell")
+    rc = pd.read_csv(FIGURES / "r_cell_meta.csv").set_index("cell")
+
+    # ---- 1. did QC keep the same cells, with the same metrics? -------------
+    only_py = pc.index.difference(rc.index)
+    only_r = rc.index.difference(pc.index)
+    cells = pc.index.intersection(rc.index)
+    print(f"\n  QC — cells retained: shanuz {len(pc)}, R {len(rc)}, "
+          f"shared {len(cells)}")
+    print(f"       only shanuz {len(only_py)}   only R {len(only_r)}   "
+          f"{'IDENTICAL CELL SET' if not len(only_py) and not len(only_r) else 'SETS DIFFER'}")
+    p, r = pc.loc[cells], rc.loc[cells]
+    print(f"\n  {'per-cell metric':<18}{'max|diff|':>14}")
+    print(f"  {'-' * 32}")
+    for col in ("nCount_RNA", "nFeature_RNA", "percent.mt"):
+        d = np.abs(p[col].to_numpy() - r[col].to_numpy()).max()
+        print(f"  {col:<18}{d:>14.3e}")
+
+    # ---- 2. the VST statistics and the 2,000 it selected -------------------
+    ph = pd.read_csv(FIGURES / "py_hvg.csv").set_index("gene")
+    rh = pd.read_csv(FIGURES / "r_hvg.csv").set_index("gene")
+    genes = ph.index.intersection(rh.index)
+    print(f"\n  Variable features (VST) — {len(genes)} shared genes "
+          f"of {len(ph)} / {len(rh)}")
+    print(f"  {'per-gene statistic':<20}{'max|diff|':>14}")
+    print(f"  {'-' * 34}")
+    for col in ("mean", "variance", "var.std"):
+        d = np.abs(ph.loc[genes, col].to_numpy() - rh.loc[genes, col].to_numpy()).max()
+        print(f"  {col:<20}{d:>14.3e}")
+    py_sel = set(ph.index[ph["hvg_rank"].notna()])
+    r_sel = set(rh.index[rh["hvg_rank"].notna()])
+    both = py_sel & r_sel
+    print(f"    selected set  shanuz {len(py_sel)}  R {len(r_sel)}  "
+          f"shared {len(both)} ({len(both) / max(len(r_sel), 1):.4f})")
+    if both:
+        rr = spearmanr(ph.loc[sorted(both), "hvg_rank"],
+                       rh.loc[sorted(both), "hvg_rank"]).statistic
+        print(f"    rank agreement on the shared selection: spearman {rr:.4f}")
+
+    # ---- 3. PCA, matched one-to-one because sign and order are arbitrary ---
+    pe = p[[f"PC_{k}" for k in range(1, 11)]].to_numpy()
+    re_ = r[[f"PC_{k}" for k in range(1, 11)]].to_numpy()
+    from scipy.optimize import linear_sum_assignment
+    corr = np.abs(np.corrcoef(pe.T, re_.T)[:10, 10:])
+    rows, cols = linear_sum_assignment(-corr)
+    matched = corr[rows, cols]
+    print("\n  PCA — the 10 dims the clustering runs on, matched on |r|")
+    print(f"    mean |r| {matched.mean():.6f}   min |r| {matched.min():.6f}   "
+          f"in order: {'yes' if list(rows) == list(cols) else 'NO — reordered'}")
+
+    # ---- 4. clusters: match the partitions, then score ---------------------
+    m = match_partitions(p["cluster"], r["cluster"])
+    print(f"\n  Clusters — shanuz {m['n_a']}, R {m['n_b']}")
+    print(f"    adjusted Rand index {m['ari']:.4f}   "
+          f"best-match concordance {m['concordance']:.4f} "
+          f"({int(round(m['concordance'] * len(cells)))}/{len(cells)} cells)")
+    print(f"\n    {'shanuz':>8}{'R':>6}{'n py':>8}{'n R':>8}{'shared':>9}"
+          f"   cell type py / R")
+    print(f"    {'-' * 62}")
+    for a, b in m["mapping"].items():
+        shared = int(m["table"].loc[a, b])
+        ma, mb = p["cluster"].astype(str) == a, r["cluster"].astype(str) == b
+        la, lb = p.loc[ma, "celltype"].mode().iat[0], r.loc[mb, "celltype"].mode().iat[0]
+        flag = "" if la == lb else "   <-- differs"
+        print(f"    {a:>8}{b:>6}{int(ma.sum()):>8}{int(mb.sum()):>8}{shared:>9}"
+              f"   {la} / {lb}{flag}")
+    # The counts above differ, so one side has clusters with no partner. Those
+    # are the whole difference between the two runs and must not be left out of
+    # the table just because the matching had nowhere to put them — so name
+    # them, and say where the other side put their cells instead.
+    for label, side, other in (("shanuz", p, r), ("R", r, p)):
+        paired = set(m["mapping"]) if label == "shanuz" else set(m["mapping"].values())
+        for c in sorted(set(side["cluster"].astype(str)) - paired, key=int):
+            mask = side["cluster"].astype(str) == c
+            lands = other.loc[mask, "cluster"].astype(str).value_counts()
+            where = ", ".join(f"{k} ({v})" for k, v in lands.head(3).items())
+            print(f"    unmatched {label} cluster {c}: {int(mask.sum())} cells, "
+                  f"labelled {side.loc[mask, 'celltype'].mode().iat[0]}")
+            print(f"      -> they sit in the other run's cluster {where}")
+
+    # ---- 5. the cell-type labels, which share a vocabulary -----------------
+    # Read this against the table above, not on its own. `_assign_cell_types`
+    # is a greedy heuristic that consumes each cell type once, scoring clusters
+    # on whether canonical genes reach their top 50 markers — so a cluster the
+    # two tools agree about, cell for cell, can still come out with different
+    # labels if one marker slipped in or out of a top-50 list. Where that
+    # happens the "<-- differs" flag above is the honest reading, not this
+    # number.
+    same = (p["celltype"].astype(str).to_numpy() == r["celltype"].astype(str).to_numpy())
+    agree = sum(1 for a, b in m["mapping"].items()
+                if p.loc[p["cluster"].astype(str) == a, "celltype"].mode().iat[0]
+                == r.loc[r["cluster"].astype(str) == b, "celltype"].mode().iat[0])
+    print(f"\n  Cell types — per-cell label concordance {same.mean():.4f} "
+          f"({same.sum()}/{len(cells)}); "
+          f"{agree}/{len(m['mapping'])} matched clusters carry the same label")
+    py_ct = p["celltype"].value_counts()
+    r_ct = r["celltype"].value_counts()
+    print(f"\n    {'label':<16}{'shanuz':>9}{'R':>9}")
+    print(f"    {'-' * 34}")
+    for ct in sorted(set(py_ct.index) | set(r_ct.index)):
+        print(f"    {ct:<16}{py_ct.get(ct, 0):>9}{r_ct.get(ct, 0):>9}")
+
+    # ---- 6. markers, on the matched clusters -------------------------------
+    pm = pd.read_csv(FIGURES / "py_markers.csv")
+    rm = pd.read_csv(FIGURES / "r_markers.csv")
+    pm["cluster"] = pm["cluster"].astype(str)
+    rm["cluster"] = rm["cluster"].astype(str)
+    print(f"\n  Markers — {len(pm)} rows shanuz, {len(rm)} R "
+          f"(only.pos, min.pct 0.25, logfc 0.25, return.thresh 0.01)")
+    print("  Rows are per matched cluster pair. `top10 by p` is scored twice"
+          " because R's\n  Wilcoxon p-values underflow to exactly 0 for the"
+          " strongest markers, so its\n  own ordering among them is decided by"
+          " the log2FC tie-break, not by p.")
+    print(f"\n    {'py→R':>8}{'R ties@p=0':>12}{'top10 by p':>12}"
+          f"{'top10 by FC':>13}{'genes shared':>14}{'log2FC r':>10}{'max|Δ|':>10}")
+    print(f"    {'-' * 79}")
+    for a, b in m["mapping"].items():
+        pa = pm[pm["cluster"] == a].set_index("gene")
+        rb = rm[rm["cluster"] == b].set_index("gene")
+        ties = int((rb["p_val"] == 0).sum())
+        top_p = set(pa.nsmallest(10, "p_val").index) & set(rb.nsmallest(10, "p_val").index)
+        top_f = set(pa.nlargest(10, "avg_log2FC").index) & set(rb.nlargest(10, "avg_log2FC").index)
+        shared = pa.index.intersection(rb.index)
+        if len(shared) >= 2:
+            x = pa.loc[shared, "avg_log2FC"].to_numpy()
+            y = rb.loc[shared, "avg_log2FC"].to_numpy()
+            rr = f"{pearsonr(x, y).statistic:.4f}"
+            mx = f"{np.abs(x - y).max():.2e}"
+        else:
+            rr, mx = "—", "—"
+        denom = max(len(pa.index.union(rb.index)), 1)
+        print(f"    {a + '→' + b:>8}{ties:>12}{len(top_p):>9}/10{len(top_f):>10}/10"
+              f"{len(shared):>9}/{denom:<4}{rr:>10}{mx:>10}")
+
+    # ---- 7. scalars ---------------------------------------------------------
+    pa_ = json.loads((FIGURES / "py_anchors.json").read_text())
+    ra_ = json.loads((FIGURES / "r_anchors.json").read_text())
+    print(f"\n  {'anchor':<16}{'shanuz':>22}{'R Seurat':>22}   verdict")
+    print(f"  {'-' * 66}")
+    for k in ("n_genes_raw", "n_cells_raw", "n_cells_qc", "n_hvg", "n_clusters",
+              "n_markers", "knn_nnz", "snn_nnz", "snn_weight_sum", "data_sum"):
+        if k not in pa_ or k not in ra_:
+            continue
+        x, y = pa_[k], ra_[k]
+        if isinstance(x, int) and isinstance(y, int):
+            verdict = "MATCH" if x == y else f"differ by {x - y:+d}"
+            xs, ys = str(x), str(y)
+        else:
+            verdict = f"rel {abs(x - y) / max(abs(y), 1e-12):.2e}"
+            xs, ys = f"{x:.6f}", f"{y:.6f}"
+        print(f"  {k:<16}{xs:>22}{ys:>22}   {verdict}")
+    sd = np.abs(np.array(pa_["pc_stdev"]) - np.array(ra_["pc_stdev"]))
+    print(f"  {'pc_stdev[1:10]':<16}{'':>44}   max|Δ| {sd.max():.3e}")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -378,5 +689,11 @@ if __name__ == "__main__":
         default=None,
         help="Directory for PBMC3k data (default: ~/.shanuz_data/pbmc3k)",
     )
+    parser.add_argument("--report", action="store_true",
+                        help="compare against the R reference and exit")
     args = parser.parse_args()
-    run_tutorial(data_dir=args.data_dir)
+    if args.report:
+        report()
+    else:
+        pbmc, all_markers = run_tutorial(data_dir=args.data_dir)
+        write_anchors(pbmc, all_markers)

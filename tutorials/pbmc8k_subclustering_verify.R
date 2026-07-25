@@ -5,17 +5,27 @@
 # Mirrors pbmc8k_subclustering_tutorial.py / generate_advanced_plots.py as
 # faithfully as the two implementations allow (same QC, same pipeline
 # parameters, and the same two annotation heuristics ported to R), then writes
-# the R-side figures for the side-by-side tables into tutorials/figures_advanced/:
+# into tutorials/figures_advanced/:
 #   * r_01_qc_violin.png ... r_11_tnk_markers_heatmap.png
+#   * r_cell_meta.csv   per-cell QC, global cluster and broad lineage
+#   * r_tnk_cells.csv   the T/NK compartment: barcode, subcluster, subset label
+#   * r_anchors.json    scalars: counts, graph nnz, compartment size
+#
+# Nothing is pinned to the Python run: both sides start from the same 10x bytes
+# and run their own two-stage pipeline. The point of keying the two cell tables
+# by *barcode* is that the interesting question here is not "how many T/NK
+# cells" but "are they the same cells" — a compartment of the right size drawn
+# from the wrong clusters would pass a count check and fail this one.
 #
 # Data: reads the same cache the Python tutorial downloads to. Run
 #   python tutorials/pbmc8k_subclustering_tutorial.py   # downloads ~38 MB first
 # then
 #   Rscript tutorials/pbmc8k_subclustering_verify.R
+#   python tutorials/pbmc8k_subclustering_tutorial.py --report
 # Override the data folder with the PBMC8K_DATA environment variable.
 #
-# Needs: Seurat, ggplot2.
-suppressPackageStartupMessages({ library(Seurat); library(ggplot2) })
+# Needs: Seurat, ggplot2, jsonlite.
+suppressPackageStartupMessages({ library(Seurat); library(ggplot2); library(jsonlite) })
 set.seed(0)
 
 # --- resolve paths relative to this script ---------------------------------
@@ -128,7 +138,12 @@ pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize",
 pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
 pbmc <- ScaleData(pbmc, features = rownames(pbmc), verbose = FALSE)
 pbmc <- RunPCA(pbmc, npcs = 50, verbose = FALSE)
-pbmc <- FindNeighbors(pbmc, dims = 1:10, k.param = 20, verbose = FALSE)
+# nn.method = "rann" gives exact neighbours. Seurat's default is approximate
+# (annoy) while shanuz's neighbour search is exact, so the default would compare
+# two different neighbour tables — and here the graph decides the clusters,
+# which decide which cells enter the subclustering stage. Same pin as
+# pbmc3k_verify.R and pbmc3k_objects_verify.R.
+pbmc <- FindNeighbors(pbmc, dims = 1:10, k.param = 20, nn.method = "rann", verbose = FALSE)
 pbmc <- FindClusters(pbmc, resolution = 0.5, algorithm = 1, verbose = FALSE)
 pbmc <- RunUMAP(pbmc, dims = 1:10, verbose = FALSE)
 cat(sprintf("Global clusters (res=0.5): %d\n", length(levels(pbmc))))
@@ -153,7 +168,7 @@ sub <- subset(pbmc, cells = sub_cells)
 sub <- FindVariableFeatures(sub, selection.method = "vst", nfeatures = 2000, verbose = FALSE)
 sub <- ScaleData(sub, features = rownames(sub), verbose = FALSE)
 sub <- RunPCA(sub, npcs = 30, verbose = FALSE)
-sub <- FindNeighbors(sub, dims = 1:10, k.param = 20, verbose = FALSE)
+sub <- FindNeighbors(sub, dims = 1:10, k.param = 20, nn.method = "rann", verbose = FALSE)
 sub <- FindClusters(sub, resolution = 0.6, algorithm = 1, verbose = FALSE)
 sub <- RunUMAP(sub, dims = 1:10, verbose = FALSE)
 cat(sprintf("T/NK subclusters (res=0.6): %d\n", length(levels(sub))))
@@ -166,6 +181,49 @@ cat("T/NK subset assignment:\n"); print(sub_anno)
 Idents(sub) <- sub$sub_clusters
 sub <- RenameIdents(sub, sub_anno)
 sub$tnk_subset <- Idents(sub)
+
+# ======================= NUMERIC HANDOFF ====================================
+# The figures are compared by eye; these files are not.
+#
+# The two cell tables are keyed by barcode because the question this tutorial
+# raises is not "how many T/NK cells" but "*which* cells". A subclustering stage
+# fed from the wrong global clusters can still produce a compartment of exactly
+# the right size, and a count check would call that a match.
+write.csv(data.frame(
+  cell           = colnames(pbmc),
+  nCount_RNA     = as.numeric(pbmc$nCount_RNA),
+  nFeature_RNA   = as.numeric(pbmc$nFeature_RNA),
+  percent.mt     = as.numeric(pbmc$percent.mt),
+  global_cluster = as.character(pbmc$global_clusters),
+  broad_celltype = as.character(pbmc$broad_celltype)),
+  file.path(FIG, "r_cell_meta.csv"), row.names = FALSE)
+
+write.csv(data.frame(
+  cell        = colnames(sub),
+  sub_cluster = as.character(sub$sub_clusters),
+  tnk_subset  = as.character(sub$tnk_subset)),
+  file.path(FIG, "r_tnk_cells.csv"), row.names = FALSE)
+
+anchors <- list(
+  n_cells_raw       = n_raw,
+  n_cells_qc        = ncol(pbmc),
+  n_genes           = nrow(pbmc),
+  n_hvg             = length(VariableFeatures(pbmc)),
+  n_global_clusters = length(levels(pbmc$global_clusters)),
+  n_markers         = nrow(all_markers),
+  knn_nnz           = length(pbmc@graphs$RNA_nn@x),
+  snn_nnz           = length(pbmc@graphs$RNA_snn@x),
+  snn_weight_sum    = sum(pbmc@graphs$RNA_snn@x),
+  data_sum          = sum(GetAssayData(pbmc, layer = "data")),
+  n_lymphoid_clusters = length(lymphoid_clusters),
+  n_tnk_cells       = ncol(sub),
+  n_tnk_subclusters = length(levels(sub$sub_clusters)),
+  n_tnk_markers     = nrow(sub_markers),
+  pc_stdev          = as.numeric(Stdev(pbmc, "pca"))[1:10]
+)
+writeLines(jsonlite::toJSON(anchors, digits = 22, auto_unbox = TRUE, pretty = TRUE),
+           file.path(FIG, "r_anchors.json"))
+cat("Wrote r_cell_meta.csv, r_tnk_cells.csv and r_anchors.json to", FIG, "\n")
 
 # ============================ FIGURES =======================================
 sv <- function(p, name, w = 8, h = 6.5)

@@ -366,6 +366,56 @@ invisible at the global resolution.
 
 ---
 
+## How close is this to Seurat?
+
+Every figure above is a side-by-side, which means it was checked by eye.
+`pbmc8k_subclustering_verify.R` also writes a numeric handoff, and `--report`
+compares it:
+
+```bash
+python tutorials/pbmc8k_subclustering_tutorial.py          # writes the Python side
+Rscript tutorials/pbmc8k_subclustering_verify.R            # writes the R side
+python tutorials/pbmc8k_subclustering_tutorial.py --report
+```
+
+Nothing is pinned across the two sides. Both run the whole two-stage pipeline
+from the same 10x bytes.
+
+| Stage | shanuz vs Seurat 5.5.1 |
+|---|---|
+| QC | **the same 7,475 barcodes**; nCount and nFeature exact, percent.mt to 5.8e-15 |
+| Normalized data | total to 8.2e-13 relative · kNN graph **149,500 on both** |
+| Stage 1 clusters | 13 vs 12 · **ARI 0.977** · 7,341/7,475 cells agree |
+| Broad lineage, per cell | **0.9858** |
+| **T/NK compartment** | **Jaccard 0.9991** — 4,631 of 4,635 cells are the same barcodes |
+| Stage 2 subclusters | 12 vs 11 · **ARI 0.916** on the shared cells |
+| T/NK subset label, per cell | **0.9821**; the four subset sizes agree within 25 cells |
+
+### Why the compartment is compared by barcode
+
+The T/NK compartment is the number to watch, and it is the reason the handoff
+dumps cell tables rather than summary counts. Everything in stage two is
+conditioned on which cells stage one selected — so a subclustering fed from the
+wrong global clusters would still produce a compartment of a plausible size,
+still produce subclusters, still produce a marker table, and a size check would
+call all of it a match. Only comparing the barcodes can tell "the same 4,600
+cells" from "4,600 cells". Here they are the same to four cells.
+
+### The extra cluster
+
+shanuz finds 13 global clusters where Seurat finds 12. Seurat's 100-cell
+cluster 11 holds both Platelet and DC; shanuz splits it into a 54-cell DC
+cluster and a 53-cell Platelet cluster. Two distinct myeloid lineages, so the
+split is the more resolved answer.
+
+Note that this runs *opposite* to the PBMC 3k tutorial, where Seurat resolves a
+32-cell DC cluster that shanuz folds into CD14+ Mono. Both are the same
+borderline population landing on different sides of a resolution threshold, and
+neither run is uniformly finer than the other — which is worth knowing before
+reading a cluster count as a verdict.
+
+---
+
 ## API Translation (additions beyond the PBMC 3k tutorial)
 
 | Task | R (Seurat) | Python (Shanuz) |

@@ -9,8 +9,8 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 
 | # | Tutorial | Dataset | Key Concepts | Complexity |
 |---|----------|---------|--------------|-----------|
-| 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers | Beginner |
-| 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation | Intermediate |
+| 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers. **Compared end to end**, both sides running their own pipeline: the same 2,638 barcodes survive QC, 1,998/2,000 variable features shared, PCA matched \|r\| **0.9988**, clusters at **ARI 0.938** (8 vs 9 — one 32-cell DC population), and on the two clusters whose cells match exactly the marker tables are **identical gene sets** to 4.9e-15 | Beginner |
+| 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation. **Both stages compared by barcode**: same 7,475 cells after QC, global clusters at **ARI 0.977**, and the T/NK compartment handed to stage 2 matches at **Jaccard 0.9991** (4,631 of 4,635 cells) — subclusters then at ARI 0.916 and subset labels **98.2%** concordant | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison · WNN joint clustering. **Compared per protein and per cell**: CLR to **4.2e-15**, WNN modality weights at Pearson **0.9847** over 8,617 shared barcodes, cell-type labels **99.29%** concordant, all cluster counts identical. Settled the long-open progenitor question — it was a labelling difference, not a WNN one | Advanced |
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize. The **fitted model is compared per gene** against Seurat's `SCTModel` feature attributes — `detection_rate`/`gmean` to machine precision, intercept and theta at **Spearman 1.0000**, the 3,848 non-overdispersed genes exactly the same set, residual variance at 0.9986; both arms now agree on cluster count (12 and 11) | Advanced |
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
@@ -120,15 +120,25 @@ python tutorials/generate_plots.py     # writes tutorials/figures/
 | `10_marker_heatmap.png` | Top-10 markers per cluster heatmap |
 | `11_umap_labeled.png` | UMAP with cell-type labels |
 
-**Validation checkpoints:**
+**Measured against R Seurat 5.5.1** — run `Rscript tutorials/pbmc3k_verify.R`
+then `python tutorials/pbmc3k_tutorial.py --report`. Both sides run their own
+pipeline from the same 10x bytes; nothing is pinned across them.
 
-| Step | Expected | Status |
-|------|----------|--------|
-| Features after filtering | 13,714 | ✅ |
-| Cells after QC | 2,638 | ✅ |
-| HVG top-10 overlap (≥50%) | PPBP, LYZ, S100A9 … | ✅ 9/10 |
-| Clusters at resolution 0.5 | 9 | ✅ |
-| All 6 canonical cell types recovered | CD4 T, CD8 T, B, NK, Mono, DC | ✅ |
+| Step | shanuz vs Seurat |
+|------|------------------|
+| Cells surviving QC | **the same 2,638 barcodes**, nCount/nFeature exact, percent.mt to 5.3e-15 |
+| VST per gene, all 13,714 | mean 4.8e-14, variance 1.6e-11, `variance.standardized` to 2.6e-2 relative |
+| The 2,000 variable features | **1,998 shared**; the two swaps are genes 0.03 apart in a LOESS fit, at ranks 1,982–2,000 |
+| PCA, the 10 dims clustering uses | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
+| kNN graph | **52,760 = 2,638 × 20 on both** |
+| Clusters at resolution 0.5 | shanuz **8**, Seurat **9** — ARI **0.938**, 2,554/2,638 cells agree |
+| The one cluster Seurat has and shanuz does not | its 32 DC cells land, **all 32**, in shanuz's CD14+ Mono cluster |
+| Markers on the two clusters whose cells match exactly | **identical gene sets** (151/151 and 242/242), `avg_log2FC` to 4.9e-15 |
+
+The DC split is the honest caveat: at resolution 0.5 a 32-cell dendritic-cell
+population sits on the boundary, and the two runs land on opposite sides of it.
+Tutorial 2 shows the same boundary going the other way — there shanuz resolves
+DC from Platelet and Seurat merges them.
 
 ---
 
@@ -164,6 +174,31 @@ python tutorials/generate_advanced_plots.py         # writes tutorials/figures_a
 | `08_umap_tnk_subsets.png` | T/NK subsets annotated |
 | `09_tnk_subset_featureplots.png` | CD3, CD4, CD8A, CCR7, NKG7 feature plots |
 | `11_tnk_markers_heatmap.png` | T/NK subset marker heatmap |
+
+**Measured against R Seurat 5.5.1** — run `Rscript
+tutorials/pbmc8k_subclustering_verify.R` then
+`python tutorials/pbmc8k_subclustering_tutorial.py --report`.
+
+| Step | shanuz vs Seurat |
+|------|------------------|
+| Cells surviving QC | **the same 7,475 barcodes**, metrics exact to 5.8e-15 |
+| Stage 1 — global clusters | shanuz **13**, Seurat **12**; ARI **0.977**, 7,341/7,475 cells agree |
+| Broad lineage label, per cell | **0.9858** |
+| **The compartment handed to stage 2** | **Jaccard 0.9991** — 4,631 of 4,635 T/NK cells are the same barcodes |
+| Stage 2 — T/NK subclusters | shanuz **12**, Seurat **11**; ARI **0.916** on the shared cells |
+| T/NK subset label, per cell | **0.9821**; subset sizes agree within 25 cells of 4,631 |
+| kNN graph | **149,500 = 7,475 × 20 on both** |
+
+The compartment Jaccard is the load-bearing number. Everything in stage 2 is
+conditioned on which cells stage 1 handed it, so a subclustering fed from the
+wrong global clusters would still produce a compartment, still produce
+subclusters, and still pass a count check — which is why the handoff compares
+barcodes rather than sizes.
+
+The extra shanuz cluster is the mirror image of Tutorial 1's caveat: Seurat's
+100-cell cluster 11 holds both Platelet and DC, and shanuz splits it in two
+(54 DC + 53 Platelet). Here shanuz resolves what Seurat merges; on PBMC 3k it
+is the other way round. Neither run is uniformly finer than the other.
 
 ---
 
