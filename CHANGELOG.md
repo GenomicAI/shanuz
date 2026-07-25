@@ -21,8 +21,38 @@ Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
 spatial, scale, and the specialized assays — plus one breaking fix. All of it is
 on `main`; none of it is on PyPI.
 
+### Added
+
+- **The SCTransform tutorial now compares the fitted model, not just the
+  figures.** `pbmc3k_sctransform_verify.R` dumps Seurat's own
+  `SCTModel.list[[1]]@feature.attributes` plus the ranked variable features and
+  the clips; the Python side writes the same table and
+  `--report` puts them side by side, per gene. This was the highest-risk gap in
+  the suite: tutorials 1-4 were compared by eye, and SCTransform is where a
+  four-part defect once hid behind a perfectly plausible UMAP.
+- `sctransform` now stores the **whole fitted model** on the SCT assay's
+  `meta_data`, under Seurat's column names: `residual_mean`, `detection_rate`,
+  `(Intercept)` and `log_umi` join the existing `residual_variance`, `theta` and
+  `gmean`. The regularized intercept and slope — the model itself — previously
+  could not be inspected at all.
+
+  Measured over all 12,572 modelled genes against Seurat 5.5.1: `detection_rate`
+  and `gmean` agree to 5.6e-16 and 1.2e-12, `(Intercept)` and `theta` both rank
+  identically (Spearman 1.0000), the 3,848 genes v2 declares non-overdispersed
+  are exactly the same set (Jaccard 1.0000), and residual variance ranks at
+  0.9986. `residual_mean` is the one column that does not track by rank
+  (Spearman 0.71, Pearson 0.99) and the one nothing downstream reads.
+
 ### Changed
 
+- **The SCTransform vignette's ±1 cluster gap is closed and its docstring
+  corrected.** The vignette described shanuz resolving 13 clusters against
+  Seurat's 12, blamed on the RNG and the differing clustering libraries. Both
+  arms now agree exactly — 12 under SCTransform, 11 under LogNormalize — which
+  PR #55's graph work closed rather than anything in SCTransform. Separately,
+  `shanuz/sctransform.py`'s module docstring claimed 99.7% variable-feature
+  agreement and theta at 0.96; the reproducible comparison measures 97.1% and
+  Spearman 1.0000. The docstring now carries the numbers the tutorial prints.
 - **The object-model tutorial's R reference now uses exact neighbours.**
   `pbmc3k_objects_verify.R` called `FindNeighbors` with Seurat's default
   `nn.method = "annoy"`, which is approximate, while shanuz's neighbour search

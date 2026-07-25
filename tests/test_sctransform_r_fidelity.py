@@ -391,3 +391,108 @@ def test_vars_to_regress_still_removes_the_covariate():
     assert pct.std() > 1e-9, "fixture must vary the covariate for this to mean anything"
     corr = [abs(np.corrcoef(row, pct)[0, 1]) for row in sd if row.std() > 1e-9]
     assert np.nanmax(corr) < 0.05
+
+
+# ----------------------------------------------------------------------
+# The per-gene model table — Seurat's SCTModel feature.attributes
+# ----------------------------------------------------------------------
+
+
+def test_model_table_carries_seurats_feature_attribute_columns():
+    """The SCT assay exposes the fitted model, under Seurat's own column names.
+
+    These are what `obj[["SCT"]]@SCTModel.list[[1]]@feature.attributes` holds,
+    and the tutorial's `--report` pass reads them straight across. Before this,
+    shanuz stored only three of them, so the fitted intercept and slope — the
+    model itself — could not be inspected or compared at all.
+    """
+    obj = _object()
+    sctransform(obj, n_features=20, min_cells=0, seed=0, verbose=False)
+    md = obj.assays["SCT"].meta_data
+    for col in ("detection_rate", "gmean", "residual_mean", "residual_variance",
+                "theta", "(Intercept)", "log_umi"):
+        assert col in md.columns, f"{col!r} missing from the SCT model table"
+        assert len(md[col]) == len(obj.assays["SCT"]._all_feature_names)
+
+
+def test_detection_rate_is_the_fraction_of_cells_expressing():
+    """Computed independently from the counts, not from the model."""
+    obj = _object()
+    counts = obj.assays["RNA"].layers["counts"]
+    dense = counts.toarray() if sp.issparse(counts) else np.asarray(counts)
+    expected = (dense > 0).sum(axis=1) / dense.shape[1]
+
+    sctransform(obj, n_features=20, min_cells=0, seed=0, verbose=False)
+    got = obj.assays["SCT"].meta_data["detection_rate"].to_numpy()
+    assert got == pytest.approx(expected, abs=1e-12)
+    # g0 is zero in all but 10 of the 300 cells, so a wrong axis or a
+    # nnz-vs-nonzero slip would show up here rather than averaging out.
+    assert got[0] == pytest.approx(10 / 300, abs=1e-12)
+
+
+def test_v2_pins_the_depth_slope_at_log10():
+    """v2 fixes the slope, so `log_umi` is log(10) for every gene — v1 does not.
+
+    Both halves matter: without the v1 arm this would pass on an implementation
+    that hard-coded the constant instead of fitting it.
+    """
+    v2, v1 = _object(), _object()
+    sctransform(v2, n_features=20, min_cells=0, seed=0, vst_flavor="v2", verbose=False)
+    sctransform(v1, n_features=20, min_cells=0, seed=0, vst_flavor="v1", verbose=False)
+
+    assert v2.assays["SCT"].meta_data["log_umi"].to_numpy() == pytest.approx(
+        np.log(10.0), abs=1e-12)
+    assert v1.assays["SCT"].meta_data["log_umi"].std() > 1e-6, (
+        "v1 fits a free slope, so it must not be constant")
+
+
+def test_reported_residual_moments_match_residuals_rebuilt_from_the_model():
+    """The table must describe the residuals the model actually produces.
+
+    Rebuilds mu from the stored `(Intercept)` and `log_umi`, forms the Pearson
+    residual with the stored theta, clips at sqrt(N) as the variance path does,
+    and checks the reported mean and variance fall out. This ties the summary
+    columns to the coefficients rather than letting the two drift apart.
+
+    The fixture is *not* `_object()`: on that one the largest residual is 6.2
+    against a clip of 17.3, so clipped and unclipped agree and the assertion
+    says nothing about the clip. Mutation-testing caught that. `g1` here is a
+    near-Poisson gene carrying one enormous single-cell spike, which the
+    depth-only model cannot absorb, so residuals run past sqrt(N) and the clip
+    is load-bearing.
+    """
+    rng = np.random.default_rng(5)
+    n_genes, n_cells = 60, 300
+    counts = rng.poisson(1.0, size=(n_genes, n_cells)).astype(float)
+    counts[0, :] = 0.0
+    counts[0, :10] = 3000.0        # a rare, bright marker, as in _object()
+    counts[1, :] = rng.poisson(1.0, size=n_cells)
+    counts[1, 0] = 400.0           # one spike the depth model cannot explain
+    obj = create_shanuz_object(
+        counts=sp.csr_matrix(counts), assay="RNA", min_cells=0, min_features=0,
+        project="spike", feature_names=[f"g{i}" for i in range(n_genes)],
+        cell_names=[f"c{i}" for i in range(n_cells)],
+    )
+    sctransform(obj, n_features=20, min_cells=0, seed=0, vst_flavor="v1",
+                verbose=False)
+    md = obj.assays["SCT"].meta_data
+    y = counts
+    n = y.shape[1]
+
+    log10_umi = np.log10(y.sum(axis=0))
+    b0 = md["(Intercept)"].to_numpy()[:, None]
+    b1 = md["log_umi"].to_numpy()[:, None]
+    theta = md["theta"].to_numpy()[:, None]
+    mu = np.exp(b0 + b1 * log10_umi[None, :])
+    raw = (y - mu) / np.sqrt(mu + mu * mu / theta)
+    z = np.clip(raw, -np.sqrt(n), np.sqrt(n))
+    # Without this the clip is untested: if nothing reaches sqrt(N), an
+    # implementation that skipped clipping entirely would pass.
+    assert np.abs(raw).max() > np.sqrt(n), (
+        f"fixture never reaches the clip (max |z| {np.abs(raw).max():.2f} "
+        f"vs sqrt(N) {np.sqrt(n):.2f}) — the assertions below would be vacuous")
+
+    assert md["residual_variance"].to_numpy() == pytest.approx(
+        z.var(axis=1, ddof=1), rel=1e-8)
+    assert md["residual_mean"].to_numpy() == pytest.approx(
+        z.mean(axis=1), abs=1e-10)

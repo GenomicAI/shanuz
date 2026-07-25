@@ -11,13 +11,18 @@
 # writes into tutorials/figures_sctransform/:
 #   * r_02_sct_umap_celltypes.png
 #   * r_06_sct_vs_std_umap.png
+#   * r_sct_model.csv          per-gene fitted model (SCTModel feature.attributes)
+#   * r_variable_features.txt  the 3,000 SCT features, in rank order
+#   * r_anchors.json           scalars: clips, min_variance, median UMI, counts
 #
 # Data: the same cache the Python tutorial downloads to. Run
 #   python tutorials/pbmc3k_sctransform_tutorial.py   # downloads ~24 MB first
 # then
 #   Rscript tutorials/pbmc3k_sctransform_verify.R
-# Needs: Seurat, sctransform, ggplot2, patchwork.
-suppressPackageStartupMessages({ library(Seurat); library(ggplot2); library(patchwork) })
+# Needs: Seurat, sctransform, ggplot2, patchwork, jsonlite.
+suppressPackageStartupMessages({
+  library(Seurat); library(ggplot2); library(patchwork); library(jsonlite)
+})
 set.seed(0)
 
 .args <- commandArgs(trailingOnly = FALSE)
@@ -128,3 +133,47 @@ p6 <- (p_sct | p_std) +
 ggsave(file.path(FIG, "r_06_sct_vs_std_umap.png"), p6, width = 15, height = 6.5, dpi = 150, bg = "white")
 
 cat("\nWrote r_02_sct_umap_celltypes.png and r_06_sct_vs_std_umap.png to", FIG, "\n")
+
+# ======================= NUMERIC HANDOFF ====================================
+# The figures above are compared by eye. These files are not: they carry the
+# fitted model itself, per gene, so the Python side can check the thing
+# SCTransform actually computes rather than the picture drawn from it.
+#
+# This matters here more than anywhere else in the series. shanuz's SCT model
+# was once silently wrong in four separate ways — an anti-correlated theta, a
+# residual variance that ranked genes essentially at random — and the tutorial
+# still produced a plausible UMAP. Only a numeric comparison catches that.
+model <- sct[["SCT"]]@SCTModel.list[[1]]
+fa <- model@feature.attributes
+write.csv(data.frame(gene = rownames(fa), fa[, c(
+  "detection_rate", "gmean", "variance", "residual_mean",
+  "residual_variance", "theta", "(Intercept)", "log_umi")],
+  check.names = FALSE),
+  file.path(FIG, "r_sct_model.csv"), row.names = FALSE)
+
+# Variable features in rank order — SCT picks them by residual variance, so
+# this doubles as a check on the ranking and not just the set.
+writeLines(VariableFeatures(sct), file.path(FIG, "r_variable_features.txt"))
+
+anchors <- list(
+  n_cells            = ncol(sct),
+  n_genes_modelled   = nrow(fa),
+  n_variable_features = length(VariableFeatures(sct)),
+  median_umi         = model@median_umi,
+  # `clips` records the residual clip actually applied, which is the parameter
+  # a previous defect got wrong (sqrt(N/30) where R uses sqrt(N)).
+  clip_vst_lo        = unname(model@clips$vst[1]),
+  clip_vst_hi        = unname(model@clips$vst[2]),
+  clip_sct_lo        = unname(model@clips$sct[1]),
+  clip_sct_hi        = unname(model@clips$sct[2]),
+  min_variance       = model@arguments$min_variance,
+  vst_flavor         = if (is.null(model@arguments$vst.flavor)) "v1"
+                       else model@arguments$vst.flavor,
+  n_poisson_genes    = sum(is.infinite(fa$theta)),
+  residual_variance_sum = sum(fa$residual_variance),
+  n_clusters_sct     = n_sct,
+  n_clusters_std     = n_std
+)
+writeLines(jsonlite::toJSON(anchors, digits = 22, auto_unbox = TRUE, pretty = TRUE),
+           file.path(FIG, "r_anchors.json"))
+cat("Wrote r_sct_model.csv, r_variable_features.txt and r_anchors.json to", FIG, "\n")
