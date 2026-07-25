@@ -243,9 +243,9 @@ def collect_anchors(obj, fov):
     a["qc.nfeature_head"] = obj.meta_data[f"nFeature_{ASSAY}"].to_numpy(float)[:HEAD].tolist()
 
     md = assay.meta_data
-    a["vst.mean_head"] = md["means"].to_numpy(float)[:HEAD].tolist()
-    a["vst.variance_head"] = md["variances"].to_numpy(float)[:HEAD].tolist()
-    a["vst.var_std_head"] = md["variances.standardized"].to_numpy(float)[:HEAD].tolist()
+    a["vst.mean_head"] = md["mean"].to_numpy(float)[:HEAD].tolist()
+    a["vst.variance_head"] = md["variance"].to_numpy(float)[:HEAD].tolist()
+    a["vst.var_std_head"] = md["variance.standardized"].to_numpy(float)[:HEAD].tolist()
 
     a["pca.stdev_head"] = list(map(float, obj.reductions["pca"].stdev[:HEAD]))
     a.update(spot_geometry(fov))

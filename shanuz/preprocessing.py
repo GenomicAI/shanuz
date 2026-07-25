@@ -314,6 +314,18 @@ def find_variable_features(
     Mirrors R's FindVariableFeatures(pbmc, selection.method = "vst",
     nfeatures = 2000). Modifies the assay in-place by setting
     var_features (Assay) or highly_variable in meta_data (Assay5).
+
+    On an Assay5 the per-feature statistics land in ``assay.meta_data`` under
+    the names `HVFInfo()` uses, so a column reads the same in either language:
+
+    * ``selection_method="vst"`` — ``mean``, ``variance``,
+      ``variance.expected``, ``variance.standardized``
+    * ``"mvp"`` / ``"dispersion"`` / ``"mean.var.plot"`` — ``mvp.mean``,
+      ``mvp.dispersion``, ``mvp.dispersion.scaled``
+
+    plus ``highly_variable``, a boolean flag that has no Seurat counterpart of
+    its own (`HVFInfo(status = TRUE)` spells it ``variable``); it is the
+    fallback `Assay5.variable_features` reads when the ordered list is empty.
     """
     assay_name = assay or seurat.active_assay
     assay_obj = seurat.assays[assay_name]
@@ -342,16 +354,34 @@ def find_variable_features(
             else:
                 data = assay_obj.data if not is_matrix_empty(assay_obj.data) else assay_obj.counts
 
+    # `stats` becomes the per-feature columns written to meta_data below. The
+    # keys are Seurat's, taken from `HVFInfo()` rather than from the raw slot:
+    # SeuratObject stores these prefixed by method and layer
+    # (`vf_vst_counts_mean`), and strips the prefix on the way out. `HVFInfo()`
+    # is the name a Seurat user actually types, so it is the one to match.
     if selection_method == "vst":
-        hvg_indices, means, variances, var_std = _vst_hvg(data, nfeatures)
-    elif selection_method == "dispersion" or selection_method == "mvp":
-        hvg_indices, means, variances, var_std = _dispersion_hvg(
+        hvg_indices, means, variances, expected_var, var_std = _vst_hvg(data, nfeatures)
+        stats = {
+            "mean": means,
+            "variance": variances,
+            "variance.expected": expected_var,
+            "variance.standardized": var_std,
+        }
+    elif selection_method in ("dispersion", "mvp", "mean.var.plot"):
+        hvg_indices, means, dispersion, dispersion_scaled = _dispersion_hvg(
             data, nfeatures, mean_cutoff, dispersion_cutoff
         )
-    elif selection_method == "mean.var.plot":
-        hvg_indices, means, variances, var_std = _dispersion_hvg(
-            data, nfeatures, mean_cutoff, dispersion_cutoff
-        )
+        # A different method produces different quantities, and Seurat names
+        # them so: `HVFInfo(method = "mvp")` returns mvp.mean / mvp.dispersion /
+        # mvp.dispersion.scaled, never `variance.standardized`. Writing scaled
+        # dispersions into a column called `variance.standardized` — which is
+        # what sharing one set of column names across both methods amounts to —
+        # is a mislabelling that no downstream reader can detect.
+        stats = {
+            "mvp.mean": means,
+            "mvp.dispersion": dispersion,
+            "mvp.dispersion.scaled": dispersion_scaled,
+        }
     else:
         raise ValueError(f"Unknown selection_method: {selection_method!r}")
 
@@ -368,12 +398,7 @@ def find_variable_features(
     if isinstance(assay_obj, Assay5):
         # Store HVF info in assay meta_data
         hvf_df = pd.DataFrame(
-            {
-                "means": means,
-                "variances": variances,
-                "variances.standardized": var_std,
-                "highly_variable": np.zeros(len(feature_names), dtype=bool),
-            },
+            {**stats, "highly_variable": np.zeros(len(feature_names), dtype=bool)},
             index=feature_names,
         )
         hvf_df.loc[hvg_names, "highly_variable"] = True
@@ -393,8 +418,15 @@ def _vst_hvg(
     nfeatures: int = 2000,
     loess_span: float = 0.3,
     clip_max: Optional[float] = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Variance-stabilizing transformation HVG selection (Seurat's 'vst').
+
+    Returns ``(top_idx, mean, variance, variance.expected, variance.standardized)``
+    — the four per-gene quantities `HVFInfo(method = "vst")` reports, in its
+    order. The expected variance is the LOESS fit that step 2 computes anyway;
+    it is what tells a reader whether a gene's standardized variance is high
+    because the gene is variable or because the fit was poor there, which is the
+    whole point of plotting it against the observed variance.
 
     Faithfully reproduces Seurat's algorithm on the raw counts:
       1. Per-gene mean and *sample* (N-1) variance of the counts.
@@ -493,7 +525,7 @@ def _vst_hvg(
     # selected at all.
     top_idx = np.argsort(-var_standardized, kind="stable")[:nfeatures]
 
-    return top_idx, means, variances, var_standardized
+    return top_idx, means, variances, expected_var, var_standardized
 
 
 def _loess_fit(x: np.ndarray, y: np.ndarray, frac: float = 0.3) -> np.ndarray:
@@ -605,6 +637,12 @@ def _dispersion_hvg(
 
     Bins genes by mean expression, normalizes dispersion within each bin.
     Mirrors Seurat v2's FindVariableGenes.
+
+    Returns ``(top_idx, mean, dispersion, dispersion.scaled)`` — the three
+    quantities `HVFInfo(method = "mvp")` reports, in its order. The raw variance
+    is an intermediate here and is deliberately not returned: it has no column
+    in Seurat's mvp output, and returning it in the slot the caller labels
+    ``mvp.dispersion`` is how it came to be stored under a name it did not hold.
     """
     if sp.issparse(data):
         n_cells = data.shape[1]
@@ -643,7 +681,7 @@ def _dispersion_hvg(
     n = min(nfeatures, len(dispersion_scaled))
     # Stable, and on the negated values -- see the note in `_vst_hvg`.
     top_idx = np.argsort(-dispersion_scaled, kind="stable")[:n]
-    return top_idx, means, variances, dispersion_scaled
+    return top_idx, means, dispersion, dispersion_scaled
 
 
 # ------------------------------------------------------------------

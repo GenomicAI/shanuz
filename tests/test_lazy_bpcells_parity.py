@@ -85,7 +85,8 @@ def test_shanuz_on_disk_and_in_memory_paths_are_bit_identical(tmp_path):
 
     h_mem = mem.assays["RNA"].meta_data
     h_lazy = lazy.assays["RNA"].meta_data
-    for column in ("means", "variances", "variances.standardized"):
+    for column in ("mean", "variance", "variance.expected",
+                   "variance.standardized"):
         np.testing.assert_array_equal(h_mem[column].to_numpy(),
                                       h_lazy[column].to_numpy())
 

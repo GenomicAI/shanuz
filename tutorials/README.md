@@ -127,7 +127,7 @@ pipeline from the same 10x bytes; nothing is pinned across them.
 | Step | shanuz vs Seurat |
 |------|------------------|
 | Cells surviving QC | **the same 2,638 barcodes**, nCount/nFeature exact, percent.mt to 5.3e-15 |
-| VST per gene, all 13,714 | mean 4.8e-14, variance 1.6e-11, `variance.standardized` to 2.6e-2 relative |
+| VST per gene, all 13,714 | mean 4.8e-14, variance 1.6e-11, `variance.expected` 2.5e-2 and `variance.standardized` 2.6e-2 relative — the whole gap is the LOESS fit |
 | The 2,000 variable features | **1,998 shared**; the two swaps are genes 0.03 apart in a LOESS fit, at ranks 1,982–2,000 |
 | PCA, the 10 dims clustering uses | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
 | kNN graph | **52,760 = 2,638 × 20 on both** |
@@ -655,6 +655,7 @@ same "don't chase the RNG" residual as `clara` (hashing) and the MULTI-seq KDE.
 | Switch assay | `DefaultAssay(cbmc) <- "ADT"` | `feature_plot(..., assay="ADT")` |
 | Access metadata | `pbmc@meta.data` | `pbmc.meta_data` |
 | Access assay | `pbmc[["RNA"]]` | `pbmc.assays["RNA"]` |
+| HVF statistics | `HVFInfo(pbmc[["RNA"]])` | `pbmc.assays["RNA"].meta_data` |
 | Active idents | `Idents(pbmc)` | `pbmc.idents` |
 
 ### Beyond PCA — supervised PCA and GLM-PCA

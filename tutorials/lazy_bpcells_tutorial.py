@@ -214,11 +214,11 @@ def collect_anchors(obj_mem, obj_lazy, store, counts):
         scaled = np.asarray(_layer(obj, "scale.data").todense())
         anchors[f"{tag}.normalize_head"] = data.data[:HEAD].tolist()
         anchors[f"{tag}.normalize_sum"] = float(data.data.sum())
-        anchors[f"{tag}.vst_mean_head"] = hvf["means"].to_numpy()[:HEAD].tolist()
+        anchors[f"{tag}.vst_mean_head"] = hvf["mean"].to_numpy()[:HEAD].tolist()
         anchors[f"{tag}.vst_variance_head"] = (
-            hvf["variances"].to_numpy()[:HEAD].tolist())
+            hvf["variance"].to_numpy()[:HEAD].tolist())
         anchors[f"{tag}.vst_var_std_head"] = (
-            hvf["variances.standardized"].to_numpy()[:HEAD].tolist())
+            hvf["variance.standardized"].to_numpy()[:HEAD].tolist())
         anchors[f"{tag}.vst_selected_head"] = list(assay.variable_features[:HEAD])
         anchors[f"{tag}.scale_head"] = scaled[0, :HEAD].tolist()
         anchors[f"{tag}.scale_abs_sum"] = float(np.abs(scaled).sum())
@@ -236,10 +236,10 @@ def collect_anchors(obj_mem, obj_lazy, store, counts):
     anchors["selfcheck.normalize_identical"] = float(
         np.array_equal(d_mem.data, d_lazy.data))
     anchors["selfcheck.vst_mean_max_diff"] = float(
-        np.abs(h_mem["means"].to_numpy() - h_lazy["means"].to_numpy()).max())
+        np.abs(h_mem["mean"].to_numpy() - h_lazy["mean"].to_numpy()).max())
     anchors["selfcheck.vst_var_std_max_diff"] = float(np.abs(
-        h_mem["variances.standardized"].to_numpy()
-        - h_lazy["variances.standardized"].to_numpy()).max())
+        h_mem["variance.standardized"].to_numpy()
+        - h_lazy["variance.standardized"].to_numpy()).max())
     anchors["selfcheck.hvg_overlap"] = len(
         set(obj_mem.assays[ASSAY].variable_features)
         & set(obj_lazy.assays[ASSAY].variable_features))

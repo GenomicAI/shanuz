@@ -551,9 +551,10 @@ find_clusters(
 > scattered disagreement.
 >
 > Where it comes from is traceable: the two runs keep the **same 2,638
-> barcodes** and agree on the per-gene VST means to 4.8e-14, but
-> `variance.standardized` depends on a degree-2 LOESS fit that differs by up to
-> 2.6e-2 relative. That flips **2 of the 2,000** variable features (both at
+> barcodes** and agree on the per-gene VST means to 4.8e-14 and observed
+> variances to 5.1e-14, but `variance.standardized` depends on a degree-2 LOESS
+> fit that differs by up to 2.6e-2 relative — and `variance.expected`, the fit
+> itself, differs by 2.5e-2, so the disagreement is the fit and only the fit. That flips **2 of the 2,000** variable features (both at
 > ranks 1,982–2,000, and 0.03 apart in the fit), which moves the PCA slightly
 > — matched \|r\| 0.9988 over the 10 dims clustering uses — which moves 286 of
 > ~194,000 SNN edges, which moves this one boundary.
@@ -1032,7 +1033,7 @@ on this dataset:
 | | shanuz vs Seurat 5.5.1 |
 |---|---|
 | Cells surviving QC | **the same 2,638 barcodes**; nCount and nFeature exact, percent.mt to 5.3e-15 |
-| VST per gene (13,714) | mean 4.8e-14 · variance 1.6e-11 · `variance.standardized` 2.6e-2 relative |
+| VST per gene (13,714) | mean 4.8e-14 · variance 1.6e-11 · `variance.expected` 2.5e-2 · `variance.standardized` 2.6e-2, all relative |
 | Variable features | **1,998 of 2,000 shared**, rank Spearman 0.9999 |
 | PCA (10 dims) | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
 | kNN graph | **52,760 on both** (2,638 × 20) |
