@@ -25,10 +25,32 @@ Fidelity
 --------
 This is a pure-Python/NumPy reimplementation, verified against R's sctransform
 0.4.3 on PBMC 3k. It is not bit-identical — R samples its step-1 genes at random
-(so R does not reproduce itself across seeds either) — but the model parameters
-and residuals track R closely: on that dataset the regularized intercept matches
-at Spearman 1.0000, theta at 0.96, residual variance at 0.9997, and 99.7% of the
-3,000 variable features agree. See ``tests/test_sctransform_r_fidelity.py``.
+(so R does not reproduce itself across seeds either) — but the fitted model
+tracks R closely. Measured against Seurat 5.5.1 over all 12,572 modelled genes:
+
+===================  ==========================================
+``detection_rate``   Spearman 1.0000, max abs diff 5.6e-16
+``gmean``            Spearman 1.0000, max abs diff 1.2e-12
+``(Intercept)``      Spearman 1.0000
+``log_umi``          constant at log(10) on both, to 1.6e-14
+``theta``            Spearman 1.0000; the 3,848 genes v2 calls
+                     non-overdispersed are *exactly* the same
+                     set on both sides (Jaccard 1.0000)
+``residual_variance`` Spearman 0.9986, Pearson 0.9996
+variable features    2,913 of 3,000 shared (97.1%); 98 of the
+                     top 100
+===================  ==========================================
+
+``residual_mean`` is the one column that does not track by rank (Spearman 0.71,
+Pearson 0.99) and the one nothing downstream reads — Seurat records it but
+selects features on ``residual_variance``. The disagreement sits in genes whose
+residual mean is ~1e-3 or smaller.
+
+Those numbers are **reproduced by the tutorial**, not measured by hand:
+``python tutorials/pbmc3k_sctransform_tutorial.py --report`` after running
+``tutorials/pbmc3k_sctransform_verify.R``. The unit-level primitives that made
+this model wrong once are pinned separately in
+``tests/test_sctransform_r_fidelity.py``.
 """
 from __future__ import annotations
 
@@ -569,6 +591,7 @@ def sctransform(
 
     median_log10_umi = float(np.median(log10_umi))
     res_var = np.zeros(G)
+    res_mean = np.zeros(G)
     corrected_blocks = []
 
     for start in range(0, G, gene_chunk):
@@ -579,7 +602,9 @@ def sctransform(
         var = mu + mu * mu / theta_r[start:end, None]
         var = np.maximum(var, min_var)
         z = (y - mu) / np.sqrt(var)
-        res_var[start:end] = np.clip(z, -res_clip, res_clip).var(axis=1, ddof=1)
+        z_clipped = np.clip(z, -res_clip, res_clip)
+        res_var[start:end] = z_clipped.var(axis=1, ddof=1)
+        res_mean[start:end] = z_clipped.mean(axis=1)
 
         # Corrected counts: the residual re-expressed at the median depth. R
         # uses the unclipped residual and no variance floor here.
@@ -618,9 +643,20 @@ def sctransform(
     sct.set_layer_data("scale.data", sp.csc_matrix(resid), feature_names=scale_feats)
     sct._scaled_features = scale_feats
     sct.variable_features = var_features
+    # The fitted model, per gene. Column names are Seurat's, from
+    # `obj[["SCT"]]@SCTModel.list[[1]]@feature.attributes` — including the
+    # awkward `(Intercept)`, because this table exists to be read alongside
+    # Seurat's and renaming the columns would defeat that. `b0r`/`b1r` are the
+    # *regularized* coefficients, which is what R stores here too (the
+    # unregularized step-1 fits are separate `step1_*` columns there).
+    detection_rate = np.diff(counts_csr.indptr) / float(N)
     sct.meta_data["residual_variance"] = pd.Series(res_var, index=genes)
+    sct.meta_data["residual_mean"] = pd.Series(res_mean, index=genes)
     sct.meta_data["theta"] = pd.Series(theta_r, index=genes)
     sct.meta_data["gmean"] = pd.Series(10.0 ** log10_gmean, index=genes)
+    sct.meta_data["detection_rate"] = pd.Series(detection_rate, index=genes)
+    sct.meta_data["(Intercept)"] = pd.Series(b0r, index=genes)
+    sct.meta_data["log_umi"] = pd.Series(b1r, index=genes)
 
     seurat.assays[new_assay_name] = sct
     if set_default:

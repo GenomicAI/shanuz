@@ -14,9 +14,10 @@ run over more PCs (dims 1:30) — it resolves finer immune subsets.
 > **Python:** Shanuz v0.2.0
 
 ```bash
-python tutorials/pbmc3k_sctransform_tutorial.py   # printed validation + comparison
+python tutorials/pbmc3k_sctransform_tutorial.py   # printed validation + the model handoff
 python tutorials/generate_sctransform_plots.py    # writes figures_sctransform/  (Shanuz)
-Rscript tutorials/pbmc3k_sctransform_verify.R     # writes figures_sctransform/r_02, r_06  (R Seurat)
+Rscript tutorials/pbmc3k_sctransform_verify.R     # R figures + r_sct_model.csv / r_anchors.json
+python tutorials/pbmc3k_sctransform_tutorial.py --report   # the side-by-side, gene by gene
 ```
 
 Most R figures below link the canonical
@@ -268,28 +269,57 @@ of the resolution difference:
 | CD8 effector split (CCL5/GZMK) from CD4 | yes | yes | ✅ |
 | Naive vs memory CD4 (CCR7 vs S100A4) | yes | yes | ✅ |
 | `vst.flavor` default | v2 | v2 | ✅ |
-| Resolves more than log-norm | yes (the vignette's claim) | yes — 13 vs 11 | ✅ |
-| Clusters at resolution 0.8 | 12 (live run; vignette prints none) | 13 | ⚠️ ±1 |
+| Resolves more than log-norm | yes (the vignette's claim) | yes — 12 vs 11 | ✅ |
+| Clusters at resolution 0.8 | **12** (live run; vignette prints none) | **12** | ✅ |
+| Clusters, LogNormalize arm | **11** | **11** | ✅ |
 | Variable features shared with R | 3,000 | 2,913 (97.1%) | ✅ |
-| Regularized theta vs R (Spearman) | — | 0.96 | ✅ |
-| Residual variance vs R (Spearman) | — | 0.9986 | ✅ |
+| Regularized theta vs R (Spearman) | — | **1.0000** over the 8,724 finite thetas | ✅ |
+| Genes v2 calls non-overdispersed | 3,848 | 3,848 — the *same* genes (Jaccard 1.0000) | ✅ |
+| Regularized intercept vs R (Spearman) | — | 1.0000 | ✅ |
+| Residual variance vs R (Spearman) | — | 0.9986 (Pearson 0.9996) | ✅ |
+| `detection_rate` · `gmean` vs R | — | max abs diff 5.6e-16 · 1.2e-12 | ✅ |
+| Residual clips (`sqrt(N)` · `sqrt(N/30)`) | ±51.9615 · ±9.4868 | identical | ✅ |
+
+**These numbers are reproduced, not recorded.** Everything in the table above
+comes out of a comparison you can re-run:
+
+```bash
+python tutorials/pbmc3k_sctransform_tutorial.py      # writes py_sct_model.csv + py_anchors.json
+Rscript tutorials/pbmc3k_sctransform_verify.R        # writes r_sct_model.csv  + r_anchors.json
+python tutorials/pbmc3k_sctransform_tutorial.py --report
+```
+
+The R script dumps Seurat's own `SCTModel.list[[1]]@feature.attributes` — the
+fitted model, per gene — and shanuz stores the same eight columns under the same
+names on the SCT assay's `meta_data`, so the two tables line up directly. That
+matters more here than anywhere else in the series: this model was once wrong in
+four separate ways at once and the tutorial still drew a perfectly plausible
+UMAP. A picture cannot fail; a Spearman of −0.89 can.
 
 **Where it matches.** The model, the 3,000 variable features, the 30-PC
 embedding, and the **biology** all reproduce: the CD8-effector / CD4 / NK split
 and the marker patterns the vignette highlights are all recovered. Against a live
-Seurat 5.5.1 / sctransform 0.4.3 run on the same cells, the regularized intercept
-matches at Spearman 1.0000, theta at 0.96, and residual variance at 0.9986 —
-Shanuz's top variable features are R's list, in R's order. Run with
-`vst_flavor="v1"`, Shanuz and R land on **13 clusters each**.
+Seurat 5.5.1 / sctransform 0.4.3 run on the same cells, `detection_rate` and
+`gmean` agree to machine precision, the regularized intercept and theta both rank
+identically (Spearman 1.0000), the 3,848 genes v2 declares non-overdispersed are
+*exactly* the same genes on both sides, and both arms of the workflow now land on
+the same cluster counts — **12** under SCTransform, **11** under LogNormalize.
 
-**Where it differs — and why.** At the v2 default Shanuz resolves 13 clusters
-where R resolves 12. R is stable at 12 across seeds, so this is a real
-one-cluster difference rather than sampling noise, and it comes from the two
-places the implementations cannot line up exactly: `vst` samples its 2,000
-step-1 genes at random, and clustering/UMAP use different libraries
-(python-igraph / umap-learn vs SLM / uwot). That is the same ±1 tolerance the
-PBMC 3k and 8k tutorials carry, and it shifts boundaries without changing the
-recovered cell types. Cluster granularity is tunable via `resolution`.
+**Where it differs.** Two places, both small and both expected. Residual variance
+ranks at Spearman 0.9986 rather than 1, which moves 87 of the 3,000 variable
+features (98 of the top 100 still agree); `vst` samples its 2,000 step-1 genes at
+random, so R does not reproduce *itself* across seeds here either. And
+`residual_mean` is the one column that does not track by rank — Spearman 0.71
+against Pearson 0.99. It is also the one column nothing downstream reads: Seurat
+records it but selects features on `residual_variance`. The rank disagreement
+sits entirely in genes whose residual mean is ~1e-3 or smaller, which is
+numerical dust on residuals that range to ±52.
+
+> **The ±1 cluster gap this section used to describe is closed.** It read "13
+> against R's 12" for a long time, attributed to the RNG and to the different
+> clustering libraries. Both arms now agree exactly. What changed was not
+> SCTransform but the graph underneath it — PR #55 stored Seurat's directed kNN
+> graph, restored the SNN self-edge and added `GroupSingletons`.
 
 > **This was wrong until recently.** Shanuz used to resolve **9** clusters here —
 > *fewer* than log-normalization's 11, which inverts the vignette's entire point.
