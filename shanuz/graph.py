@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 import scipy.sparse as sp
+
+if TYPE_CHECKING:
+    # `Graph` and `Neighbor` convert into each other, so importing this at
+    # module scope would be a genuine cycle. The runtime conversions therefore
+    # import inside the function body, and this block — which never executes —
+    # exists only so the annotations naming `Neighbor` resolve to the class
+    # rather than to nothing.
+    from .neighbor import Neighbor
 
 
 class Graph:

@@ -22,10 +22,19 @@ All functions return a matplotlib Figure so the caller can save or display it:
 from __future__ import annotations
 
 import re
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    # Annotation-only, so matplotlib stays an optional runtime dependency: the
+    # block never executes, and `from __future__ import annotations` above keeps
+    # every signature below a string. Without it the return annotations name a
+    # symbol that exists nowhere in the module, which is invisible at runtime
+    # but leaves a type checker — and any doc generator that resolves
+    # annotations — with nothing to point at.
+    from matplotlib.figure import Figure
 
 # ---------------------------------------------------------------------------
 # Lazy matplotlib import — keeps the package importable without matplotlib
@@ -216,7 +225,7 @@ def vln_plot(
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
     palette: Optional[list] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Violin plot of feature expression per cluster/identity.
 
     Mirrors R's ``VlnPlot(pbmc, features = c("LYZ", "CD3D"))``.
@@ -297,7 +306,7 @@ def feature_plot(
     colormap: str = "YlOrRd",
     pt_size: float = 3.0,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Visualise feature expression on a dimensionality reduction embedding.
 
     Mirrors R's ``FeaturePlot(pbmc, features = c("MS4A1", "LYZ"))``.
@@ -383,7 +392,7 @@ def dim_plot(
     figsize: tuple = (7, 6),
     palette: Optional[list] = None,
     title: Optional[str] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Plot cells in a reduced-dimension embedding coloured by identity.
 
     Mirrors R's ``DimPlot(pbmc, reduction = "umap", label = TRUE)``.
@@ -443,7 +452,7 @@ def elbow_plot(
     reduction: str = "pca",
     ndims: int = 20,
     figsize: tuple = (7, 4),
-) -> "plt.Figure":
+) -> "Figure":
     """Rank principal components by standard deviation.
 
     Mirrors R's ``ElbowPlot(pbmc)``.
@@ -487,7 +496,7 @@ def feature_scatter(
     alpha: float = 0.6,
     figsize: tuple = (6, 5),
     palette: Optional[list] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Scatter plot of two features coloured by identity.
 
     Mirrors R's ``FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")``.
@@ -530,7 +539,7 @@ def variable_feature_plot(
     label: bool = True,
     n_label: int = 10,
     figsize: tuple = (9, 5),
-) -> "plt.Figure":
+) -> "Figure":
     """Plot mean expression vs dispersion and highlight variable features.
 
     Mirrors R's ``VariableFeaturePlot(pbmc)``.
@@ -615,7 +624,7 @@ def viz_dim_loadings(
     n_features: int = 15,
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Horizontal bar charts of top positive and negative loading genes per PC.
 
     Mirrors R's ``VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")``.
@@ -687,7 +696,7 @@ def dim_heatmap(
     balanced: bool = True,
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Heatmap of gene loadings for selected principal components.
 
     Shows the most extreme cells (highest / lowest scores) and the top
@@ -801,7 +810,7 @@ def do_heatmap(
     cells: Optional[list[str]] = None,
     figsize: Optional[tuple] = None,
     palette: Optional[list] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Expression heatmap of selected genes across cells, sorted by cluster.
 
     Mirrors R's ``DoHeatmap(pbmc, features = top10$gene)``.
@@ -914,7 +923,7 @@ def ridge_plot(
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
     palette: Optional[list] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Ridgeline (joy) plots of feature expression per group.
 
     Mirrors R's ``RidgePlot(pbmc, features = c("LYZ", "CD3D"))``.
@@ -986,7 +995,7 @@ def dot_plot(
     dot_scale: float = 6.0,
     scale: bool = True,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Dot plot of feature expression across groups.
 
     Mirrors R's ``DotPlot(pbmc, features = c("LYZ", "CD3D"))``. For each
@@ -1095,7 +1104,7 @@ def image_dim_plot(
     ncol: Optional[int] = None,
     flip_y: bool = True,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Plot cell centroids in physical space, coloured by a grouping variable.
 
     Matplotlib equivalent of Seurat's ``ImageDimPlot`` — drawn directly from
@@ -1161,7 +1170,7 @@ def image_feature_plot(
     ncol: Optional[int] = None,
     flip_y: bool = True,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Plot cell centroids in physical space, coloured by a feature's expression.
 
     Matplotlib equivalent of Seurat's ``ImageFeaturePlot``. One panel per image.
@@ -1297,7 +1306,7 @@ def spatial_dim_plot(
     crop: bool = True,
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Plot spots on the tissue image, coloured by a grouping variable.
 
     Matplotlib equivalent of Seurat's ``SpatialDimPlot``. Each panel draws the
@@ -1388,7 +1397,7 @@ def spatial_feature_plot(
     crop: bool = True,
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Plot spots on the tissue image, coloured by a feature's expression.
 
     Matplotlib equivalent of Seurat's ``SpatialFeaturePlot``. Behaves exactly
@@ -1495,7 +1504,7 @@ def plot_perturb_score(
     assay: str = "PRTB",
     seed: int = 0,
     figsize: Optional[tuple] = None,
-) -> "plt.Figure":
+) -> "Figure":
     """Density of one target gene's perturbation scores (Seurat's ``PlotPerturbScore``).
 
     Mirrors ``PlotPerturbScore(object, target.gene.ident = "IFNGR2",
@@ -1652,7 +1661,7 @@ def mixscape_heatmap(
     pval_cutoff: float = 0.05,
     seed: int = 0,
     **kwargs,
-) -> "plt.Figure":
+) -> "Figure":
     """DE heatmap with cells ordered by knockout probability (``MixscapeHeatmap``).
 
     Mirrors ``MixscapeHeatmap(object, ident.1 = "NT", ident.2 = "IFNGR2 KO",

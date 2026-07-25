@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import scipy.sparse as sp
+
+if TYPE_CHECKING:
+    # The other half of the Graph/Neighbor cycle — see the matching block in
+    # `graph.py`. Annotation-only; `as_graph` still imports at call time.
+    from .graph import Graph
 
 
 class Neighbor:
