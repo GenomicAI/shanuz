@@ -395,10 +395,20 @@ tutorials on its own.
 ## Credits
 
 **Development assistance:** This package was developed with the help of
-[Claude](https://claude.ai) (Anthropic's AI assistant, claude-sonnet-4-6),
-which assisted in porting the R Seurat codebase to Python, implementing
-the VST algorithm, degree-2 LOESS, Louvain clustering, and validating
-results against the official PBMC 3k tutorial.
+[Claude](https://claude.ai) (Anthropic's AI assistant) — initially
+`claude-sonnet-4-6`, and subsequently `claude-opus-4-8` — which assisted in
+porting the R Seurat codebase to Python, implementing the VST algorithm,
+degree-2 LOESS, Louvain clustering, the anchor-based integration and transfer
+machinery, and validating results against real R Seurat runs.
+
+**Human in the loop.** All development was carried out under strong
+human-in-the-loop (HITL) supervision. Every change was directed, reviewed and
+accepted by the maintainer; nothing was merged unattended. That review is the
+reason the fidelity claims in this repository are worth reading — each one is
+pinned to a side-by-side run against R Seurat with the numbers recorded, and
+several were sent back and re-derived when the first answer did not hold up.
+Where a difference from Seurat remains, it was examined and is documented as
+either a deliberate choice or an open question, rather than quietly absorbed.
 
 **Original R Seurat package:**  
 The algorithms and data structures in Shanuz are direct Python translations of the
