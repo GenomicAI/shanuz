@@ -4,11 +4,17 @@ Requires: pip install seurat-object[anndata]
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+
+if TYPE_CHECKING:
+    # `shanuz.shanuz` pulls in the assay and reduction stack, which this module
+    # is itself imported from — hence the deferred import inside `from_anndata`.
+    # Annotation-only, so the return type resolves without reinstating the cycle.
+    from ..shanuz import Shanuz
 
 
 def as_anndata(seurat, assay: Optional[str] = None):

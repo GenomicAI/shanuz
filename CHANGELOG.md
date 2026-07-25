@@ -126,6 +126,30 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **Twenty-one annotations named symbols that existed nowhere at module scope.**
+  Seventeen plotting functions were declared `-> "plt.Figure"` while `plt` was
+  only ever a local inside each body (`plt = _mpl()`); `Graph.as_neighbor`,
+  `Neighbor.as_graph` and `from_anndata` named classes imported at call time to
+  dodge a circular import. `from __future__ import annotations` makes every
+  signature an unevaluated string, so this cost nothing at runtime and no test
+  noticed — but it is exactly what a type checker, an IDE, or a documentation
+  generator reads. Both mypy (`name-defined`) and ruff (`F821`) had been
+  reporting all 21 for as long as the annotations existed.
+
+  Each is now a `if TYPE_CHECKING:` import, which those tools read and the
+  interpreter never runs. The plotting signatures say `-> "Figure"` from
+  `matplotlib.figure`, which is the class the functions actually return.
+  matplotlib stays an optional dependency: `import shanuz` eagerly imports
+  `shanuz.plotting` and still does not pull it in.
+
+  mypy drops **81 → 60** errors and ruff **72 → 51** on `shanuz` (222 → 201
+  repo-wide) — the same 21 in both counts, so any baseline recorded before this
+  is 21 high on both tools. `tests/test_annotations_resolve.py` walks the AST of
+  every module in the package and fails on any annotation whose root name is not
+  bound at module scope, and separately asserts each deferred import stays
+  *inside* its `TYPE_CHECKING` block — hoisting it would satisfy both checkers
+  while making matplotlib mandatory.
+
 - **`find_all_markers` was missing Seurat's `return.thresh`, and did not break
   p-value ties.** `FindAllMarkers` defaults to `return.thresh = 1e-2` and
   returns only genes below it; shanuz returned everything that survived the
