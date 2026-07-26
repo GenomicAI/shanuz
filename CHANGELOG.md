@@ -171,6 +171,21 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **`cbmc_citeseq` reported an unrelated error when the species filter matched
+  nothing.** A `species_prefix` that no gene starts with — the wrong one, or a
+  file whose row labels are not prefixed — left every chunk empty and surfaced
+  as scipy's `blocks must be 2-D, and some must be sparse` from `sp.vstack`,
+  which names neither the file nor the prefix that caused it. It now raises a
+  `ValueError` naming both.
+- **The four oldest dataset loaders rebound their `data_dir` parameter to a
+  `Path`.** `pbmc3k`, `pbmc8k`, `cbmc_citeseq` and `xenium_mouse_brain` assigned
+  a `Path` back over a parameter declared `Optional[str]`, which was most of the
+  package's remaining type-checker noise (33 of 44 errors, now 11). They use a
+  local `Path` like the newer loaders alongside them. No behaviour change — but
+  nothing had ever checked that an explicit `data_dir` was honoured at all, so
+  that is now covered, along with the RNA chunk stitching every real
+  `cbmc_citeseq` load depends on and none of the tests reached.
+
 - **The `mvp` statistics were three different quantities under Seurat's
   names.** PR #64 renamed the dispersion path's columns to `mvp.mean`,
   `mvp.dispersion` and `mvp.dispersion.scaled`; the numbers underneath were not
