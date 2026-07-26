@@ -6,7 +6,7 @@ compared to R**. Their unit tests assert self-consistency on synthetic fixtures 
 the same shape of coverage that let the CLR and SCTransform defects survive.
 
 > **Dataset:** pbmc3k — 2,700 PBMCs, 10x Genomics (2016). The comparison runs on
-> **clusters 0 and 1** (695 and 477 cells, 13,714 genes).
+> **clusters 0 and 1** (692 and 515 cells, 13,714 genes).
 > **R reference:** Seurat 5.5.1 · MAST 1.38.0 · DESeq2 1.52.0 · **Python:** Shanuz
 
 | Seurat | Shanuz |
@@ -36,11 +36,11 @@ would look exactly like a DE difference.
 
 | Metric | Result |
 |---|---|
-| **`avg_log2FC` vs Seurat**, all 13,712 shared genes | **max abs diff 7.11e-15** |
+| **`avg_log2FC` vs Seurat**, all 13,712 shared genes | **max abs diff 6.44e-15** |
 | **Tests reproducing Seurat's top 50 genes** | **7 of 7** per-cell tests (`roc` scores AUC, not p) |
-| `wilcox` · `t` · `bimod` · `LR` — p-value Spearman | **1.000000** · 0.999971 · 0.999996 · 0.999984 |
-| `mast` — Spearman (all genes / detected >5%) | 0.9468 / **0.9993** |
-| `negbinom` — Spearman (all genes / detected >5%) | 0.6796 / **0.9194** |
+| `wilcox` · `t` · `bimod` · `LR` — p-value Spearman | **1.000000** · 0.999980 · 0.999994 · 0.999975 |
+| `mast` — Spearman (all genes / detected >5%) | 0.9471 / **0.9979** |
+| `negbinom` — Spearman (all genes / detected >5%) | 0.6943 / **0.9165** |
 | `roc` — max abs AUC difference | 5.0e-04, which is Seurat's own 3-dp rounding |
 | *Before the fix* — genes returned at `logfc_threshold=0.25` | shanuz **2,298** vs Seurat **11,931** (Jaccard 0.193) |
 
@@ -111,11 +111,13 @@ exactly the disagreement worth seeing.
 res <- FindMarkers(obj, ident.1 = "0", ident.2 = "1",
                    test.use = "wilcox",
                    logfc.threshold = 0, min.pct = 0)
+# R underflows 172 p-values to exactly 0; rank among the ones it scored.
+res <- res[res$p_val > 0, ]
 head(res[order(res$p_val), c("p_val","avg_log2FC")], 3)
 #>                p_val avg_log2FC
-#> TYROBP  9.227207e-214  -6.344352
-#> S100A9  7.261389e-212  -7.544582
-#> S100A8  2.286958e-209  -7.580939
+#> TYROBP  4.593065e-219  -6.277211
+#> CST3    1.282760e-214  -6.130653
+#> S100A9  4.216270e-206  -7.446613
 ```
 
 </td>
@@ -126,9 +128,9 @@ res = find_markers(sub, "0", "1", test_use="wilcox",
                    logfc_threshold=0, min_pct=0)
 res.head(3)[["p_val", "avg_log2FC"]]
 #>                p_val  avg_log2FC
-#> TYROBP  9.227207e-214   -6.344352
-#> S100A9  7.261389e-212   -7.544582
-#> S100A8  2.286958e-209   -7.580939
+#> TYROBP  4.593065e-219   -6.277211
+#> CST3    1.282760e-214   -6.130653
+#> S100A9  4.216270e-206   -7.446613
 ```
 
 </td>
@@ -180,7 +182,7 @@ At a common 0.25 threshold, fewer than one gene in five agreed.
 The most telling part: where **both** groups express a gene, the two formulas
 nearly agree (Spearman 0.990 on the 1,362 genes with pct > 0.1 in both). The
 error was concentrated in sparse, marker-like genes — precisely what
-differential expression exists to find. After the fix, **7.11e-15 across all
+differential expression exists to find. After the fix, **6.44e-15 across all
 13,712 genes**.
 
 **There was already a test for this.** `test_avg_log2fc_matches_seurat_formula`
@@ -200,18 +202,19 @@ After the fix the p-values agree **exactly** for every gene anyone would look at
 
 | detection (max of the two groups) | genes | median \|log10 ratio\| | Spearman |
 |---|---|---|---|
-| > 25 % | 919 | **0.000** | 0.988 |
-| 10 – 25 % | 1,478 | **0.000** | 0.959 |
-| 5 – 10 % | 1,925 | **0.000** | 0.766 |
-| 1 – 5 % | 5,231 | 0.118 | 0.239 |
-| < 1 % | 1,792 | 0.087 | 0.051 |
+| > 25 % | 980 | **0.000** | 0.988 |
+| 10 – 25 % | 1,519 | **0.000** | 0.933 |
+| 5 – 10 % | 1,919 | **0.000** | 0.773 |
+| 1 – 5 % | 5,120 | 0.063 | 0.285 |
+| < 1 % | 1,928 | 0.144 | 0.085 |
 
 What disagreement remains sits below 5 % detection, where the negative-binomial
 GLM is fitting almost-empty rows and neither tool is estimating anything
 meaningful. Seurat agrees: its `min.cells.feature` default drops those genes, and
-in this run R returned 11,360 genes against shanuz's 13,714 — **every one of the
-2,354 it dropped was below 1 % detection in both groups**. The headline Spearman
-of 0.68 is that tail; on genes Seurat would actually have tested, it is 0.92.
+in this run R returned 11,466 genes against shanuz's 13,714 — **every one of the
+2,248 it dropped was below 1 % detection in both groups** (the highest reached
+0.4 %). The headline Spearman of 0.69 is that tail; on genes Seurat would
+actually have tested, it is 0.92.
 
 ### Differences left standing, and why
 
@@ -224,7 +227,7 @@ because it **requires `sample_col`**, it cannot be silently mistaken for the
 per-cell test: it raises. Reported rather than changed in either direction.
 
 **`mast` is a hand-rolled hurdle model**, not a call to the MAST package, which
-has no Python equivalent to depend on. Spearman 0.947 across all genes, **0.9993
+has no Python equivalent to depend on. Spearman 0.947 across all genes, **0.9979
 on genes detected above 5 %**, and the same top 50. Worth knowing: Seurat's
 `MASTDETest` fits `~ condition` alone — it adds **no** cellular detection rate
 term unless you pass one. shanuz's docstring previously advised passing CDR "to
@@ -234,11 +237,19 @@ match Seurat's default CDR covariate", which had it backwards; that is corrected
 comparison cannot be tighter than 5e-4 however correct both sides are. That is
 R's rounding, not a divergence — stated because it looks like one.
 
-**R's `wilcox` returns `NaN`** for genes with no expression in either group (437
-of them here); shanuz returns `p = 1`. A test that cannot be run has no evidence
-against the null, so 1 is the more useful answer, and R's NaN set is a subset of
-shanuz's. R also underflows 168 p-values to exactly 0 where scipy keeps
-precision down to 9.2e-214.
+**R's `wilcox` returns `NaN`** for the 365 genes with no expression in either
+group; shanuz returns `p = 1`. A test that cannot be run has no evidence against
+the null, so 1 is the more useful answer, and R's NaN set is a subset of
+shanuz's.
+
+**R also returns exactly 0** for 172 genes, and that is *not* double underflow:
+shanuz scores 92 of them above 1e-50, the largest — `SEPT1` — at 9.3e-17. It is
+not Seurat's wrapper either. Calling base R's `wilcox.test` on that gene's
+normalised row directly, outside Seurat, returns 0 as well (W = 212196.5 on
+692 vs 515 cells). Both R's `NaN` rows and its zero rows are excluded from every
+correlation reported here, since neither carries a rank — but the zeros are
+worth knowing about, because they are not the harmless precision limit the
+previous version of this note called them.
 
 ---
 
@@ -246,18 +257,55 @@ precision down to 9.2e-214.
 
 | Test | Genes | max \|Δlog2FC\| | p Spearman (all) | p Spearman (detected >5 %) | Top 50 |
 |---|---|---|---|---|---|
-| `wilcox` | 13,712 | 7.1e-15 | **1.000000** | 1.0000 | 50/50 |
-| `t` | 13,712 | 7.1e-15 | 0.999971 | 1.0000 | 50/50 |
-| `bimod` | 13,712 | 7.1e-15 | 0.999996 | 1.0000 | 50/50 |
-| `LR` | 13,712 | 7.1e-15 | 0.999984 | 1.0000 | 50/50 |
-| `negbinom` | 11,360 | 7.1e-15 | 0.679646 | **0.9194** | 50/50 |
-| `roc` | 13,712 | 7.1e-15 | *AUC 5.0e-04* | — | — |
-| `mast` | 13,712 | 7.1e-15 | 0.946802 | **0.9993** | 50/50 |
-| `deseq2` | 13,712 | *3.34* | 0.493458 | 0.1795 | 25/50 |
+| `wilcox` | 13,712 | 6.4e-15 | **1.000000** | 1.0000 | 50/50 |
+| `t` | 13,712 | 6.4e-15 | 0.999980 | 1.0000 | 50/50 |
+| `bimod` | 13,712 | 6.4e-15 | 0.999994 | 1.0000 | 50/50 |
+| `LR` | 13,712 | 6.4e-15 | 0.999975 | 1.0000 | 50/50 |
+| `negbinom` | 11,466 | 6.4e-15 | 0.694339 | **0.9165** | 50/50 |
+| `roc` | 13,712 | 6.4e-15 | *AUC 5.0e-04* | — | — |
+| `mast` | 13,712 | 6.4e-15 | 0.947061 | **0.9979** | 50/50 |
+| `deseq2` | 13,712 | *3.47* | 0.476954 | 0.1959 | 22/50 |
 
 `deseq2`'s row is the pseudobulk-vs-per-cell divergence described above, not a
 defect; its fold change differs too because a pseudobulk fold change is computed
 on summed counts.
+
+### These numbers are asserted, not just printed
+
+Every row above used to live only in this file, so nothing failed when one
+moved. `deseq2`'s overlap was written here as 25/50 and had drifted to 22 —
+the clusters this tutorial tests are found by `find_clusters`, and the graph
+fixes in #67-#71 moved a few cells between them. That is a legitimate reason for
+the number to change, which is exactly why it needed a **band** rather than a
+sentence: a regression landing on 22 would have read the same way.
+
+`--report` now checks each number against a declared range and **exits non-zero**
+if one falls outside:
+
+| band | range | why |
+|---|---|---|
+| top 50, the seven cell-level tests | **= 50** | Same statistic, same cells. One dropped gene is a regression. |
+| top 50, `deseq2` | **15 – 32** | A divergence measurement. 20–26 over 20 resampled replicate splits; 25 on the previous clustering. Bounded well below 50 — reaching parity would mean `sample_col` had stopped being honoured. |
+| p Spearman >5 %, `wilcox`/`t`/`bimod`/`LR` | **≥ 0.9999** | Measured at exactly 1.0. |
+| p Spearman >5 %, `negbinom` | **≥ 0.88** | Same model, different optimiser: 0.9165. |
+| p Spearman >5 %, `mast` | **≥ 0.99** | A hand-rolled hurdle model, not the MAST package: 0.9979. |
+| p Spearman >5 %, `deseq2` | **0.12 – 0.30** | Pseudobulk against per-cell; a *high* value here would be the surprise. |
+| max \|Δlog2FC\|, cell-level tests | **≤ 1e-12** | Arithmetic on the shared matrix. `deseq2` is excluded by name, not by threshold — its 3.47 is correct and would otherwise set everyone else's tolerance. |
+| max \|ΔAUC\|, `roc` | **≤ 5e-4** | Half a unit in Seurat's third decimal. Measured 4.9986e-4, i.e. on the boundary. |
+
+### The reference has to be the one the handoff asked for
+
+`--report` also refuses to compare against an R run that predates the
+`groups.csv` it was supposed to answer. This is not hypothetical: on the working
+copy where these bands were written, the Python tables were from 25 July and the
+R tables from 19 July, taken on a **different cluster assignment** — and the
+report printed a full parity table showing `wilcox` at 48/50 and a Spearman of
+0.907. Nothing in it said "stale file"; it read as a regression in the port.
+
+The check is `pct.1` and `pct.2`. They are counts of detected cells per group
+with no statistics in the way, so two runs over the same handoff agree to
+Seurat's three-decimal rounding and no worse. They differed for **12,491 of
+13,712 genes**.
 
 Runtime, for scale: Seurat's slowest test here is `negbinom` at 91.8 s
 (`MAST` 60.5 s, `DESeq2` 60.3 s); shanuz's are 36.0 s, 28.5 s and 3.4 s.

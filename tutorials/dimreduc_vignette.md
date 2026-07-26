@@ -28,13 +28,20 @@ are shown side by side.
 
 ## Headline
 
-| Metric | Result |
-|---|---|
-| **PCs kept** (run before the drop-off) | **shanuz 13 · R 13** |
-| PCs significant at α = 0.05 | shanuz 1-13 + 18 · R 1-13 (Jaccard **0.93**) |
-| ICA, matched \|Pearson r\| over 20 components | **0.982** (worst pair 0.831) |
-| t-SNE, 30-NN retained from PCA | shanuz **0.470** · R **0.477** |
-| t-SNE, 30-NN shared between the two tools | 0.681 |
+| Metric | Result | Band |
+|---|---|---|
+| **PCs kept** (run before the drop-off) | **shanuz 14 · R 13** | \|Δ\| ≤ **2** |
+| PCs significant at α = 0.05 | shanuz 1-14 · R 1-13 + 15, 19 (Jaccard **0.81**) | ≥ **0.75** |
+| PCA bases matched one-to-one and in order | through PC **20** of 20, min \|r\| **1.0000** | ≥ PC 13 |
+| ICA, matched \|Pearson r\| over 20 components | **0.9991** (worst pair 0.9960) | — |
+| t-SNE, 30-NN retained from PCA | shanuz **0.474** · R **0.477** | — |
+| t-SNE, 30-NN shared between the two tools | 0.862 | — |
+
+The **Band** column is the point of this revision: those three numbers are
+allowed to move, so `--report` now checks each against a declared range and
+exits non-zero outside it. Every band is derived from measurement — a 60-seed
+sweep for the cutoff — and carries its reason in
+`BANDS` in `pbmc3k_dimreduc_tutorial.py`.
 
 ---
 
@@ -94,16 +101,29 @@ matching.)
 Step 0 of the comparison then checks the bases actually agree:
 
 ```
-Per-PC |correlation| over 20 PCs: median 0.9759
-Matched one-to-one and in the same order through PC 15 (min |r| there: 0.8866).
-Beyond PC 15 the noise-tail PCs reorder (py16~R19, py17~R18, py18~R16, py19~R17, ...)
+Per-PC |correlation| over 20 PCs: median 1.0000
+Matched one-to-one and in the same order through PC 20 (min |r| there: 1.0000).
 ```
 
-PC 1-15 match one-to-one; only the noise tail permutes, which is ordinary — those
-components carry no stable ordering. **The comparison is therefore decisive
-through PC 15**, which is where the whole question lives (R's drop-off is at PC
-14). A bare "min |r| = 0.15 over 20 PCs" would have looked alarming and meant
-nothing.
+All 20 PCs match one-to-one, to 1 − 3e-15 at worst: **the comparison is decisive
+across the whole range**, so any JackStraw difference below belongs to JackStraw.
+
+This is the number that moved most since the tutorial was written, and it moved
+because of a check that did not exist then. It used to read `median 0.9759,
+matched through PC 15`, with the noise tail permuting past that point. The cause
+was not PCA: the R reference had been generated from an older
+`hvg_features.txt`, and `find_variable_features` had since reshuffled **6 of the
+2,000** HVGs across the selection boundary — all twelve genes involved rank
+between 1916 and 2016, where the standardized variances differ in the third
+decimal. Six genes in, six genes out, and the whole tail of the basis
+comparison degraded. `check_same_features` now refuses to compare against a
+reference built on a different feature set, so this cannot be read as a PCA
+divergence again.
+
+The bands below rest on that: `pca_basis_aligned_through` is declared as a
+**precondition** (≥ 13, R's own cutoff) rather than as a result. A per-PC
+JackStraw comparison past the point where the two tools number components
+differently is not comparing like with like.
 
 ---
 
@@ -120,7 +140,7 @@ pbmc <- ScoreJackStraw(pbmc, dims = 1:20)
 
 score <- JS(pbmc[["pca"]], slot = "overall")[, "Score"]
 which(score <= 0.05)
-#>  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13
+#>  [1]  1  2  3  4  5  6  7  8  9 10 11 12 13 15 19
 ```
 
 </td>
@@ -135,7 +155,7 @@ js = jack_straw(obj, dims=20, num_replicate=100)
 scores = score_jackstraw(obj, dims=20)
 
 significant_dims(scores, alpha=0.05)
-#> array([ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 18])
+#> array([ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14])
 ```
 
 </td>
@@ -144,15 +164,18 @@ significant_dims(scores, alpha=0.05)
 
 | PC | shanuz score | R score | shanuz features ≤ 1e-5 | R features ≤ 1e-5 |
 |---:|---:|---:|---:|---:|
-| 1 | 1.0e-154 | 1.5e-142 | 599 | 558 |
-| 5 | 1.3e-117 | 1.5e-87 | 471 | 360 |
-| 9 | 3.8e-08 | 1.0e-04 | 32 | 17 |
-| 13 | 4.4e-03 | 1.7e-04 | 10 | 16 |
-| **14** | **0.133** | **0.248** | 4 | 3 |
-| 16 | 1.000 | 1.000 | 1 | 0 |
-| 20 | 0.479 | 0.133 | 2 | 4 |
+| 1 | 2.0e-157 | 5.1e-155 | 608 | 600 |
+| 5 | 2.7e-106 | 3.1e-111 | 430 | 448 |
+| 9 | 1.5e-06 | 4.2e-06 | 25 | 23 |
+| 13 | 5.0e-04 | 2.9e-04 | 14 | 15 |
+| **14** | **0.041** | **0.133** | 6 | 4 |
+| 16 | 1.000 | 1.000 | 1 | 1 |
+| 20 | 1.000 | 1.000 | 1 | 1 |
 
-Both tools fall off the same cliff after PC 13 and both recommend keeping 13.
+Both tools fall off the same cliff after PC 13. At the tutorial's own seed (42)
+shanuz's PC 14 lands at 0.041 — just inside alpha — so it keeps **14** where R
+keeps 13. That single-PC gap is the seed scatter measured below, and it is now
+asserted rather than described.
 
 <table>
 <tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
@@ -176,13 +199,26 @@ R's `JackRandom` seeds each replicate from its loop index, so `JackStraw` in R i
 byte-identical scores. Shanuz seeds from its `seed` argument instead, so its
 answer moves a little from run to run:
 
-| seed | 0 | 1 | 7 | 42 | 2024 | R |
-|---|---|---|---|---|---|---|
-| PCs kept | 13 | 14 | 15 | 13 | 13 | **13** |
+A five-seed table used to stand here, and it was the wrong instrument: it
+recorded five draws as if they were the answer, and the numbers in it have since
+drifted. Sweeping 60 seeds against the same R reference gives the distribution
+instead:
 
-R's deterministic 13 sits at the bottom of shanuz's spread. The one PC where the
-significance calls differ (PC 18: 0.023 vs 0.133) is *after* the drop-off, so it
-does not move the cutoff.
+| PCs kept | 12 | 13 | 14 | 15 |
+|---|---|---|---|---|
+| seeds (of 60) | 2 | **28** | 11 | 19 |
+
+R's deterministic **13 is also shanuz's modal answer**, and the worst case is two
+PCs either side. That is what `BANDS["jackstraw_keep_gap"]` asserts — `|shanuz −
+R| ≤ 2` — and `--report` exits non-zero if it is exceeded. A prose sentence
+saying "R sits at the bottom of shanuz's spread" could not have failed, so a
+regression landing on 15 would have read exactly like a good run landing on 15.
+
+The PCs where the significance *calls* differ are all after the drop-off. R's own
+significant set on the current reference is 1–13 plus stray 15 and 19, which is
+why the Jaccard band (`≥ 0.75`, measured 0.8125 worst and 0.8750 median) sits
+lower than the cutoff band is tight: that number moves with R's noise tail as
+well as shanuz's, and the cutoff is the thing an analyst acts on.
 
 ---
 
@@ -217,7 +253,7 @@ across all 20 PCs was `8.1e-112`, so nothing ever failed the threshold:
 
 | | shanuz, before | shanuz, after | R Seurat |
 |---|---|---|---|
-| PC 1 (real signal) | 0 | 1.0e-154 | 1.5e-142 |
+| PC 1 (real signal) | 0 | 2.0e-157 | 5.1e-155 |
 | PC 16 (pure noise) | 1.1e-168 | **1.000** | **1.000** |
 | PCs called significant | **20 of 20** | 14 | 13 |
 
@@ -261,7 +297,7 @@ ica = obj.reductions["ica"].cell_embeddings
 </tr>
 </table>
 
-**Mean matched \|r\| = 0.982**, worst matched pair 0.831 — the two runs find the
+**Mean matched \|r\| = 0.9991**, worst matched pair 0.9960 — the two runs find the
 same subspace.
 
 <table>
@@ -306,8 +342,8 @@ run_tsne(obj, dims=range(10), reduction="pca")
 
 | | shanuz | R Seurat |
 |---|---|---|
-| 30-NN retained from PCA | **0.470** | **0.477** |
-| 30-NN shared between the tools | 0.681 | |
+| 30-NN retained from PCA | **0.474** | **0.477** |
+| 30-NN shared between the tools | 0.862 | |
 
 Both panels are coloured by *LYZ* rather than by cluster — cluster labels are
 arbitrary integers that would not correspond between tools, whereas this gene's

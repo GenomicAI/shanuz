@@ -266,10 +266,16 @@ def _synthetic_object(n_cells=300, n_genes=400, n_programs=3, seed=0):
 
 
 @pytest.fixture(scope="module")
-def scored():
-    """Run the tutorial's own pipeline once on synthetic data."""
+def scored(tmp_path_factory):
+    """Run the tutorial's own pipeline once on synthetic data.
+
+    ``out_dir`` is not optional here. Without it ``prep`` writes its handoff to
+    the real ``tutorials/figures_dimreduc/``, so running the test suite left
+    ``hvg_features.txt`` holding 100 synthetic ``GENE*`` names and ``cells.txt``
+    holding ``CELL0..CELL119`` — and ``pbmc3k_dimreduc_verify.R`` reads both.
+    """
     obj = _synthetic_object()
-    tut.prep(obj, n_hvg=200, n_pcs=20)
+    tut.prep(obj, n_hvg=200, n_pcs=20, out_dir=tmp_path_factory.mktemp("handoff"))
     js, scores = tut.run_jackstraw(obj, dims=10, num_replicate=20, seed=0)
     tut.run_reductions(obj, n_ics=5, tsne_dims=5, seed=0)
     return obj, js, scores
@@ -317,10 +323,10 @@ def test_summarize_reports_the_cutoff_and_structure(scored):
     assert isinstance(summary["pc_table"], pd.DataFrame)
 
 
-def test_summarize_survives_without_the_optional_reductions():
+def test_summarize_survives_without_the_optional_reductions(tmp_path):
     """JackStraw half of the tutorial must stand alone (run_full(do_reductions=False))."""
     obj = _synthetic_object(n_cells=120, n_genes=200, seed=1)
-    tut.prep(obj, n_hvg=100, n_pcs=10)
+    tut.prep(obj, n_hvg=100, n_pcs=10, out_dir=tmp_path)
     js, scores = tut.run_jackstraw(obj, dims=5, num_replicate=10, seed=1)
     summary = tut.summarize(obj, scores, js, verbose=False)
     assert "n_ics" not in summary and "tsne_knn_vs_pca" not in summary
@@ -332,3 +338,129 @@ def test_report_concordance_returns_none_without_the_r_run(scored, tmp_path, mon
     monkeypatch.setattr(tut, "FIGURES", tmp_path)
     summary = tut.summarize(obj, scores, js, verbose=False)
     assert tut.report_concordance(obj, summary, verbose=False) is None
+
+
+# ---------------------------------------------------------------------------
+# The declared bands
+# ---------------------------------------------------------------------------
+
+def _write_fake_r_reference(obj, scores, js, dest):
+    """Write the Python run back out in the R script's file format.
+
+    Comparing a run against itself is the one case where every band's answer is
+    known in advance, which makes it the right fixture for testing the *wiring*:
+    each band has to be populated and hold. No network, no R.
+    """
+    dest.mkdir(parents=True, exist_ok=True)
+    emb = obj.reductions["pca"].cell_embeddings
+    pd.DataFrame(emb, index=obj.cell_names(),
+                 columns=[f"PC_{i + 1}" for i in range(emb.shape[1])]).rename_axis(
+        "cell").to_csv(dest / "r_pca.csv")
+    pd.DataFrame({"PC": np.arange(1, len(scores) + 1), "R_Score": scores}).to_csv(
+        dest / "r_jackstraw_pcs.csv", index=False)
+    emp = js.empirical_p_values
+    pd.DataFrame(emp, index=list(obj.reductions["pca"].features()),
+                 columns=[f"PC{i + 1}" for i in range(emp.shape[1])]).rename_axis(
+        "feature").to_csv(dest / "r_jackstraw_p.csv")
+
+
+def test_every_band_is_populated_and_holds_against_an_identical_run(
+        scored, tmp_path, monkeypatch):
+    """A declared band with nothing feeding it must not pass silently.
+
+    `check_bands` scores an absent name as NaN, which fails — but only if
+    something hands it the dict `report_concordance` actually builds. This ties
+    the two together: adding a name to `BANDS` without computing it, or renaming
+    a key in `out`, goes red here rather than on someone else's `--report`.
+    """
+    obj, js, scores = scored
+    monkeypatch.setattr(tut, "FIGURES", tmp_path)
+    _write_fake_r_reference(obj, scores, js, tmp_path)
+    summary = tut.summarize(obj, scores, js, verbose=False)
+
+    out = tut.report_concordance(obj, summary, verbose=False)
+
+    missing = [name for name in tut.BANDS if name not in out]
+    assert not missing, f"declared but never measured: {missing}"
+    assert out["bands_hold"], [
+        (v.name, v.value) for v in out["band_verdicts"] if not v.ok]
+    # Against itself the two "differences" are zero by construction, which is
+    # what makes the previous assertion meaningful rather than lucky.
+    assert out["jackstraw_keep_gap"] == 0
+    assert out["significant_agreement"] == pytest.approx(1.0)
+
+
+def test_the_report_refuses_an_r_reference_from_a_different_run(
+        scored, tmp_path, monkeypatch):
+    """The failure that started this: a reference older than its handoff.
+
+    `_read` reindexes R's embedding onto the Python cell order, which fills an
+    absent barcode with NaN rather than raising, so the whole comparison came
+    out `nan` and printed without comment.
+    """
+    from tutorials.bands import StaleReferenceError
+
+    obj, js, scores = scored
+    monkeypatch.setattr(tut, "FIGURES", tmp_path)
+    _write_fake_r_reference(obj, scores, js, tmp_path)
+    stale = pd.read_csv(tmp_path / "r_pca.csv")
+    stale.loc[0, "cell"] = "CELL_FROM_A_PREVIOUS_RUN"
+    stale.to_csv(tmp_path / "r_pca.csv", index=False)
+    summary = tut.summarize(obj, scores, js, verbose=False)
+
+    with pytest.raises(StaleReferenceError, match="different cell set"):
+        tut.report_concordance(obj, summary, verbose=False)
+
+
+def test_prep_leaves_the_real_handoff_alone_when_given_an_out_dir(tmp_path):
+    """Running the test suite must not rewrite what the R script reads.
+
+    It did: `prep` wrote unconditionally to `tutorials/figures_dimreduc/`, so a
+    `pytest` run replaced the 2,000 real HVGs with 100 synthetic `GENE*` names
+    and the 2,700 barcodes with `CELL0..CELL119`.
+    """
+    obj = _synthetic_object(n_cells=60, n_genes=120, seed=3)
+    handoff, sentinel = tmp_path / "handoff", tmp_path / "figures"
+    sentinel.mkdir()
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(tut, "FIGURES", sentinel)
+        tut.prep(obj, n_hvg=50, n_pcs=5, out_dir=handoff)
+    assert len((handoff / "hvg_features.txt").read_text().split()) == 50
+    assert (handoff / "cells.txt").read_text().split()[0] == "CELL0"
+    assert list(sentinel.iterdir()) == [], "prep wrote to FIGURES anyway"
+
+
+def test_the_jackstraw_band_admits_the_measured_spread():
+    """R is deterministic at 13; shanuz spans 12-15 over a 60-seed sweep.
+
+    Both ends of that measurement have to sit inside the band, or the tutorial
+    fails on a good run. A gap of 3 has to sit outside, or it fails on nothing.
+    """
+    band = tut.BANDS["jackstraw_keep_gap"]
+    assert band.holds(abs(12 - 13)) and band.holds(abs(15 - 13))
+    assert not band.holds(abs(16 - 13))
+
+
+def test_the_basis_band_reaches_at_least_r_s_cutoff():
+    """`aligned_through` is a precondition, and its floor is not arbitrary.
+
+    The per-PC JackStraw comparison is only like-for-like while the two bases
+    are matched in order, so it has to reach the PC where the cutoff decision is
+    actually made. R's drop-off is at 14, i.e. it keeps 13.
+    """
+    band = tut.BANDS["pca_basis_aligned_through"]
+    assert band.low >= 13
+    assert not band.holds(12)
+
+
+def test_bands_hold_is_false_when_a_band_is_violated(monkeypatch):
+    """`run_full` has to *act* on a failure, not just print one.
+
+    Without this the `--report` exit code is decorative: the tutorial would
+    print OUT-of-band lines and still return 0.
+    """
+    from tutorials.bands import Band
+    monkeypatch.setitem(tut.BANDS, "significant_agreement",
+                        Band(1.0, 1.0, "deliberately impossible"))
+    verdicts = tut.check_bands(tut.BANDS, {"significant_agreement": 0.9})
+    assert not all(v.ok for v in verdicts)

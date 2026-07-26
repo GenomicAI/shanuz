@@ -23,6 +23,49 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+- **The two R-comparison numbers that were allowed to move are now asserted
+  bands, and the reports refuse a stale R reference.** `deseq2`'s overlap with
+  Seurat's top 50 and JackStraw's PC cutoff both differ from R for understood
+  reasons — pseudobulk against per-cell in one case, a seeded permutation
+  against R's loop-indexed one in the other — and both were recorded as prose.
+  Prose does not fail, so a genuine regression landing inside the expected
+  spread read as ordinary variation. `tutorials/bands.py` gives each number a
+  `Band` with a stated reason; `--report` prints the verdicts and **exits
+  non-zero** outside them. The bands are measured, not guessed: a 60-seed sweep
+  of `jack_straw` (keeps of 12/13/14/15 for 2/28/11/19 seeds against R's
+  deterministic 13) and 20 resampled pseudo-replicate splits for `deseq2`
+  (20–26, median 22). The seven cell-level DE tests get exact bands, so one
+  dropped gene out of the top 50 is now a failure.
+
+  Three defects surfaced while wiring it up, all the same shape — an R
+  reference silently older than the handoff it answers:
+
+  - **`pbmc3k_de_tutorial.py --report` compared across runs without noticing.**
+    On the working copy the Python tables were from 25 July and the R tables
+    from 19 July, taken on a *different* cluster assignment, and the report
+    printed a full parity table with `wilcox` at 48/50 and a p-value Spearman of
+    0.907 — indistinguishable from a regression in the port. Re-run against a
+    matching reference, `wilcox` is 50/50 at Spearman 1.000000. `pct.1`/`pct.2`
+    are counts over the shared cells with no statistics in the way, so they now
+    gate the comparison: they had differed for 12,491 of 13,712 genes.
+  - **`pbmc3k_dimreduc_tutorial.py` NaN-filled instead of failing.** `_read`
+    reindexes R's embedding onto the Python cell order, which fills an absent
+    barcode with `NaN` rather than raising; every correlation downstream would
+    have printed as `nan`. The feature check is now set equality rather than
+    one-sided containment — an R run holding *extra* features passed before.
+  - **Running `pytest` corrupted the R handoff.** `prep` wrote
+    `figures_dimreduc/hvg_features.txt` and `cells.txt` unconditionally, so the
+    test suite's synthetic fixtures replaced the 2,000 real HVGs with 100 genes
+    named `GENE171` and the 2,700 barcodes with `CELL0..CELL119` — which
+    `pbmc3k_dimreduc_verify.R` reads. `prep` now takes `out_dir`.
+
+  Both vignettes are refreshed against re-run R references. The dim-reduction
+  basis check improves from `median |r| 0.9759, matched through PC 15` to
+  `1.0000, matched through all 20`: the old figure was not PCA disagreement at
+  all, but 6 of the 2,000 HVGs having drifted across the selection boundary
+  since the reference was built. All eight mutation trials against the new
+  guards were killed.
+
 - **The PBMC 3k and PBMC 8k tutorials now have numeric handoffs against R
   Seurat, closing the last two compared entirely by eye.** Every R panel in the
   PBMC 3k walkthrough links a canonical satijalab.org image, so nothing failed
