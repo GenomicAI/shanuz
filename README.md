@@ -66,13 +66,13 @@ ships manylinux wheels only through cp313, and the alternatives are a source
 build needing BLAS or a resolver backtrack that pulls in torch. Everything else
 in the dependency set already has 3.14 wheels, so this is one package away.
 
-> **The PyPI release lags `main` by a long way right now.** The newest release is
-> **0.2.0** (2026-07-05), and much of the Features list above landed after it:
+> **`pip install shanuz` is current again.** The newest release is **0.9.0**
+> (2026-07-27), and it closes the gap the previous note here warned about:
 > reference mapping, sketching, `LazyMatrix`, cell hashing, Mixscape,
-> `run_spca`/`glm_pca`, pseudobulk DE, and the MERSCOPE/Visium additions are
-> **not** in `pip install shanuz` yet — only in a source install.
-> [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)
-> records exactly what has and has not been released.
+> `run_spca`/`glm_pca`, pseudobulk DE, and the MERSCOPE/Visium additions are all
+> in it. [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)
+> is still the authority on exactly what shipped when a gap like that opens up
+> again — a milestone landing on `main` does not mean it has been released.
 
 ### From PyPI — the released core
 
@@ -338,21 +338,21 @@ Shanuz
 
 See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)** for the full
 development plan, and **[`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)**
-for what has actually shipped. The two are not the same thing: these milestones are planning
-labels rather than release versions, and most of the ✅ rows below are on `main` but not yet in
-any release. Milestones:
+for what has actually shipped. The two are not the same thing — these milestones are planning
+labels rather than release versions — but as of **0.9.0** every row below through v0.9.0 is
+released, not just landed on `main`. Milestones:
 
 | Milestone | Focus |
 |-----------|-------|
-| v0.2.0 | Batch correction — Harmony, CCA/RPCA anchors, `IntegrateLayers` dispatcher ✅ *(complete)* |
-| v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery`/`ProjectUMAP` ✅ *(complete)* |
-| v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(delivered — see Tutorial 3)* |
-| v0.5.0 | Additional reductions — t-SNE, ICA, `run_spca`, `glm_pca` (Poisson + negative binomial) ✅ *(complete)* |
-| v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(complete)* |
-| v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(delivered — see Tutorial 5)* |
-| v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy on-disk matrices (`LazyMatrix`) ✅ *(complete)* |
-| v0.9.0 | Specialized — `HTODemux` ✅ + `MULTIseqDemux` ✅ (cell hashing); Mixscape ✅ (`CalcPerturbSig` + `RunMixscape` + `MixscapeLDA` + `PlotPerturbScore` + `MixscapeHeatmap`, CRISPR screens) — **complete** |
-| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.12–3.13 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md) ✅, `mypy` wired advisory ✅ (annotating to `--strict` clean still open); MkDocs site still open |
+| v0.2.0 | Batch correction — Harmony, CCA/RPCA anchors, `IntegrateLayers` dispatcher ✅ *(released in 0.2.0)* |
+| v0.3.0 | Reference mapping — `FindTransferAnchors`, `TransferData`, `MapQuery`/`ProjectUMAP` ✅ *(released in 0.9.0)* |
+| v0.4.0 | Multimodal WNN — `FindMultiModalNeighbors`, joint UMAP/clustering ✅ *(released in 0.9.0 — see Tutorial 3)* |
+| v0.5.0 | Additional reductions — t-SNE, ICA, `run_spca`, `glm_pca` (Poisson + negative binomial) ✅ *(released in 0.9.0)* |
+| v0.6.0 | Pseudobulk & advanced DE — `AggregateExpression`, `FindConservedMarkers`, DESeq2 (`test_use="deseq2"`), MAST (`test_use="mast"`), bimod (`test_use="bimod"`) ✅ *(released in 0.9.0)* |
+| v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(released in 0.9.0 — see Tutorial 5)* |
+| v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy on-disk matrices (`LazyMatrix`) ✅ *(released in 0.9.0)* |
+| v0.9.0 | Specialized — `HTODemux` ✅ + `MULTIseqDemux` ✅ (cell hashing); Mixscape ✅ (`CalcPerturbSig` + `RunMixscape` + `MixscapeLDA` + `PlotPerturbScore` + `MixscapeHeatmap`, CRISPR screens) — **released in 0.9.0** |
+| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.12–3.13 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md) ✅, `mypy` clean ✅, this release ✅; MkDocs site on `main` but not yet released |
 
 ---
 
@@ -363,7 +363,7 @@ uv pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-All 798 tests pass.
+All 955 tests pass.
 
 Twenty-five further tests run the tutorials end-to-end against real data. They are opt-in
 — they need the cached datasets (~200 MB) and take minutes, so they do not run in

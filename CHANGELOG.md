@@ -7,19 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 > **Milestones are not releases.** [`ROADMAP.md`](ROADMAP.md) tracks progress in
 > `v0.N.0` *milestones*, named after the slice of Seurat they port. Those are
-> planning labels and never become version numbers on their own — the milestone
-> sequence even runs `v0.9.0` → `v0.10.0` with nothing in between. The versions
-> below are the ones actually tagged and released, and the two have drifted a
-> long way apart: the tags stop at 0.2.0 while the milestones have run through
-> v0.9.0. Everything in between sits under [Unreleased]. A milestone can also
-> span releases — v0.7.0's spatial loaders shipped in 0.1.1 while the rest of it
-> is still unreleased — so the two sequences do not line up item for item.
+> planning labels and never become version numbers on their own. Before 0.9.0
+> the two sequences had drifted a long way apart — the tags stopped at 0.2.0
+> while the milestones had run through v0.9.0, with a milestone able to span
+> releases (v0.7.0's spatial loaders shipped in 0.1.1 while the rest of it was
+> still unreleased). The 0.9.0 release below closes that entire gap in one
+> jump, which is why its version number happens to match the milestone it
+> completes — a coincidence of this one release, not a policy of matching them
+> going forward.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-27
+
 Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
-spatial, scale, and the specialized assays — plus one breaking fix. All of it is
-on `main`; none of it is on PyPI.
+spatial, scale, and the specialized assays — plus one breaking fix, plus the
+tutorial fidelity infrastructure that followed (measured bands, staleness
+guards on the R-comparison reports). All of it was on `main`; as of this
+release, all of it is on PyPI.
 
 ### Added
 
