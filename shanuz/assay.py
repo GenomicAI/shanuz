@@ -7,7 +7,6 @@ import pandas as pd
 import scipy.sparse as sp
 
 from ._sparse import (
-    as_sparse,
     empty_dense,
     empty_sparse,
     is_matrix_empty,

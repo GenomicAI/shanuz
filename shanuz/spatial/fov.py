@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Optional, Sequence, Union
 
-import numpy as np
 import pandas as pd
 
 from .base import SpatialImage
@@ -110,7 +109,6 @@ class FOV(SpatialImage):
         )
 
     def subset(self, cells: list[str]) -> "FOV":
-        cell_set = set(cells)
         new_boundaries = {k: b.subset(cells) for k, b in self.boundaries.items()}
         new_molecules = {k: m.subset(cells) for k, m in self.molecules.items()}
         return FOV(

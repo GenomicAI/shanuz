@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
-from shanuz import DimReduc, Shanuz, create_shanuz_object
+from shanuz import DimReduc, create_shanuz_object
 
 
 def test_create(small_seurat):

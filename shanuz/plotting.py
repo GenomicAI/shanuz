@@ -113,9 +113,7 @@ def _get_assay_obj(obj, assay: Optional[str]):
 
 def _get_data_matrix(assay_obj, layer: Optional[str] = None):
     """Return the gene-expression matrix (genes × cells) from an assay."""
-    from .assay import Assay
     from .assay5 import Assay5
-    import scipy.sparse as sp
 
     if isinstance(assay_obj, Assay5):
         if layer is not None and layer in assay_obj.layers:
@@ -252,7 +250,6 @@ def vln_plot(
     groups = _get_groups(obj, group_by)
     unique = sorted(set(groups), key=lambda x: (int(x) if x.isdigit() else x))
     colors = palette or _palette(len(unique))
-    cmap = dict(zip(unique, colors))
 
     nrow, nc = _subplot_grid(len(features), ncol)
     if figsize is None:
@@ -416,7 +413,6 @@ def dim_plot(
     groups = _get_groups(obj, group_by)
     unique = sorted(set(groups), key=lambda x: (int(x) if x.isdigit() else x))
     colors = palette or _palette(len(unique))
-    cmap = dict(zip(unique, colors))
 
     ax1_label = reduction.upper() + "_1"
     ax2_label = reduction.upper() + "_2"
@@ -436,7 +432,8 @@ def dim_plot(
                     bbox=dict(boxstyle="round,pad=0.25", fc="white",
                               alpha=0.75, ec="none"))
 
-    ax.set_xlabel(ax1_label); ax.set_ylabel(ax2_label)
+    ax.set_xlabel(ax1_label)
+    ax.set_ylabel(ax2_label)
     ax.set_title(title or f"{reduction.upper()} — coloured by "
                           f"{'ident' if group_by is None else group_by}",
                  fontsize=12)
@@ -524,7 +521,8 @@ def feature_scatter(
         ax.scatter(x[mask], y[mask], s=pt_size, alpha=alpha,
                    color=color, label=g, linewidths=0)
 
-    ax.set_xlabel(feature1); ax.set_ylabel(feature2)
+    ax.set_xlabel(feature1)
+    ax.set_ylabel(feature2)
     ax.set_title(f"{feature1} vs {feature2}", fontsize=12)
     ax.legend(markerscale=2.5, fontsize=8,
               bbox_to_anchor=(1.01, 1), loc="upper left", frameon=False)
@@ -616,7 +614,8 @@ def variable_feature_plot(
                             textcoords="offset points", color="#333333")
 
     if log and not use_std_var:
-        ax.set_xscale("log"); ax.set_yscale("log")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
         ax.set_xlabel("Average Expression (log)")
     else:
         ax.set_xlabel("Average Expression")
@@ -887,7 +886,8 @@ def do_heatmap(
     axes[0].imshow(colour_row, aspect="auto",
                    cmap=plt.matplotlib.colors.ListedColormap(colors),
                    vmin=0, vmax=len(unique) - 1, interpolation="none")
-    axes[0].set_xticks([]); axes[0].set_yticks([])
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
     for spine in axes[0].spines.values():
         spine.set_visible(False)
 
@@ -1161,7 +1161,8 @@ def image_dim_plot(
             ax.scatter(dd["x"], dd["y"], s=size, c=[cols.get(g, "grey")],
                        label=g, linewidths=0)
         ax.set_title(str(img), fontsize=9, fontweight="bold")
-        ax.set_aspect("equal"); ax.axis("off")
+        ax.set_aspect("equal")
+        ax.axis("off")
         if flip_y:
             ax.invert_yaxis()
     for ax in axes_flat[len(images):]:
@@ -1215,7 +1216,8 @@ def image_feature_plot(
         sc = ax.scatter(d["x"], d["y"], s=size, c=d["val"], cmap=cmap,
                         vmin=0, vmax=vmax, linewidths=0)
         ax.set_title(str(img), fontsize=9, fontweight="bold")
-        ax.set_aspect("equal"); ax.axis("off")
+        ax.set_aspect("equal")
+        ax.axis("off")
         if flip_y:
             ax.invert_yaxis()
     for ax in axes_flat[len(images):]:

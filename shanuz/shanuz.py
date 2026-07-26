@@ -10,7 +10,7 @@ from packaging.version import Version
 
 from .assay import Assay, create_assay_object
 from .assay5 import Assay5, create_assay5_object
-from .command import ShanuzCommand, log_shanuz_command
+from .command import ShanuzCommand
 from .dimreduc import DimReduc
 from .graph import Graph
 from .neighbor import Neighbor
@@ -371,7 +371,6 @@ class Shanuz:
         old_names = self.cell_names()
         if len(new_names) != len(old_names):
             raise ValueError("new_names must match number of cells.")
-        mapping = dict(zip(old_names, new_names))
 
         new_meta = self.meta_data.copy()
         new_meta.index = new_names

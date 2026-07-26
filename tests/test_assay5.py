@@ -1,7 +1,6 @@
 import numpy as np
-import pytest
 import scipy.sparse as sp
-from shanuz import Assay5, create_assay5_object
+from shanuz import create_assay5_object
 
 
 def test_create(small_assay5):
@@ -73,7 +72,6 @@ def test_repr(small_assay5):
 def _ordered_assay():
     """4 features x 6 cells whose values encode their position, so a permuted
     column is visible by inspection rather than only by a checksum."""
-    from shanuz import create_assay5_object
     mat = sp.csc_matrix(np.arange(1, 25, dtype=float).reshape(4, 6))
     return create_assay5_object(
         counts=mat,

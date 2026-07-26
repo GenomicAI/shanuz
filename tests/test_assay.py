@@ -1,8 +1,7 @@
 import numpy as np
-import pandas as pd
 import pytest
 import scipy.sparse as sp
-from shanuz import Assay, create_assay_object
+from shanuz import create_assay_object
 
 
 def test_create_from_counts(small_assay):

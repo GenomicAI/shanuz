@@ -19,7 +19,6 @@ from .lazy import is_lazy
 
 def _assay_data(seurat, assay: Optional[str], layer: str = "data"):
     """Return (matrix features×cells, feature_names) from an assay layer."""
-    from .assay import Assay
     from .assay5 import Assay5
     from ._sparse import is_matrix_empty
 

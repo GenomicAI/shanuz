@@ -34,7 +34,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.pbmc3k_dimreduc_tutorial import (
-    run_full, FIGURES, JS_DIMS, ALPHA, SCORE_THRESH, TSNE_DIMS,
+    run_full, FIGURES, ALPHA, SCORE_THRESH, TSNE_DIMS,
 )
 from shanuz.plotting import _palette
 

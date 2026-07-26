@@ -272,7 +272,7 @@ def test_the_filter_sees_the_data_layer_not_scale_data():
         assert a_min >= 0.0 and b_min >= 0.0
 
 
-def test_pca_loadings_are_exact_not_randomized():
+def test_randomized_svd_would_visibly_disagree_on_the_trailing_pcs():
     """The reciprocal-PCA anchors need every PC right, not just the leading ones.
 
     ``_pca_loadings`` must use an exact SVD. sklearn's default ``PCA`` picks a

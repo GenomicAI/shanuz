@@ -3,8 +3,6 @@ import pandas as pd
 import pytest
 from shanuz import (
     Centroids,
-    FOV,
-    Molecules,
     Segmentation,
     create_centroids,
     create_fov,

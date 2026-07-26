@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 anndata = pytest.importorskip("anndata", reason="anndata not installed")

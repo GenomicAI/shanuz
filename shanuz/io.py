@@ -7,10 +7,8 @@ from __future__ import annotations
 import gzip
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
-import numpy as np
-import pandas as pd
 import scipy.io
 import scipy.sparse as sp
 
@@ -43,17 +41,14 @@ def read_10x(
         matrix_file = data_dir / "matrix.mtx.gz"
         barcodes_file = data_dir / "barcodes.tsv.gz"
         features_file = data_dir / "features.tsv.gz"
-        v3 = True
     elif (data_dir / "genes.tsv").exists():
         matrix_file = data_dir / "matrix.mtx"
         barcodes_file = data_dir / "barcodes.tsv"
         features_file = data_dir / "genes.tsv"
-        v3 = False
     elif (data_dir / "features.tsv").exists():
         matrix_file = data_dir / "matrix.mtx"
         barcodes_file = data_dir / "barcodes.tsv"
         features_file = data_dir / "features.tsv"
-        v3 = True
     else:
         raise FileNotFoundError(
             f"No 10X matrix files found in {data_dir}. "
@@ -103,7 +98,8 @@ def _open_file(path: Path):
 def _read_mtx(path: Path) -> sp.coo_matrix:
     """Read a (possibly gzipped) Matrix Market file."""
     if str(path).endswith(".gz"):
-        import tempfile, shutil
+        import tempfile
+        import shutil
         with gzip.open(path, "rb") as src:
             with tempfile.NamedTemporaryFile(suffix=".mtx", delete=False) as dst:
                 shutil.copyfileobj(src, dst)

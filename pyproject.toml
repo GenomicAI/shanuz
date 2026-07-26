@@ -78,6 +78,14 @@ addopts = "-v"
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint.per-file-ignores]
+# Tests and tutorials are runnable straight from a clone, so each one bootstraps
+# `sys.path` before importing shanuz. That puts every subsequent import below a
+# statement, which is E402 by definition — 121 reports for one deliberate line
+# per file. Ignored by scope rather than by 121 scattered `# noqa: E402`.
+"tests/*" = ["E402"]
+"tutorials/*" = ["E402"]
+
 [tool.mypy]
 # Deliberately no `python_version`. Pinning it to our floor also makes mypy parse
 # every *followed* import at that version, third-party source included — and

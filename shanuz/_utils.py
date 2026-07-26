@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional
 
 import numpy as np
-import pandas as pd
 import scipy.sparse as sp
 
-from ._sparse import is_sparse
 
 
 def calc_n(matrix, margin: int = 2) -> tuple[np.ndarray, np.ndarray]:
