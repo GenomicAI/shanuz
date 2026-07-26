@@ -171,6 +171,48 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **The `mvp` statistics were three different quantities under Seurat's
+  names.** PR #64 renamed the dispersion path's columns to `mvp.mean`,
+  `mvp.dispersion` and `mvp.dispersion.scaled`; the numbers underneath were not
+  what `HVFInfo(method = "mvp")` returns. `CalcDispersion` calls `FastExpMean`
+  and `FastLogVMR`, and both **undo the log first**:
+
+      mvp.mean       = log1p(mean(expm1(x)))
+      mvp.dispersion = log(var(expm1(x)) / mean(expm1(x)))     # sample variance
+
+  shanuz took the mean and variance of the log-normalized values directly, with
+  an epsilon inside each logarithm. On PBMC 3k its `mvp.mean` column ran 0–2
+  where Seurat's runs 1–7. Three further divergences fell out of the same
+  function: the bins were **equal-frequency percentiles of `log(mean)`** rather
+  than R's 20 **equal-width** bins across the mean's range, which changes every
+  z-score because the scaling is per bin; a bin holding a single gene was
+  scored **0** where R's `sd` of one value is `NA`; and the within-bin standard
+  deviation used `ddof=0` against R's `sd`. Now verified against Seurat 5.5.1
+  on all 13,714 PBMC 3k genes — `mvp.mean` 8.9e-16, `mvp.dispersion` 2.2e-15,
+  `mvp.dispersion.scaled` 5.3e-15, and the one `NaN` lands on the same gene.
+- **`mean.cutoff` and `dispersion.cutoff` were accepted and discarded.** Seurat
+  has *two* selectors here, not one: `MVP` (`"mvp"` / `"mean.var.plot"`) keeps
+  every gene inside both cutoffs and ignores `nfeatures`, while `DISP`
+  (`"dispersion"` / `"disp"`) takes the top `nfeatures` and ignores the cutoffs.
+  shanuz ran the second for every spelling, so `mean.var.plot` returned exactly
+  `nfeatures` genes under a name that promises a cutoff — 2,000 on PBMC 3k
+  against Seurat's **1,006**. Both selectors also rank by the **raw**
+  dispersion; shanuz ranked by the scaled one, which reorders the list. All
+  four spellings now return Seurat's features in Seurat's order. `"disp"` is
+  newly accepted, and `num_bin` / `binning_method` are exposed.
+- **`variable_feature_plot` ignored the mvp columns.** It looked for the vst
+  statistics and, not finding them, fell through to recomputing
+  `E[x²] − E[x]²` off the data matrix — a third quantity, on a third scale,
+  drawn without complaint under a y axis reading "Dispersion". It now plots
+  `mvp.mean` against `mvp.dispersion` as `VariableFeaturePlot` does.
+- **Re-running `find_variable_features` with another method left the previous
+  method's columns behind.** SeuratObject can hold both because it namespaces
+  them by method and layer (`vf_vst_counts_mean`) and makes you name one to read
+  them back; shanuz's `meta_data` has a single flat name per statistic. A vst
+  run followed by an mvp run left `variance.standardized` sitting beside an mvp
+  `variable_features` list it did not describe — and that is what made
+  `variable_feature_plot` draw the vst figure over the mvp genes. Whichever
+  method runs now owns the table.
 - **`add_module_score` read the expression matrix once per gene, and was 100×
   slower than it needed to be.** Each gene's row was pulled out on its own
   (`mat[i, :]` inside a list comprehension) and the stack handed to `np.mean`.

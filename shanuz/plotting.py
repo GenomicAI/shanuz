@@ -559,19 +559,31 @@ def variable_feature_plot(
     top_labeled = assay_obj.variable_features[:n_label]
     is_hvg = np.array([f in hvg_set for f in feat_names])
 
-    # Prefer pre-computed VST stats stored by find_variable_features
+    # Prefer the statistics find_variable_features stored, whichever method
+    # ran. `VariableFeaturePlot` picks its y axis off the column names the same
+    # way: `variance.standardized` for vst, `mvp.dispersion` for the dispersion
+    # methods -- and the axis label is the only thing on the figure that says
+    # which one you are looking at.
     md = getattr(assay_obj, "meta_data", None)
-    use_std_var = (md is not None
-                   and "variance.standardized" in md.columns
-                   and "mean" in md.columns)
+    stored = set(md.columns) if md is not None else set()
+    use_std_var = {"mean", "variance.standardized"} <= stored
+    use_mvp = not use_std_var and {"mvp.mean", "mvp.dispersion"} <= stored
 
-    if use_std_var:
+    if md is not None and use_std_var:
         means = md["mean"].values
         y_vals = md["variance.standardized"].values
         y_label = "Standardized Variance"
         # clip extreme standardized values for readability
         y_vals = np.clip(y_vals, 0, np.percentile(y_vals[y_vals > 0], 99.5))
         log = False  # standardized variance on linear scale matches R
+    elif md is not None and use_mvp:
+        # Seurat plots columns 1 and 2 of the mvp HVFInfo -- the mean and the
+        # *raw* dispersion, not the scaled one that the cutoff tests -- and
+        # leaves `log` off, both axes already being logarithms.
+        means = md["mvp.mean"].values
+        y_vals = md["mvp.dispersion"].values
+        y_label = "Dispersion"
+        log = False
     else:
         mat = _get_data_matrix(assay_obj)
         if sp.issparse(mat):

@@ -20,6 +20,14 @@ from .lazy import is_lazy
 # streaming paths is a function of this, not of the dataset size.
 _CELL_BLOCK = 10_000
 
+# Every per-feature column `find_variable_features` can write, across methods.
+# Whichever method runs owns the table, so the ones it does not write are
+# removed rather than left describing a selection that has been replaced.
+_HVF_COLUMNS = {
+    "mean", "variance", "variance.expected", "variance.standardized",
+    "mvp.mean", "mvp.dispersion", "mvp.dispersion.scaled",
+}
+
 
 # ------------------------------------------------------------------
 # Helpers
@@ -307,6 +315,8 @@ def find_variable_features(
     layer: Optional[str] = None,
     mean_cutoff: tuple = (0.1, 8),
     dispersion_cutoff: tuple = (1, float("inf")),
+    num_bin: int = 20,
+    binning_method: str = "equal_width",
 ) -> None:
     """Select highly variable features.
 
@@ -319,12 +329,20 @@ def find_variable_features(
 
     * ``selection_method="vst"`` — ``mean``, ``variance``,
       ``variance.expected``, ``variance.standardized``
-    * ``"mvp"`` / ``"dispersion"`` / ``"mean.var.plot"`` — ``mvp.mean``,
-      ``mvp.dispersion``, ``mvp.dispersion.scaled``
+    * ``"mvp"`` / ``"mean.var.plot"`` / ``"dispersion"`` / ``"disp"`` —
+      ``mvp.mean``, ``mvp.dispersion``, ``mvp.dispersion.scaled``
 
     plus ``highly_variable``, a boolean flag that has no Seurat counterpart of
     its own (`HVFInfo(status = TRUE)` spells it ``variable``); it is the
     fallback `Assay5.variable_features` reads when the ordered list is empty.
+
+    The two dispersion spellings are **not** synonyms, however much they share.
+    Seurat routes them to different selectors — `MVP` for ``"mvp"`` /
+    ``"mean.var.plot"``, `DISP` for ``"dispersion"`` / ``"disp"`` — and only
+    the second honours ``nfeatures``. ``mean_cutoff`` and ``dispersion_cutoff``
+    apply to the first, and to nothing else; they were accepted and discarded
+    before, so ``mean.var.plot`` returned a top-``nfeatures`` list under a name
+    that promises a cutoff.
     """
     assay_name = assay or seurat.active_assay
     assay_obj = seurat.assays[assay_name]
@@ -366,9 +384,11 @@ def find_variable_features(
             "variance.expected": expected_var,
             "variance.standardized": var_std,
         }
-    elif selection_method in ("dispersion", "mvp", "mean.var.plot"):
+    elif selection_method in ("dispersion", "disp", "mvp", "mean.var.plot"):
         hvg_indices, means, dispersion, dispersion_scaled = _dispersion_hvg(
-            data, nfeatures, mean_cutoff, dispersion_cutoff
+            data, nfeatures, mean_cutoff, dispersion_cutoff,
+            num_bin=num_bin, binning_method=binning_method,
+            select="disp" if selection_method in ("dispersion", "disp") else "mvp",
         )
         # A different method produces different quantities, and Seurat names
         # them so: `HVFInfo(method = "mvp")` returns mvp.mean / mvp.dispersion /
@@ -401,6 +421,15 @@ def find_variable_features(
             index=feature_names,
         )
         hvf_df.loc[hvg_names, "highly_variable"] = True
+        # Retire the other method's columns. SeuratObject can keep both — it
+        # namespaces them by method and layer (`vf_vst_counts_mean`) and
+        # `HVFInfo(method = )` picks — but shanuz's meta_data *is* the
+        # user-facing table, with one flat name per statistic. Leaving the
+        # previous method's columns in place next to a `variable_features` list
+        # they no longer describe is how `variable_feature_plot` came to draw
+        # standardized variances over an mvp selection.
+        for col in _HVF_COLUMNS - set(hvf_df.columns):
+            assay_obj.meta_data.drop(columns=col, inplace=True, errors="ignore")
         for col in hvf_df.columns:
             assay_obj.meta_data[col] = hvf_df[col]
         assay_obj.variable_features = hvg_names
@@ -626,60 +655,190 @@ def _loess2(x: np.ndarray, y: np.ndarray, frac: float = 0.3, batch_size: int = 2
     return fitted_u[inverse]
 
 
+def _expm1_row_moments(data) -> tuple[np.ndarray, np.ndarray]:
+    """Per-gene ``mean(expm1(x))`` and ``var(expm1(x), ddof=1)``.
+
+    `FastExpMean` and `FastLogVMR` both undo the log before they measure
+    anything: they accumulate ``expm1(x)`` over the row, and `FastLogVMR` takes
+    a second pass to sum ``(expm1(x) - rm)^2``, adding ``(ncells - nnz) * rm^2``
+    for the zeros it never visits. That is a genuine two-pass sample variance,
+    not the ``E[x^2] - E[x]^2`` shortcut the vst path can afford on counts —
+    ``expm1`` of log-normalized data reaches into the thousands, and the
+    shortcut cancels five significant figures there.
+
+    Streamed in cell blocks so an on-disk layer works, matching `_vst_hvg`. The
+    accumulation order — genes outer, cells ascending within a gene — is the
+    order Seurat's transposed Eigen iterator uses.
+    """
+    n_genes, n_cells = data.shape
+
+    if is_lazy(data) or sp.issparse(data):
+        row_sum = np.zeros(n_genes)
+        for block in _cell_blocks(data, _CELL_BLOCK):
+            row_sum += np.bincount(
+                block.indices, weights=np.expm1(block.data.astype(float)),
+                minlength=n_genes,
+            )
+        rm = row_sum / n_cells
+
+        sq = np.zeros(n_genes)
+        nnz = np.zeros(n_genes, dtype=np.int64)
+        for block in _cell_blocks(data, _CELL_BLOCK):
+            rows = block.indices
+            nnz += np.bincount(rows, minlength=n_genes)
+            dev = np.expm1(block.data.astype(float)) - rm[rows]
+            sq += np.bincount(rows, weights=dev * dev, minlength=n_genes)
+        # The zeros Seurat's iterator skips: expm1(0) is 0, so each contributes
+        # rm^2 to the sum of squared deviations.
+        variances = (sq + (n_cells - nnz) * rm ** 2) / (n_cells - 1)
+    else:
+        e = np.expm1(np.asarray(data, dtype=float))
+        rm = e.mean(axis=1)
+        variances = ((e - rm[:, None]) ** 2).sum(axis=1) / (n_cells - 1)
+
+    return rm, variances
+
+
+def _dispersion_bins(
+    means: np.ndarray, num_bin: int, binning_method: str,
+) -> np.ndarray:
+    """Bin index per gene, or -1 for genes outside every bin.
+
+    Reproduces R's ``cut(x, breaks = num.bin, include.lowest = TRUE)``, which is
+    *not* what shanuz did: it binned by percentile of ``log(mean)``, i.e. equal
+    *frequency* on a different quantity. Equal-width bins over the mean's range
+    are far from equally populated — the tail bins hold a handful of genes each,
+    and a bin of one has an undefined standard deviation — and that is precisely
+    what makes the scaled dispersion of a rare high-expression gene large.
+    Equal-frequency binning flattens that out and quietly changes the ranking.
+    """
+    if binning_method == "equal_width":
+        lo, hi = float(means.min()), float(means.max())
+        dx = hi - lo
+        if dx == 0:
+            dx = abs(lo) if lo != 0 else 1.0
+            breaks = np.linspace(lo - dx / 1000, hi + dx / 1000, num_bin + 1)
+        else:
+            # R builds the interior points as `from + i * by` and only then
+            # widens the two ends by dx/1000, which is how a gene at the exact
+            # minimum stays inside bin 1. Transcribed rather than relied on:
+            # `searchsorted(..., side="left")` already lands `hi` in the last
+            # bin and the `include.lowest` line below already rescues `lo`, so
+            # dropping the widening changes nothing here. It is kept because
+            # the breaks are also what the range check at the end compares
+            # against, and matching R's array is cheaper than reasoning about
+            # when the two definitions could come apart.
+            breaks = np.asarray(
+                lo + np.arange(num_bin + 1) * (dx / num_bin), dtype=float
+            )
+            breaks[0] = lo - dx / 1000
+            breaks[-1] = hi + dx / 1000
+    elif binning_method == "equal_frequency":
+        positive = means[means > 0]
+        breaks = np.quantile(positive, np.linspace(0.0, 1.0, num_bin))
+    else:
+        raise ValueError(f"Unknown binning_method: {binning_method!r}")
+
+    # `right = TRUE`: bin i is (breaks[i], breaks[i+1]]. `include.lowest` pulls
+    # a value sitting exactly on the first break into bin 1 rather than out of
+    # range -- which only bites on equal_frequency, where the first break *is*
+    # the smallest positive mean.
+    idx = np.searchsorted(breaks, means, side="left") - 1
+    idx[means == breaks[0]] = 0
+    idx[(means < breaks[0]) | (means > breaks[-1])] = -1
+    return idx
+
+
 def _dispersion_hvg(
     data,
     nfeatures: int = 2000,
     mean_cutoff: tuple = (0.1, 8),
     dispersion_cutoff: tuple = (1, float("inf")),
+    num_bin: int = 20,
+    binning_method: str = "equal_width",
+    select: str = "mvp",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Mean-variance-plot (dispersion) based HVG selection.
-
-    Bins genes by mean expression, normalizes dispersion within each bin.
-    Mirrors Seurat v2's FindVariableGenes.
+    """Mean-variance-plot (dispersion) based HVG selection — Seurat's `MVP`/`DISP`.
 
     Returns ``(top_idx, mean, dispersion, dispersion.scaled)`` — the three
     quantities `HVFInfo(method = "mvp")` reports, in its order. The raw variance
     is an intermediate here and is deliberately not returned: it has no column
-    in Seurat's mvp output, and returning it in the slot the caller labels
-    ``mvp.dispersion`` is how it came to be stored under a name it did not hold.
+    in Seurat's mvp output.
+
+    Verbatim from `CalcDispersion`, whose two statistics are computed on
+    ``expm1`` of the log-normalized layer:
+
+        mvp.mean       = log1p(mean(expm1(x)))
+        mvp.dispersion = log(var(expm1(x)) / mean(expm1(x)))
+
+    Both were previously computed on the log values directly, with an ``eps``
+    added inside each log — a variance-to-mean ratio of a different quantity,
+    on a different scale, under the same name. `NA` becomes 0 in both, as
+    Seurat does; ``-Inf`` (a gene with zero variance but non-zero mean) is not
+    `NA` in R and is left alone.
+
+    ``select`` picks which of Seurat's two selectors runs on the result. They
+    are different functions and return different numbers of features:
+
+    * ``"mvp"`` (`mean.var.plot`) keeps *every* gene inside both cutoffs and
+      ignores ``nfeatures`` — on PBMC 3k that is 1,006 genes, not 2,000.
+    * ``"disp"`` (`dispersion`) takes the top ``nfeatures`` by raw dispersion
+      and ignores the cutoffs.
+
+    Both rank by ``mvp.dispersion``, not by the scaled value. Ranking by the
+    scaled dispersion — which is what shanuz did for both — reorders the whole
+    list, because scaling is per bin and each bin has its own centre and spread.
     """
-    if sp.issparse(data):
-        n_cells = data.shape[1]
-        means = np.array(data.mean(axis=1)).flatten()
-        mean_sq = np.array(data.power(2).mean(axis=1)).flatten()
-    else:
-        data = np.asarray(data, dtype=float)
-        n_cells = data.shape[1]
-        means = data.mean(axis=1)
-        mean_sq = (data ** 2).mean(axis=1)
+    n_cells = data.shape[1]
+    if n_cells < 2:
+        raise ValueError("Dispersion needs at least 2 cells to have a variance.")
 
-    # Sample variance (N-1 denominator), consistent with the vst path.
-    variances = (mean_sq - means ** 2) * (n_cells / (n_cells - 1))
-    eps = 1e-10
-    dispersion = np.log(variances / (means + eps) + eps)
+    rm, variances = _expm1_row_moments(data)
 
-    # Bin by log mean
-    log_means = np.log(means + eps)
-    n_bins = 20
-    bins = np.percentile(log_means, np.linspace(0, 100, n_bins + 1))
-    bins[-1] += 1e-6
-    bin_assign = np.digitize(log_means, bins) - 1
-    bin_assign = np.clip(bin_assign, 0, n_bins - 1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        means = np.log1p(rm)
+        dispersion = np.log(variances / rm)
+    # `feature.dispersion[is.na(...)] <- 0` — and `is.na` in R is false for
+    # ±Inf, so only the 0/0 genes are zeroed, not the zero-variance ones.
+    dispersion[np.isnan(dispersion)] = 0.0
+    means[np.isnan(means)] = 0.0
 
-    dispersion_scaled = np.zeros(len(means))
-    for b in range(n_bins):
-        mask = bin_assign == b
-        if mask.sum() > 1:
+    bin_idx = _dispersion_bins(means, num_bin, binning_method)
+
+    # NaN where the bin holds one gene or none: R's `sd` of a single value is
+    # NA, and `tapply` gives NA for an empty bin. Seurat propagates both into
+    # `mvp.dispersion.scaled` and never cleans them up; a gene with a NaN here
+    # simply fails the `>` in the cutoff below and is not selected. Filling
+    # them with 0 instead — which is what a `if mask.sum() > 1` guard amounts
+    # to — hands those genes a middle-of-the-bin score they never earned.
+    dispersion_scaled = np.full(len(means), np.nan)
+    # A bin whose genes all share one dispersion has sd 0, and 0/0 is the NaN
+    # R produces there without complaint -- undetected genes land in such a bin
+    # routinely, so this is an ordinary outcome and not worth a warning.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for b in np.unique(bin_idx[bin_idx >= 0]):
+            mask = bin_idx == b
             d = dispersion[mask]
-            std = d.std()
-            if std > 0:
-                dispersion_scaled[mask] = (d - d.mean()) / std
-            else:
-                dispersion_scaled[mask] = 0
+            if d.size < 2:
+                continue
+            dispersion_scaled[mask] = (d - d.mean()) / d.std(ddof=1)
 
-    n = min(nfeatures, len(dispersion_scaled))
-    # Stable, and on the negated values -- see the note in `_vst_hvg`.
-    top_idx = np.argsort(-dispersion_scaled, kind="stable")[:n]
+    # Descending by raw dispersion, stable, so ties keep assay order as R's
+    # radix `order()` does. -Inf and NaN negate to +Inf/NaN and sort last,
+    # which is also where R's `decreasing = TRUE` puts them.
+    order = np.argsort(-dispersion, kind="stable")
+
+    if select == "disp":
+        top_idx = order[:min(nfeatures, len(order))]
+    else:
+        keep = (
+            (means > mean_cutoff[0]) & (means < mean_cutoff[1])
+            & (dispersion_scaled > dispersion_cutoff[0])
+            & (dispersion_scaled < dispersion_cutoff[1])
+        )
+        # NaN fails every comparison above, matching R's `which()` dropping NA.
+        top_idx = order[keep[order]]
+
     return top_idx, means, dispersion, dispersion_scaled
 
 
