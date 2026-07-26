@@ -45,15 +45,12 @@ def pbmc3k(
     """
     from .io import read_10x
 
-    if data_dir is None:
-        data_dir = Path.home() / ".shanuz_data" / "pbmc3k"
-    else:
-        data_dir = Path(data_dir)
-
-    matrix_dir = data_dir / _PBMC3K_DIR
+    base = (Path(data_dir) if data_dir is not None
+            else Path.home() / ".shanuz_data" / "pbmc3k")
+    matrix_dir = base / _PBMC3K_DIR
 
     if force_download or not (matrix_dir / "matrix.mtx").exists():
-        _download_10x(_PBMC3K_URLS, data_dir, label="PBMC3k", size_mb=24)
+        _download_10x(_PBMC3K_URLS, base, label="PBMC3k", size_mb=24)
 
     mat, genes, cells = read_10x(matrix_dir, var_names="gene_symbols")
     return mat, genes, cells
@@ -79,15 +76,12 @@ def pbmc8k(
     """
     from .io import read_10x
 
-    if data_dir is None:
-        data_dir = Path.home() / ".shanuz_data" / "pbmc8k"
-    else:
-        data_dir = Path(data_dir)
-
-    matrix_dir = data_dir / _PBMC8K_DIR
+    base = (Path(data_dir) if data_dir is not None
+            else Path.home() / ".shanuz_data" / "pbmc8k")
+    matrix_dir = base / _PBMC8K_DIR
 
     if force_download or not (matrix_dir / "matrix.mtx").exists():
-        _download_10x(_PBMC8K_URLS, data_dir, label="PBMC8k", size_mb=38)
+        _download_10x(_PBMC8K_URLS, base, label="PBMC8k", size_mb=38)
 
     mat, genes, cells = read_10x(matrix_dir, var_names="gene_symbols")
     return mat, genes, cells
@@ -127,14 +121,12 @@ def cbmc_citeseq(
 
     from .io import _make_unique
 
-    if data_dir is None:
-        data_dir = Path.home() / ".shanuz_data" / "cbmc"
-    else:
-        data_dir = Path(data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
+    base = (Path(data_dir) if data_dir is not None
+            else Path.home() / ".shanuz_data" / "cbmc")
+    base.mkdir(parents=True, exist_ok=True)
 
-    rna_path = data_dir / _CBMC_RNA
-    adt_path = data_dir / _CBMC_ADT
+    rna_path = base / _CBMC_RNA
+    adt_path = base / _CBMC_ADT
     for fname, path in ((_CBMC_RNA, rna_path), (_CBMC_ADT, adt_path)):
         if force_download or not path.exists():
             _download_file(_CBMC_BASE + fname, path, label=fname)
@@ -144,7 +136,9 @@ def cbmc_citeseq(
     adt_cells = list(adt_df.columns)
 
     # RNA is larger — read in row-chunks, keeping only human genes.
-    rna_blocks, rna_genes, rna_cells = [], [], None
+    rna_blocks: list[sp.csr_matrix] = []
+    rna_genes: list[str] = []
+    rna_cells: Optional[list[str]] = None
     for chunk in pd.read_csv(rna_path, index_col=0, chunksize=4000):
         if rna_cells is None:
             rna_cells = list(chunk.columns)
@@ -153,6 +147,12 @@ def cbmc_citeseq(
         if len(sub):
             rna_genes.extend(g[len(species_prefix):] for g in sub.index)
             rna_blocks.append(sp.csr_matrix(sub.values.astype(np.float32)))
+    if rna_cells is None or not rna_blocks:
+        # No rows at all, or none surviving the species filter — a wrong
+        # `species_prefix` used to surface as sp.vstack's "blocks must be 2-D".
+        raise ValueError(
+            f"{rna_path} yielded no rows starting with {species_prefix!r}"
+        )
     rna_mat = sp.vstack(rna_blocks, format="csc")
     rna_genes = _make_unique(rna_genes)
 
@@ -195,27 +195,25 @@ def xenium_mouse_brain(
     This is the public section featured in Seurat's Xenium spatial vignette, so
     the same analysis runs in R (``LoadXenium``) and Python (``load_xenium``).
     """
-    if data_dir is None:
-        data_dir = Path.home() / ".shanuz_data" / "xenium_mouse_brain"
-    else:
-        data_dir = Path(data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
+    root = (Path(data_dir) if data_dir is not None
+            else Path.home() / ".shanuz_data" / "xenium_mouse_brain")
+    root.mkdir(parents=True, exist_ok=True)
 
-    mtx_dir = data_dir / "cell_feature_matrix"
+    mtx_dir = root / "cell_feature_matrix"
     need = force_download or not (mtx_dir / "matrix.mtx.gz").exists()
     if need:
-        tar_dest = data_dir / "cell_feature_matrix.tar.gz"
+        tar_dest = root / "cell_feature_matrix.tar.gz"
         _download_file(_XENIUM_MB_BASE + _XENIUM_MB_FILES["cell_feature_matrix.tar.gz"],
                        tar_dest, label="Xenium mouse brain matrix (~11 MB)")
         with tarfile.open(tar_dest, "r:gz") as tf:
-            tf.extractall(data_dir)
+            tf.extractall(root)
         os.unlink(tar_dest)
 
-    cells_dest = data_dir / "cells.csv.gz"
+    cells_dest = root / "cells.csv.gz"
     if force_download or not cells_dest.exists():
         _download_file(_XENIUM_MB_BASE + _XENIUM_MB_FILES["cells.csv.gz"],
                        cells_dest, label="Xenium mouse brain cells (~2 MB)")
-    return data_dir
+    return root
 
 
 # Visium mouse brain (sagittal anterior, section 1) — 10x Genomics public dataset,
@@ -249,8 +247,6 @@ def visium_mouse_brain(
     pass to :func:`shanuz.load_visium`, and to R's ``Read10X_Image`` /
     ``Load10X_Spatial``, so the same slide runs in both languages.
     """
-    # A local Path rather than rebinding the str|None parameter — the older
-    # loaders in this module do the latter and it is most of their mypy noise.
     root = (Path(data_dir) if data_dir is not None
             else Path.home() / ".shanuz_data" / "visium_mouse_brain")
     root.mkdir(parents=True, exist_ok=True)

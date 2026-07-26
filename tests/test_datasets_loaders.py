@@ -20,12 +20,17 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
+from shanuz import datasets
 from shanuz.datasets import (
     _align_on_cells,
     _read_dense_table_sparse,
     _read_table_cached,
+    cbmc_citeseq,
     ifnb,
+    pbmc3k,
+    pbmc8k,
     pbmc_hashing,
+    xenium_mouse_brain,
 )
 
 
@@ -167,6 +172,139 @@ def test_pbmc_hashing_drops_qc_rows_and_aligns(tmp_path):
 def test_ifnb_errors_when_bridge_not_run(tmp_path):
     with pytest.raises(FileNotFoundError, match="export_seuratdata.R ifnb"):
         ifnb(data_dir=str(tmp_path))
+
+
+# --------------------------------------------------------------------------- #
+# data_dir is honoured (no network, and the default cache is made unreachable)
+# --------------------------------------------------------------------------- #
+
+@pytest.fixture
+def offline(monkeypatch, tmp_path):
+    """Point ``Path.home()`` at an empty dir and make any download fail loudly.
+
+    Both halves are load-bearing. Redirecting home means a loader that ignored
+    ``data_dir`` cannot quietly succeed off a developer's populated
+    ``~/.shanuz_data``; failing the download means it announces itself here
+    instead of reaching the network in CI.
+    """
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+
+    def _no_download(*args, **kwargs):
+        raise AssertionError("loader tried to download — it did not use data_dir")
+
+    monkeypatch.setattr(datasets, "_download_10x", _no_download)
+    monkeypatch.setattr(datasets, "_download_file", _no_download)
+    return fake_home
+
+
+def _write_10x_v2(directory: Path, mat: sp.csc_matrix, genes: list[str],
+                  cells: list[str]) -> None:
+    """Write a v2 (``genes.tsv``) 10x trio, the layout both PBMC bundles use."""
+    import scipy.io
+
+    directory.mkdir(parents=True, exist_ok=True)
+    with open(directory / "matrix.mtx", "wb") as fh:
+        scipy.io.mmwrite(fh, mat)
+    (directory / "genes.tsv").write_text(
+        "".join(f"ENSG{i:05d}\t{g}\n" for i, g in enumerate(genes))
+    )
+    (directory / "barcodes.tsv").write_text("".join(f"{c}\n" for c in cells))
+
+
+@pytest.mark.parametrize("loader, subdir", [
+    (pbmc3k, "filtered_gene_bc_matrices/hg19"),
+    (pbmc8k, "filtered_gene_bc_matrices/GRCh38"),
+])
+def test_pbmc_loaders_read_the_given_data_dir(loader, subdir, tmp_path, offline):
+    # The reference lives at data_dir/<bundle subdir>, so this pins the join as
+    # well as the directory: a loader reading data_dir itself finds nothing.
+    mat = sp.csc_matrix(np.array([[1, 0], [0, 2], [3, 4]], dtype=np.float32))
+    _write_10x_v2(tmp_path / subdir, mat, ["GeneA", "GeneB", "GeneC"], ["c1", "c2"])
+
+    counts, genes, cells = loader(data_dir=str(tmp_path))
+    assert genes == ["GeneA", "GeneB", "GeneC"]
+    assert cells == ["c1", "c2"]
+    assert counts.toarray().tolist() == [[1, 0], [0, 2], [3, 4]]
+    assert not list(offline.iterdir()), "loader wrote to the default cache"
+
+
+def test_xenium_returns_the_given_data_dir(tmp_path, offline):
+    # Both files present, so nothing is fetched and the folder is returned as is.
+    (tmp_path / "cell_feature_matrix").mkdir()
+    (tmp_path / "cell_feature_matrix" / "matrix.mtx.gz").write_bytes(b"")
+    (tmp_path / "cells.csv.gz").write_bytes(b"")
+
+    got = xenium_mouse_brain(data_dir=str(tmp_path))
+    assert got == tmp_path
+    assert isinstance(got, Path), "load_xenium is handed this path directly"
+    assert not list(offline.iterdir()), "loader wrote to the default cache"
+
+
+def test_cbmc_keeps_human_genes_and_aligns_to_shared_barcodes(tmp_path, offline):
+    # RNA over c1..c3 with one mouse spike-in; ADT over c3,c2,c9. Shared = c2,c3,
+    # which must come back in *RNA* order and drop MOUSE_Actb with its prefix.
+    _write_gzip_table(
+        tmp_path / "GSE100866_CBMC_8K_13AB_10X-RNA_umi.csv.gz",
+        header=["", "c1", "c2", "c3"],
+        rows=[["HUMAN_CD3E", 1, 5, 0], ["MOUSE_Actb", 9, 9, 9], ["HUMAN_MS4A1", 2, 0, 7]],
+        sep=",",
+    )
+    _write_gzip_table(
+        tmp_path / "GSE100866_CBMC_8K_13AB_10X-ADT_umi.csv.gz",
+        header=["", "c3", "c2", "c9"],
+        rows=[["CD3", 30, 20, 90], ["CD19", 33, 22, 99]],
+        sep=",",
+    )
+    rna, genes, adt, prots, cells = cbmc_citeseq(data_dir=str(tmp_path))
+    assert genes == ["CD3E", "MS4A1"], "mouse row kept, or prefix left on"
+    assert cells == ["c2", "c3"]
+    assert prots == ["CD3", "CD19"]
+    assert rna.toarray().tolist() == [[5, 0], [0, 7]]
+    assert adt.toarray().tolist() == [[20, 30], [22, 33]]  # reordered to the RNA
+    assert not list(offline.iterdir()), "loader wrote to the default cache"
+
+
+def test_cbmc_stitches_chunks_and_skips_an_all_mouse_one(tmp_path, offline):
+    # The loader reads the RNA table in 4,000-row chunks and the real file is
+    # ~36,000 rows, so every genuine load crosses several boundaries — the tests
+    # above all fit in one chunk and never exercise the accumulation at all.
+    # Three chunks, the middle one entirely mouse, so *two* human blocks have to
+    # be stitched across a skipped one. First column carries the source row
+    # number, which is what ties each matrix row back to its gene.
+    rows = [[f"HUMAN_G{i}", i + 1, 1] for i in range(4000)]          # chunk 1
+    rows += [[f"MOUSE_m{i}", 7, 7] for i in range(4000)]             # chunk 2, dropped
+    rows += [[f"HUMAN_G{4000 + i}", 8001 + i, 1] for i in range(500)]  # chunk 3
+    _write_gzip_table(tmp_path / "GSE100866_CBMC_8K_13AB_10X-RNA_umi.csv.gz",
+                      header=["", "c1", "c2"], rows=rows, sep=",")
+    _write_gzip_table(tmp_path / "GSE100866_CBMC_8K_13AB_10X-ADT_umi.csv.gz",
+                      header=["", "c1", "c2"], rows=[["CD3", 4, 5]], sep=",")
+
+    rna, genes, adt, prots, cells = cbmc_citeseq(data_dir=str(tmp_path))
+    assert rna.shape == (4500, 2), "chunks not concatenated, or mouse chunk kept"
+    assert genes[:2] == ["G0", "G1"] and genes[-1] == "G4499"  # source order held
+    assert cells == ["c1", "c2"]
+    # Rows must still line up with `genes` after the stitch: G0 came from source
+    # row 1 and G4499 from row 8500, so a reordered block shows up here.
+    assert rna[0, 0] == 1 and rna[4499, 0] == 8500
+    # Column 2 is all ones, so a dropped or duplicated block shows up here.
+    assert rna[:, 1].toarray().sum() == 4500
+
+
+@pytest.mark.parametrize("rna_rows", [
+    [],                              # header only
+    [["MOUSE_Actb", 1]],             # rows, none matching the prefix
+])
+def test_cbmc_names_the_species_prefix_when_nothing_survives(rna_rows, tmp_path, offline):
+    # Both cases used to reach sp.vstack([]) and report "blocks must be 2-D",
+    # which says nothing about the prefix that actually filtered everything out.
+    _write_gzip_table(tmp_path / "GSE100866_CBMC_8K_13AB_10X-RNA_umi.csv.gz",
+                      header=["", "c1"], rows=rna_rows, sep=",")
+    _write_gzip_table(tmp_path / "GSE100866_CBMC_8K_13AB_10X-ADT_umi.csv.gz",
+                      header=["", "c1"], rows=[["CD3", 1]], sep=",")
+    with pytest.raises(ValueError, match="HUMAN_"):
+        cbmc_citeseq(data_dir=str(tmp_path))
 
 
 def test_ifnb_reads_bridge_output(tmp_path):
