@@ -27,14 +27,13 @@ import matplotlib
 matplotlib.use("Agg")
 
 import numpy as np
-import pandas as pd
 
 _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.ifnb_sketch_tutorial import (
-    run_full, FIGURES, CELLTYPE, SKETCH_CELLS, _read_r_scores,
+    run_full, FIGURES, SKETCH_CELLS, _read_r_scores,
 )
 from shanuz.plotting import _palette
 

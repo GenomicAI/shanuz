@@ -37,7 +37,6 @@ def as_anndata(seurat, assay: Optional[str] = None):
             "anndata is required. Install with: pip install 'seurat-object[anndata]'"
         )
 
-    from ..assay import Assay
     from ..assay5 import StdAssay
     from ..shanuz import Shanuz
 
@@ -150,7 +149,7 @@ def from_anndata(
     ``obs[fov_key]`` exists it splits the cells into one image per FOV.
     """
     try:
-        import anndata as _ann
+        import anndata  # noqa: F401  — probed for availability, not used here
     except ImportError:
         raise ImportError(
             "anndata is required. Install with: pip install 'seurat-object[anndata]'"

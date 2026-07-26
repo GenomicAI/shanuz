@@ -297,7 +297,12 @@ def find_markers(
     if not cells_1:
         raise ValueError(f"No cells found with ident {ident_1}.")
     if not cells_2:
-        raise ValueError(f"No cells found for comparison group.")
+        # `ident_2=None` means "every other ident", so name what was searched
+        # rather than a parameter the caller never passed.
+        raise ValueError(
+            f"No cells found with ident {ident_2}." if ident_2 is not None
+            else f"No cells left outside ident {ident_1} to compare against."
+        )
 
     # Optional downsampling
     if max_cells_per_ident is not None:
@@ -790,7 +795,6 @@ def _deseq2_pseudobulk(
 def _get_expression_matrix(assay_obj, layer: Optional[str]):
     """Return (matrix features×cells, feature_names) using best available layer."""
     from .assay5 import Assay5
-    from .assay import Assay
 
     if isinstance(assay_obj, Assay5):
         feature_names = assay_obj._all_feature_names

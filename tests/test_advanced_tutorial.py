@@ -32,7 +32,7 @@ def _make_object(gene_levels, n_per_cluster=6, housekeeping=50):
     genes = sorted({g for lv in gene_levels.values() for g in lv} | {"MALAT1"})
     gidx = {g: i for i, g in enumerate(genes)}
 
-    cells, idents, cols = [], [], []
+    cells, idents = [], []
     mat = np.zeros((len(genes), len(clusters) * n_per_cluster))
     col = 0
     for cl in clusters:

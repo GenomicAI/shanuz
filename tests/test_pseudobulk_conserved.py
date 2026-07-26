@@ -1,6 +1,5 @@
 """Tests for AggregateExpression (pseudobulk) and FindConservedMarkers."""
 import numpy as np
-import pandas as pd
 import scipy.sparse as sp
 import pytest
 

@@ -171,6 +171,35 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **One test had been shadowed by a same-named copy and never ran.**
+  `test_anchors_seurat_parity.py` defined
+  `test_pca_loadings_are_exact_not_randomized` twice; Python keeps the second,
+  so the earlier one — which additionally proves sklearn's *randomized* solver
+  disagrees on the trailing PCs, i.e. that the exact SVD matters at all — was
+  collected by nothing. Renamed and now runs (and passes).
+- **`sctransform(vars_to_regress=...)` was tested against no baseline.** The
+  guard asserted only that the residuals come back uncorrelated with the
+  covariate, which is equally true when there was never any covariate signal to
+  remove; it computed a `before` from a *different* object built from
+  un-injected counts and then never asserted on it. It now runs SCTransform
+  twice over the same injected counts and requires the unregressed residuals to
+  carry the signal (0.25) before requiring the regressed ones not to (0.00).
+- **`find_markers` named the missing ident in one error and not the other.** An
+  empty `ident_2` raised a constant `"No cells found for comparison group."`
+  while the `ident_1` branch named what it looked for. Both now name it, and
+  the `ident_2=None` case says there is nothing left outside `ident_1` rather
+  than reporting a parameter the caller never passed.
+- **`ruff check` is clean, at both scopes** — 51 → 0 in `shanuz`, 201 → 0 for
+  the repo. Mostly unused imports left behind by the Assay5 refactor, plus dead
+  locals and semicolon-joined statements. Two of the dead locals were computed
+  colour maps in `vln_plot` and `dim_plot` that nothing read, and one was a
+  `v3` layout flag in `read_10x` that no branch consumed. The 121 `E402`s in
+  `tests/` and `tutorials/` are the deliberate `sys.path` bootstrap those files
+  need to run from a clone, and are now ignored by scope in `pyproject.toml`
+  rather than by 121 scattered `# noqa`. Note CI resolves **ruff unpinned**,
+  which currently means 0.16.0 and a much larger default rule set (PEP 604
+  annotations, import sorting); this entry is measured against 0.15.20.
+
 - **Any plot with more than 36 groups raised `AttributeError` on matplotlib
   3.9 or newer.** `_palette` fills the first 36 colours from a fixed list and
   falls back to a colormap past that, and the fallback called

@@ -84,23 +84,40 @@ def test_sctransform_vars_to_regress_removes_covariate_effect():
     covar = rng.standard_normal(N)
     obj.meta_data["percent.mt"] = covar
 
-    sctransform(obj, n_cells=300, n_features=40, seed=0)
-    before = obj.assays["SCT"].layers["scale.data"].toarray()
-    # Inject covariate structure, then regress it out.
-    obj2 = create_shanuz_object(
-        counts=sp.csc_matrix(counts + np.outer(np.ones(G), np.clip(covar, 0, None)) * 2),
-        assay="RNA", feature_names=[f"g{i}" for i in range(G)],
-        cell_names=[f"c{i}" for i in range(N)],
+    # Inject covariate structure into the counts, then run SCTransform twice over
+    # the *same* counts — once plain, once regressing the covariate out. The
+    # baseline has to be the unregressed run on the injected counts: a low
+    # `corr_after` on its own is also what you would see if there had been
+    # nothing to remove, so it does not distinguish a working regression from a
+    # no-op. (This test used to compute a `before` from a different object built
+    # from the *un-injected* counts, and then never assert on it at all.)
+    injected = sp.csc_matrix(
+        counts + np.outer(np.ones(G), np.clip(covar, 0, None)) * 2
     )
-    obj2.meta_data["percent.mt"] = covar
-    sctransform(obj2, vars_to_regress=["percent.mt"], n_cells=300, n_features=40, seed=0)
-    after = obj2.assays["SCT"].layers["scale.data"].toarray()
 
-    # After regression, each gene's residuals are ~uncorrelated with the covariate.
-    corr_after = np.array([
-        abs(np.corrcoef(after[i], covar)[0, 1]) for i in range(after.shape[0])
-    ])
-    assert np.nanmean(corr_after) < 0.05
+    def _residuals(vars_to_regress):
+        o = create_shanuz_object(
+            counts=injected, assay="RNA",
+            feature_names=[f"g{i}" for i in range(G)],
+            cell_names=[f"c{i}" for i in range(N)],
+        )
+        o.meta_data["percent.mt"] = covar
+        sctransform(o, vars_to_regress=vars_to_regress,
+                    n_cells=300, n_features=40, seed=0)
+        return o.assays["SCT"].layers["scale.data"].toarray()
+
+    def _mean_abs_corr(res):
+        return np.nanmean([
+            abs(np.corrcoef(res[i], covar)[0, 1]) for i in range(res.shape[0])
+        ])
+
+    corr_before = _mean_abs_corr(_residuals(None))
+    corr_after = _mean_abs_corr(_residuals(["percent.mt"]))
+
+    # The covariate must be visible in the unregressed residuals in the first
+    # place — otherwise the assertion below is vacuous.
+    assert corr_before > 0.2, f"fixture carries no covariate signal ({corr_before})"
+    assert corr_after < 0.05, f"regression left covariate structure ({corr_after})"
 
 
 def test_sctransform_drops_low_detection_genes():

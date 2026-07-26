@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import inspect
 from datetime import datetime
 from typing import Any, Optional
 
-import pandas as pd
 
 
 class ShanuzCommand:

@@ -6,7 +6,7 @@ ScaleData(), and PercentageFeatureSet().
 from __future__ import annotations
 
 import re
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -57,7 +57,6 @@ def _get_assay(seurat, assay: Optional[str]):
 
 def _get_layer(assay_obj, layer: Optional[str]):
     """Get a data matrix from an assay (Assay or Assay5)."""
-    from .assay import Assay
     from .assay5 import Assay5
 
     if isinstance(assay_obj, Assay5):
@@ -81,7 +80,6 @@ def _get_layer(assay_obj, layer: Optional[str]):
 
 def _set_layer(assay_obj, layer: str, value, features: Optional[list[str]] = None) -> None:
     """Store a data matrix in an assay."""
-    from .assay import Assay
     from .assay5 import Assay5
 
     if isinstance(assay_obj, Assay5):
@@ -113,7 +111,6 @@ def percentage_feature_set(
     assay_obj = _get_assay(seurat, assay)
     mat = _get_layer(assay_obj, layer)
 
-    from .assay import Assay
     from .assay5 import Assay5
     if isinstance(assay_obj, Assay5):
         feature_names = assay_obj._all_feature_names
@@ -408,7 +405,6 @@ def find_variable_features(
         raise ValueError(f"Unknown selection_method: {selection_method!r}")
 
     from .assay5 import Assay5
-    from .assay import Assay
     if isinstance(assay_obj, Assay5):
         feature_names = assay_obj._all_feature_names
     else:
@@ -876,7 +872,6 @@ def scale_data(
     assay_obj = seurat.assays[assay_name]
 
     from .assay5 import Assay5
-    from .assay import Assay
 
     if isinstance(assay_obj, Assay5):
         all_features = assay_obj._all_feature_names
@@ -948,7 +943,6 @@ def _regress_out(
     feature_names: list[str],
 ) -> np.ndarray:
     """Regress covariates out of each gene's expression using OLS."""
-    from sklearn.linear_model import LinearRegression
 
     covariates = meta_data[vars_to_regress].values.astype(float)
     # Add intercept

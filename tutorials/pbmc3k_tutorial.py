@@ -292,7 +292,6 @@ def run_tutorial(data_dir: str | None = None) -> None:
     # -----------------------------------------------------------------------
     section("14. Validate Canonical Marker Expression")
     # -----------------------------------------------------------------------
-    marker_genes_flat = [g for gs in EXPECTED["canonical_markers"].values() for g in gs]
     found_in_markers = set(all_markers["gene"].tolist())
     for cell_type, canon_genes in EXPECTED["canonical_markers"].items():
         hits = [g for g in canon_genes if g in found_in_markers]
@@ -306,7 +305,7 @@ def run_tutorial(data_dir: str | None = None) -> None:
     # Map cluster labels to cell types using known marker patterns
     # This is R's RenameIdents() step
     cluster_to_celltype = _assign_cell_types(all_markers, pbmc)
-    names = new_cluster_ids = {str(k): v for k, v in cluster_to_celltype.items()}
+    names = {str(k): v for k, v in cluster_to_celltype.items()}
     pbmc.rename_idents(names)
     pbmc.meta_data["celltype"] = [str(i) for i in pbmc.idents]
 

@@ -14,7 +14,6 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
-import numpy as np
 
 _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
@@ -32,7 +31,7 @@ from shanuz.umap import run_umap
 from shanuz.markers import find_all_markers
 from shanuz.plotting import (
     vln_plot, feature_plot, dim_plot, dot_plot, elbow_plot,
-    variable_feature_plot, viz_dim_loadings, dim_heatmap, do_heatmap, ridge_plot,
+    variable_feature_plot, viz_dim_loadings, do_heatmap, ridge_plot,
 )
 
 FIGURES = Path(__file__).parent / "figures"
@@ -128,7 +127,7 @@ def main(data_dir=None):
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
     # Draw both scatters directly into subplots
-    from shanuz.plotting import _get_expression, _get_groups, _palette
+    from shanuz.plotting import _get_expression
     for ax_idx, (f1, f2) in enumerate([("nCount_RNA", "percent.mt"),
                                         ("nCount_RNA", "nFeature_RNA")]):
         ax = axes[ax_idx]
@@ -136,9 +135,11 @@ def main(data_dir=None):
         y = _get_expression(pbmc_raw, f2)
         ax.scatter(x, y, s=4, alpha=0.5, color="#F8766D" if ax_idx == 0 else "#00BFC4",
                    linewidths=0)
-        ax.set_xlabel(f1); ax.set_ylabel(f2)
+        ax.set_xlabel(f1)
+        ax.set_ylabel(f2)
         ax.set_title(f"{f1} vs {f2}")
-        ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
     fig.tight_layout()
     _save(fig, "02_qc_scatter.png")
 

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import os
 import re
-from abc import ABC, abstractmethod
-from typing import Optional, Self, Type, Union
+from abc import ABC
+from typing import Optional, Self, Union
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from ._sparse import as_dense, as_sparse, empty_sparse, is_matrix_empty
+from ._sparse import as_dense
 from ._utils import validate_cell_names, validate_feature_names
 from .lazy import is_lazy
 from .logmap import LogMap

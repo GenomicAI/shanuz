@@ -7,7 +7,6 @@ unregistered types get a clear message.
 from __future__ import annotations
 
 import functools
-from typing import Any, Optional, Union
 
 
 def _not_implemented(func_name: str):
@@ -157,7 +156,7 @@ rename_cells = _generic("rename_cells")
 
 def _register_all() -> None:
     from .assay import Assay
-    from .assay5 import Assay5, StdAssay
+    from .assay5 import StdAssay
     from .dimreduc import DimReduc
     from .graph import Graph
     from .neighbor import Neighbor
@@ -165,7 +164,6 @@ def _register_all() -> None:
     from .spatial.base import SpatialImage
     from .spatial.centroids import Centroids
     from .spatial.fov import FOV
-    from .spatial.molecules import Molecules
     from .spatial.segmentation import Segmentation
     from ._sparse import is_matrix_empty as _ime
     import numpy as np
@@ -393,7 +391,6 @@ def _register_all() -> None:
     # --- as_sparse ---
     @as_sparse.register(np.ndarray)
     def _asp_nd(x, fmt="csc"):
-        import scipy.sparse as sp
         return sp.csc_matrix(x) if fmt == "csc" else sp.csr_matrix(x)
 
 

@@ -258,4 +258,4 @@ def _renumber_by_size(labels: np.ndarray) -> np.ndarray:
     unique, counts = np.unique(labels, return_counts=True)
     order = unique[np.argsort(-counts)]
     mapping = {old: new for new, old in enumerate(order)}
-    return np.array([mapping[l] for l in labels])
+    return np.array([mapping[lab] for lab in labels])

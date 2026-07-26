@@ -57,6 +57,24 @@ def two_group_object():
     return obj
 
 
+def test_an_empty_comparison_group_names_the_ident_that_was_empty(two_group_object):
+    # Both empty-group errors used to be reachable, but only the ident_1 one
+    # said which ident it had looked for; the ident_2 branch raised a constant
+    # string that named nothing.
+    with pytest.raises(ValueError, match="ident nope"):
+        find_markers(two_group_object, ident_1="nope")
+    with pytest.raises(ValueError, match="ident alsonope"):
+        find_markers(two_group_object, ident_1="A", ident_2="alsonope")
+
+
+def test_a_lone_ident_says_there_is_nothing_to_compare_against(two_group_object):
+    # `ident_2=None` means "every other ident", so when ident_1 is the only one
+    # present the message has to describe that, not a missing ident_2.
+    two_group_object.idents = ["A"] * len(two_group_object)
+    with pytest.raises(ValueError, match="No cells left outside ident A"):
+        find_markers(two_group_object, ident_1="A")
+
+
 def test_log2fc_matches_seurats_formula(two_group_object):
     obj = two_group_object
     res = find_markers(obj, "A", "B", test_use="wilcox",

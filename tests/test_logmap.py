@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 from shanuz import LogMap
 
 
@@ -55,7 +54,7 @@ def test_copy():
     lm = LogMap({"k": np.array([True])})
     lm2 = lm.copy()
     lm2["k"][0] = False
-    assert lm["k"][0] is np.bool_(True) or lm["k"][0] == True
+    assert bool(lm["k"][0]) is True, "copy() shared the underlying array"
 
 
 def test_repr():
