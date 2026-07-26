@@ -89,9 +89,11 @@ genuinely differ.
 
 </div>
 
-!!! warning "The PyPI release lags `main`"
-    The newest release is **0.2.0**. Reference mapping, sketching, `LazyMatrix`,
-    cell hashing, Mixscape, `run_spca`/`glm_pca`, pseudobulk DE and the
-    MERSCOPE/Visium additions are on `main` but **not** in `pip install shanuz`
-    yet. [The changelog](CHANGELOG.md) records exactly what is where; these docs
-    are built from `main`.
+!!! info "`pip install shanuz` is current"
+    The newest release is **0.9.0**, which closed a long-standing gap: reference
+    mapping, sketching, `LazyMatrix`, cell hashing, Mixscape, `run_spca`/
+    `glm_pca`, pseudobulk DE and the MERSCOPE/Visium additions had all sat on
+    `main` since 0.2.0 with no release to match. They're all in `pip install
+    shanuz` now. These docs are built from `main`, so the next gap — if one
+    opens — will show up here first; [the changelog](CHANGELOG.md) is the
+    authority on exactly what shipped when.
