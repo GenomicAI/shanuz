@@ -164,8 +164,8 @@ def add_module_score(
     bins = pd.qcut(data_avg + jitter, q=min(nbin, len(pool)), labels=False, duplicates="drop")
     gene_to_bin = {g: int(b) for g, b in zip(pool, bins)}
     bin_to_genes: dict[int, list[str]] = {}
-    for g, b in gene_to_bin.items():
-        bin_to_genes.setdefault(b, []).append(g)
+    for gene_name, bin_idx in gene_to_bin.items():
+        bin_to_genes.setdefault(bin_idx, []).append(gene_name)
 
     n_cells = mat.shape[1]
     for label, genes in zip(labels, programs):

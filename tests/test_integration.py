@@ -362,3 +362,24 @@ def test_integrate_layers_cca_requires_group_by():
     obj = _batched_object()
     with pytest.raises(ValueError):
         integrate_layers(obj, method="cca")
+
+
+def test_integrate_layers_cca_unwraps_a_one_element_group_by():
+    # `integrate_layers` takes str | list[str] because Harmony corrects on
+    # several covariates at once; the anchor path takes exactly one and unwraps
+    # a single-element list. Two objects, so this pins the unwrapped column
+    # actually reaching the split — a name that never arrives would raise.
+    plain, wrapped = _batched_object(), _batched_object()
+    integrate_layers(plain, method="cca", group_by="batch", new_reduction="int")
+    integrate_layers(wrapped, method="cca", group_by=["batch"], new_reduction="int")
+
+    assert np.allclose(
+        plain.reductions["int"].cell_embeddings,
+        wrapped.reductions["int"].cell_embeddings,
+    )
+
+
+def test_integrate_layers_cca_rejects_several_group_by_columns():
+    obj = _batched_object()
+    with pytest.raises(ValueError, match="single group_by column"):
+        integrate_layers(obj, method="cca", group_by=["batch", "celltype"])

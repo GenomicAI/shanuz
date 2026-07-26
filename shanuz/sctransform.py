@@ -54,7 +54,7 @@ this model wrong once are pinned separately in
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -466,6 +466,9 @@ def sctransform(
         raise ValueError(f"vst_flavor must be 'v1' or 'v2', got {vst_flavor!r}")
 
     src = seurat.assays[assay or seurat.active_assay]
+    # A layer may be dense, sparse, or an on-disk LazyMatrix — `sp.csc_matrix`
+    # is what accepts all three, so keep `issparse` as the discriminator below.
+    counts: Any
     if isinstance(src, Assay5):
         counts = src.layers.get("counts")
         all_genes = src._all_feature_names

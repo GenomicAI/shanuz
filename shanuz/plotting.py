@@ -100,7 +100,9 @@ def _palette(n: int) -> list[str]:
     if n <= len(_PALETTE_36):
         return _PALETTE_36[:n]
     import matplotlib.pyplot as plt
-    cmap = plt.cm.get_cmap("tab20", n)
+    # `plt.cm.get_cmap(name, lut)` was removed in matplotlib 3.9; `.resampled`
+    # is its documented replacement and reaches back to 3.6, under our >=3.7.
+    cmap = plt.get_cmap("tab20").resampled(n)
     return [f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
             for r, g, b, *_ in (cmap(i) for i in range(n))]
 
@@ -121,7 +123,10 @@ def _get_data_matrix(assay_obj, layer: Optional[str] = None):
         for candidate in ("data", "counts"):
             if candidate in assay_obj.layers:
                 return assay_obj.layers[candidate]
-        return assay_obj.layers[assay_obj.default_layer]
+        default = assay_obj.default_layer
+        if default is None:
+            raise ValueError("No layers available.")
+        return assay_obj.layers[default]
     else:
         if layer in ("counts",):
             return assay_obj.counts
