@@ -758,7 +758,7 @@ regime. Don't "simplify" them.
 
 ### PyPI publication — ✅ delivered
 - `pip install shanuz` works: published as [`shanuz`](https://pypi.org/project/shanuz/),
-  currently 0.2.0 (`build` + `twine` added to `[dev]` extras; published to
+  currently 0.9.0 (`build` + `twine` added to `[dev]` extras; published to
   TestPyPI then PyPI; verified with a clean-venv install + import + mini-pipeline
   smoke test)
 - ~~Still open: replace the hard-coded `__version__` string~~ — ✅ delivered:
@@ -789,13 +789,15 @@ regime. Don't "simplify" them.
   for CI, a scheduled "resolve latest" CI leg} this project wants; the status quo
   is "find out from a user".
 
-- **Still open — cut a release.** The tags stop at 0.2.0 (2026-07-05) while
-  milestones v0.3.0–v0.9.0 have all landed on `main`, so `pip install shanuz`
-  currently ships almost none of the README's feature list: of 22 advertised
-  entry points sampled, 19 are absent from the published wheel (reference
+- **Cut a release — ✅ delivered.** The tags had stopped at 0.2.0 (2026-07-05)
+  while milestones v0.3.0–v0.9.0 had all landed on `main`, so `pip install
+  shanuz` shipped almost none of the README's feature list: of 22 advertised
+  entry points sampled, 19 were absent from the published wheel (reference
   mapping, sketching, `LazyMatrix`, hashing, Mixscape, `run_spca`/`glm_pca`,
-  pseudobulk DE, MERSCOPE/Visium). The README now says so out loud, but the real
-  fix is a release. This is the highest-value remaining infra item.
+  pseudobulk DE, MERSCOPE/Visium). **0.9.0** (2026-07-27) closes that gap in one
+  jump — every milestone through v0.9.0 is now on PyPI, which is also why the
+  version number lines up with the milestone it completes (a coincidence of
+  this one release; see the note atop `CHANGELOG.md`).
 
 ### GitHub Actions CI — ✅ delivered
 - **File:** `.github/workflows/ci.yml`
@@ -1315,13 +1317,16 @@ regime. Don't "simplify" them.
   reached PyPI, so it is not a release and gets no entry. Taking the log at face
   value would have documented a version that never existed. (0.1.0 was tagged but
   never published; 0.1.1 was the first release on PyPI.)
-- Carries a standing note that the milestones on this page are **not** releases,
-  because the two sequences have diverged far enough to mislead: the tags stop at
-  0.2.0 while the milestones run to v0.9.0, and a milestone can straddle releases
-  (v0.7.0's spatial loaders shipped in 0.1.1; the rest of v0.7.0 has not shipped).
-- Everything since 0.2.0 sits under `[Unreleased]`, including the three entries
-  queued by earlier PRs: #32's `BREAKING` CLR margin fix, #33's clara
-  cross-architecture caveat, and #34's `hto_demux` default change.
+- Carried a standing note that the milestones on this page are **not** releases,
+  because the two sequences had diverged far enough to mislead: the tags stopped
+  at 0.2.0 while the milestones ran to v0.9.0, and a milestone can straddle
+  releases (v0.7.0's spatial loaders shipped in 0.1.1; the rest of v0.7.0 stayed
+  unreleased until 0.9.0). **0.9.0** (2026-07-27) closed that gap — everything
+  through v0.9.0, including the three entries queued by earlier PRs (#32's
+  `BREAKING` CLR margin fix, #33's clara cross-architecture caveat, and #34's
+  `hto_demux` default change), moved from `[Unreleased]` into a dated `[0.9.0]`
+  section. The standing note stays on the page: the two sequences will drift
+  again the moment a milestone lands on `main` without a release to match it.
 
 ---
 
