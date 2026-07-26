@@ -404,11 +404,26 @@ def _filter_anchors(
 
 
 def _anchor_feature_matrix(obj, features: list[str], layer: str) -> np.ndarray:
-    """Scaled (features × cells) matrix for the shared anchor features."""
-    from .reduction import _get_scaled_data
+    """Scaled (features × cells) matrix for the shared anchor features.
+
+    Every object must return the *same* rows in the same order — the reference
+    and query matrices are compared row-for-row — so a per-object drop here is
+    an error rather than a warning. `_integration_features` intersects against
+    the layer precisely so this cannot fire.
+    """
+    from .reduction import _prep_dr
 
     assay = obj.get_assay()
-    return _get_scaled_data(assay, features, layer)
+    mat, used = _prep_dr(assay, features, layer)
+    if used != list(features):
+        missing = [f for f in features if f not in set(used)]
+        raise ValueError(
+            f"Object is missing {len(missing)} of the {len(features)} anchor "
+            f"features in layer {layer!r} ({', '.join(missing[:10])}"
+            f"{', ...' if len(missing) > 10 else ''}); the per-object matrices "
+            f"would no longer describe the same genes row-for-row."
+        )
+    return mat
 
 
 def _data_matrix(obj, features: list[str]) -> np.ndarray:
@@ -425,7 +440,9 @@ def _data_matrix(obj, features: list[str]) -> np.ndarray:
     return np.asarray(mat).astype(float)
 
 
-def _integration_features(objects, anchor_features: Optional[list[str]]) -> list[str]:
+def _integration_features(
+    objects, anchor_features: Optional[list[str]], layer: str = "scale.data"
+) -> list[str]:
     """The features anchors run on: the caller's, else shared variable features."""
     from .reduction import _default_features
 
@@ -441,12 +458,22 @@ def _integration_features(objects, anchor_features: Optional[list[str]]) -> list
             feat_sets = [set(obj.get_assay().features()) for obj in objects]
             shared_all = set.intersection(*feat_sets)
             common = [f for f in objects[0].get_assay().features() if f in shared_all]
-    # Keep only features present (with scale/data) in every object.
+    # Keep only features every object carries *in the layer the anchors are
+    # built from*. Checking `features()` instead — the assay's full list, which
+    # is what stood here despite the comment — lets a feature through that one
+    # object never scaled. `_anchor_feature_matrix` then drops it from that
+    # object alone, and the reference and query matrices, which are multiplied
+    # together row-for-row, come back describing different genes.
+    from .reduction import _layer_feature_names
+
     for obj in objects:
-        present = set(obj.get_assay().features())
+        present = set(_layer_feature_names(obj.get_assay(), layer))
         common = [f for f in common if f in present]
     if not common:
-        raise ValueError("No shared anchor features across the objects.")
+        raise ValueError(
+            f"No shared anchor features across the objects in layer {layer!r}. "
+            f"Run scale_data() over a common feature set first."
+        )
     return list(common)
 
 
@@ -505,7 +532,7 @@ def find_integration_anchors(
     if not 0 <= reference < len(objects):
         raise IndexError(f"reference index {reference} out of range.")
 
-    features = _integration_features(objects, anchor_features)
+    features = _integration_features(objects, anchor_features, layer)
 
     # Both reductions start from the per-object scale.data. CCA standardizes it
     # per cell inside _cca; reciprocal PCA runs straight on it (Seurat's

@@ -280,5 +280,10 @@ def _scaled_feature_names(assay, layer: str) -> list[str]:
 
     if isinstance(assay, Assay5):
         return list(assay._layer_features.get(layer, assay._all_feature_names))
-    # Classic Assay v3 stores scale_data over the assay's feature list.
+    # Classic Assay v3 keeps one scaled matrix, labelled by `_scaled_features`.
+    # Returning the assay's full feature list — which is what stood here — claims
+    # the query carries every reference feature scaled, so nothing is ever
+    # dropped and the loadings are subset against the wrong rows.
+    if layer in ("scale_data", "scale.data"):
+        return assay.features("scale_data")
     return list(assay._feature_names)

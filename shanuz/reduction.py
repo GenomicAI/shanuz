@@ -4,6 +4,7 @@ Mirrors Seurat's RunPCA() / RunSPCA() / RunICA() / RunTSNE().
 """
 from __future__ import annotations
 
+import warnings
 from typing import Optional
 
 import numpy as np
@@ -11,6 +12,12 @@ import scipy.sparse as sp
 
 from .command import log_shanuz_command
 from .dimreduc import DimReduc
+
+# How many dropped features the warning spells out before summarising the rest.
+# Seurat names every one; on a query missing a few thousand of a reference's
+# variable features that is a wall of text nobody reads, and the count is the
+# part that tells you whether to worry.
+_MAX_NAMED_FEATURES = 20
 
 
 def _truncated_svd(mat, n_components: int, seed: int):
@@ -90,8 +97,10 @@ def run_pca(
 
     features = _default_features(assay_obj, features)
 
-    # Get scale.data for the selected features
-    scaled = _get_scaled_data(assay_obj, features, layer)
+    # Get scale.data for the selected features. `used` is what the layer
+    # actually carried; it is what labels the loadings below, because a feature
+    # the layer does not have has no row to be labelled.
+    scaled, used = _prep_dr(assay_obj, features, layer)
     # scaled shape: (n_features_selected × n_cells)
     # irlba is handed t(scale.data), so transpose to (n_cells × n_features)
     data_t = scaled.T  # (cells × features)
@@ -116,7 +125,7 @@ def run_pca(
         stdev=stdev,
         key=reduction_key,
         cell_names=cells,
-        feature_names=list(features),
+        feature_names=used,
     )
 
     seurat.reductions[reduction_name] = dr
@@ -184,10 +193,11 @@ def run_spca(
 
     features = _default_features(assay_obj, features)
 
-    # `_get_scaled_data` densifies on the way out, so there is nothing left to
-    # convert here — the `sp.issparse` branch that used to stand between these
-    # two lines could not run.
-    X = np.asarray(_get_scaled_data(assay_obj, features, layer).T, dtype=float)
+    # `_prep_dr` densifies on the way out, so there is nothing left to convert
+    # here — the `sp.issparse` branch that used to stand between these two lines
+    # could not run.
+    scaled, used = _prep_dr(assay_obj, features, layer)
+    X = np.asarray(scaled.T, dtype=float)
     n_cells, n_features = X.shape
 
     G = seurat.graphs[graph].tocsr()
@@ -222,7 +232,7 @@ def run_spca(
         stdev=stdev,
         key=reduction_key,
         cell_names=seurat.cell_names(),
-        feature_names=list(features),
+        feature_names=used,
         misc={"spca_graph": graph, "eigenvalues": eigenvalues},
     )
 
@@ -251,7 +261,7 @@ def run_ica(
 
     features = _default_features(assay_obj, features)
 
-    scaled = _get_scaled_data(assay_obj, features, layer)  # (features × cells)
+    scaled, used = _prep_dr(assay_obj, features, layer)  # (features × cells)
     data_t = scaled.T  # (cells × features) — already dense, see run_pca
 
     nics = min(nics, min(data_t.shape))
@@ -267,7 +277,7 @@ def run_ica(
         assay_used=assay_name,
         key=reduction_key,
         cell_names=cells,
-        feature_names=list(features),
+        feature_names=used,
     )
 
 
@@ -350,51 +360,119 @@ def _flip_signs(vectors: np.ndarray) -> np.ndarray:
     return vectors * signs
 
 
-def _get_scaled_data(assay_obj, features: list[str], layer: str) -> np.ndarray:
-    """Extract scaled data for the given features as a (features × cells) array."""
+def _layer_matrix_and_features(assay_obj, layer: str):
+    """``(matrix, row labels, centre?)`` for ``layer``, or the fallback if absent.
+
+    Each layer is labelled by its *own* feature list. Only ``scale.data`` holds a
+    subset — ScaleData defaults to the variable features — so reading any other
+    layer's rows through the scaled names, which is what a single shared name
+    list amounts to, returns the wrong genes without raising.
+
+    The third element says whether the caller must centre: ``scale.data`` is
+    already centred, and the ``data``/``counts`` fallback is not.
+    """
     from .assay5 import Assay5
-    from ._sparse import as_dense, is_matrix_empty
+    from ._sparse import is_matrix_empty
 
     if isinstance(assay_obj, Assay5):
         if layer in assay_obj.layers:
-            mat = assay_obj.layers[layer]
-            # scale.data may be stored for a subset of features
-            scaled_features = getattr(assay_obj, "_scaled_features", assay_obj._all_feature_names)
-            feat_idx_map = {f: i for i, f in enumerate(scaled_features)}
-            valid = [f for f in features if f in feat_idx_map]
-            idx = [feat_idx_map[f] for f in valid]
-            return as_dense(mat[idx, :]).astype(float)
-        else:
-            # Fall back to log-normalized data. Selected with an explicit
-            # `is None` rather than `a or b`: `or` evaluates `bool(a)`, and
-            # scipy raises "truth value of an array ... is ambiguous" for any
-            # matrix with more than one entry — so this fallback raised on
-            # every call that reached it, which is every `run_pca` on an
-            # Assay5 that had not been through `scale_data()`.
-            data = assay_obj.layers.get("data")
-            if data is None:
-                data = assay_obj.layers.get("counts")
-            if data is None:
-                raise ValueError(
-                    f"assay has no {layer!r}, 'data' or 'counts' layer to draw "
-                    f"from; run normalize_data() and scale_data() first."
-                )
-            all_feats = assay_obj._all_feature_names
-            feat_idx = [all_feats.index(f) for f in features if f in all_feats]
-            sub = as_dense(data[feat_idx, :]).astype(float)
-            # Center in-place
-            sub -= sub.mean(axis=1, keepdims=True)
-            return sub
-    else:
-        if not is_matrix_empty(assay_obj.scale_data):
-            sd = assay_obj.scale_data
-            all_feats = assay_obj._feature_names
-            feat_idx = [all_feats.index(f) for f in features if f in all_feats]
-            return as_dense(sd[feat_idx, :]).astype(float)
-        else:
-            # Fall back to data
-            all_feats = assay_obj._feature_names
-            feat_idx = [all_feats.index(f) for f in features if f in all_feats]
-            sub = as_dense(assay_obj.data[feat_idx, :]).astype(float)
-            sub -= sub.mean(axis=1, keepdims=True)
-            return sub
+            names = assay_obj._layer_features.get(layer, assay_obj._all_feature_names)
+            return assay_obj.layers[layer], list(names), False
+        # Fall back to log-normalized data. Selected with an explicit `is None`
+        # rather than `a or b`: `or` evaluates `bool(a)`, and scipy raises
+        # "truth value of an array ... is ambiguous" for any matrix with more
+        # than one entry — so this fallback raised on every call that reached
+        # it, which is every `run_pca` on an Assay5 that had not been through
+        # `scale_data()`.
+        for name in ("data", "counts"):
+            mat = assay_obj.layers.get(name)
+            if mat is not None:
+                names = assay_obj._layer_features.get(name, assay_obj._all_feature_names)
+                return mat, list(names), True
+        raise ValueError(
+            f"assay has no {layer!r}, 'data' or 'counts' layer to draw from; "
+            f"run normalize_data() and scale_data() first."
+        )
+
+    if not is_matrix_empty(assay_obj.scale_data):
+        # `features("scale_data")` — not the assay's full feature list, which is
+        # what stood here. scale_data holds only the scaled subset, so indexing
+        # it by a gene's position in the *assay* reads a different gene's row,
+        # or runs off the end of a matrix a fraction of the height.
+        return assay_obj.scale_data, assay_obj.features("scale_data"), False
+    return assay_obj.data, list(assay_obj._feature_names), True
+
+
+def _layer_feature_names(assay_obj, layer: str) -> list[str]:
+    """The features a reduction on ``layer`` could actually draw on."""
+    return _layer_matrix_and_features(assay_obj, layer)[1]
+
+
+def _select_features(
+    names: list[str],
+    features: list[str],
+    layer: str,
+    action: str = "reduction",
+    stacklevel: int = 3,
+) -> tuple[list[int], list[str]]:
+    """``(row indices, labels)`` for ``features`` within ``names``.
+
+    Mirrors Seurat's ``PrepDR5``: a feature the layer does not carry is dropped
+    *with a warning that names it*, and none at all is an error. Both halves are
+    the point — a caller that gets back a shorter matrix and no signal has no way
+    to tell, and every row below the first drop then answers to the wrong gene.
+
+    ``stacklevel`` counts out to the *user's* call. It is a parameter rather than
+    a constant because the two callers sit at different depths, and a warning
+    that points at a line inside this module tells the reader nothing.
+    """
+    pos = {f: i for i, f in enumerate(names)}
+    kept = [f for f in features if f in pos]
+    if not kept:
+        raise ValueError(
+            f"None of the {len(features)} requested features are present in "
+            f"{layer!r}; nothing to {action}. Run scale_data() over them first."
+        )
+    if len(kept) < len(features):
+        missing = [f for f in features if f not in pos]
+        shown = ", ".join(missing[:_MAX_NAMED_FEATURES])
+        if len(missing) > _MAX_NAMED_FEATURES:
+            shown += f", ... ({len(missing) - _MAX_NAMED_FEATURES} more)"
+        warnings.warn(
+            f"The following {len(missing)} features are not present in "
+            f"{layer!r}; running the {action} without them: {shown}",
+            RuntimeWarning,
+            stacklevel=stacklevel,
+        )
+    return [pos[f] for f in kept], kept
+
+
+def _prep_dr(
+    assay_obj, features: list[str], layer: str
+) -> tuple[np.ndarray, list[str]]:
+    """``(features × cells matrix, the features it actually holds)``.
+
+    The caller is handed back the list that labels the rows it got. Returning
+    only the matrix — which is what :func:`_get_scaled_data` did — leaves every
+    caller to assume its own *request* labels the result, so a dropped feature
+    shifts every row below it onto the wrong gene name in the stored loadings.
+    """
+    from ._sparse import as_dense
+
+    mat, names, needs_centering = _layer_matrix_and_features(assay_obj, layer)
+    idx, kept = _select_features(names, features, layer, stacklevel=4)
+
+    sub = as_dense(mat[idx, :]).astype(float)
+    if needs_centering:
+        sub -= sub.mean(axis=1, keepdims=True)
+    return sub, kept
+
+
+def _get_scaled_data(assay_obj, features: list[str], layer: str) -> np.ndarray:
+    """Extract scaled data for the given features as a (features × cells) array.
+
+    Thin wrapper over :func:`_prep_dr` for callers that genuinely only want the
+    numbers. Anything that goes on to *label* the rows must use `_prep_dr` and
+    take the feature list with them.
+    """
+    return _prep_dr(assay_obj, features, layer)[0]

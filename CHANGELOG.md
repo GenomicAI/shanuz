@@ -171,6 +171,44 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **A reduction that could not use every feature you asked for labelled its
+  loadings with the features you asked for anyway.** `_get_scaled_data` filtered
+  the request down to what the layer carried and returned only the matrix, so
+  `run_pca` stored *n* names against fewer than *n* rows and every row below the
+  first dropped feature answered to the wrong gene. `viz_dim_loadings` and
+  `dim_heatmap` read those names straight onto the axis, and `jack_straw` handed
+  each per-feature p-value to its neighbour. Nothing raised; every number was
+  individually correct. Seurat's `PrepDR5` drops the same features but **warns
+  naming them**, and takes its rownames from the subset matrix so the labels
+  cannot drift from the rows. Both halves are ported: the drop now warns with the
+  gene names (`RuntimeWarning`, first 20 named then a count), requesting nothing
+  the layer holds is an error rather than an empty matrix, and `run_pca`,
+  `run_spca`, `run_ica` and `jack_straw` all take back the list that labels the
+  rows they got. On the ordinary path — PBMC 3k, 2,000 variable features, nothing
+  dropped — embeddings and loadings are **bit-identical** to before.
+- **`run_pca` on a v3 `Assay` that had been through `scale_data()` read the
+  wrong genes, or crashed.** `Assay.scale_data` is a bare ndarray holding only
+  the scaled subset — the variable features, by default — with no record of
+  *which* subset; R's slot is a matrix and carries its own rownames. Four places
+  invented the missing labels, differently: `_get_scaled_data` indexed the layer
+  by each gene's position in the *assay*, `features("scale_data")` returned the
+  assay's leading *n* features, `subset()` discarded the layer whenever it was
+  not full height (i.e. always), and `mapping._scaled_feature_names` returned the
+  full feature list. The first either raised `IndexError` or returned another
+  gene's row, deterministically, on the standard workflow. `Assay` now carries
+  `_scaled_features` alongside `scale_data`, mirroring `Assay5`; the constructor
+  refuses to guess labels for a subset rather than inventing them, `subset()`
+  subsets the layer by name, and the v3 and v5 paths now return **identical**
+  scaled matrices.
+- **Integration anchors intersected the feature set against the wrong list.**
+  `_integration_features` filtered against the assay's full feature list — while
+  its own comment claimed it checked "scale/data" — and `_anchor_feature_matrix`
+  filtered against the scaled layer, so a feature one object had never scaled
+  survived the first filter and was dropped by the second, **in that object
+  alone**. The reference and query matrices are multiplied row-for-row, so that
+  is either a shape crash or two matrices describing different genes. The
+  intersection is now taken against the layer the anchors are built from, and
+  `_anchor_feature_matrix` raises rather than warns if anything is still missing.
 - **`run_pca` on an Assay5 that had not been scaled raised "the truth value of
   an array … is ambiguous".** `_get_scaled_data` chose its fallback layer with
   `layers.get("data") or layers.get("counts")`. `or` evaluates `bool()` on its
