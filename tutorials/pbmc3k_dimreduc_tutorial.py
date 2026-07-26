@@ -34,7 +34,9 @@ both fixed in the same pull request as this tutorial:
    all 20 pbmc3k PCs was **8.1e-112**, so no PC ever failed.
 
 Together they made the function unable to do its one job: shanuz kept **all 20**
-PCs where Seurat kept 13. After the fix both tools keep **13**. A third, smaller
+PCs where Seurat kept 13. After the fix shanuz keeps **13-15** depending on the
+seed, against Seurat's deterministic 13, and that spread is asserted by
+:data:`BANDS` rather than described. A third, smaller
 gap is closed too — ``JackStrawData.fake_reduction_scores`` was declared but
 never populated, where R stores the null.
 
@@ -44,9 +46,11 @@ show where any residual difference comes from.
 
 What remains is permutation scatter, not a defect. R fixes each replicate's seed
 to its loop index, so ``JackStraw`` there returns the same answer on every run;
-shanuz seeds from its ``seed`` argument, and across seeds 0/1/7/42/2024 it keeps
-13, 14, 15, 13 and 13 PCs. R's deterministic 13 sits at the bottom of that
-spread — the scatter is the method's, not the port's.
+shanuz seeds from its ``seed`` argument. Over a 60-seed sweep it keeps 12, 13, 14
+or 15 PCs — 2, 28, 11 and 19 seeds respectively — so R's deterministic **13 is
+also shanuz's modal answer**, and the worst case is 2 PCs either side. That
+measured spread is what :data:`BANDS` asserts; the scatter is the method's, not
+the port's.
 
 ICA and t-SNE need a different yardstick. Independent components are defined
 only up to sign and order, and t-SNE coordinates are not comparable across
@@ -110,6 +114,9 @@ from shanuz.shanuz import create_shanuz_object
 from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
 from shanuz.reduction import run_pca, run_ica, run_tsne
 from shanuz.jackstraw import jack_straw, score_jackstraw
+from tutorials.bands import (
+    Band, check_bands, check_same_cells, check_same_features, render_verdicts,
+)
 
 FIGURES = Path(__file__).parent / "figures_dimreduc"
 
@@ -129,6 +136,42 @@ ALPHA = 0.05                 # the cutoff an analyst actually applies
 N_ICS = 20
 TSNE_DIMS = 10               # t-SNE runs on PC 1..10, as in the Seurat vignette
 KNN_K = 30                   # neighbourhood size for the structure comparisons
+
+# --- Declared bands --------------------------------------------------------
+# The JackStraw cutoff genuinely moves with the seed, and used to be described
+# in prose: "R's deterministic 13 sits at the bottom of shanuz's spread". Prose
+# does not fail, so a regression that landed on 15 read the same as a good run
+# that landed on 15. These are measured, not asserted from one run — a 60-seed
+# sweep of `jack_straw` against the same R reference gave keeps of 12/13/14/15
+# for 2/28/11/19 seeds, and a Jaccard against R's significant set of 0.8125 at
+# worst and 0.8750 at the median.
+BANDS = {
+    "jackstraw_keep_gap": Band(
+        0, 2,
+        "|shanuz - R| over the PC cutoff. R's JackRandom seeds each replicate "
+        "from its loop index so R is deterministic at 13; shanuz seeds from its "
+        "`seed` argument and spans 12-15 over 60 seeds, with 13 the mode. A gap "
+        "of 3 is outside anything the permutation scatter produces."),
+    "significant_agreement": Band(
+        0.75, 1.0,
+        "Jaccard between the two tools' significant-PC sets: 0.8125 worst and "
+        "0.8750 median over the 60 seeds. The floor sits below the measured "
+        "worst case on purpose — R's own set includes stray post-cutoff PCs "
+        "(15 and 19 in the current reference), so this number moves with R's "
+        "noise tail as well as shanuz's, and it is the *cutoff* that the band "
+        "above pins."),
+    "pca_basis_aligned_through": Band(
+        13, JS_DIMS,
+        "Step 0's precondition, not a result. The per-PC JackStraw comparison "
+        "is only like-for-like while the two bases are matched one-to-one and "
+        "in order; it has to reach at least R's cutoff of 13 or the cutoff "
+        "itself is being read off components the two tools number differently."),
+    "pca_basis_median_r": Band(
+        0.95, 1.0,
+        "Median |Pearson r| across the 20 diagonal PC pairs. The noise tail may "
+        "permute — that is what aligned_through is for — but a median below "
+        "0.95 means the two runs did not start from the same matrix."),
+}
 
 
 def section(title: str) -> None:
@@ -335,13 +378,13 @@ def _read_feature_matrix(path, features):
         return None
     df = pd.read_csv(path).set_index("feature")
     df.index = [_r_feature_key(i) for i in df.index]
-    aligned = df.reindex([_r_feature_key(f) for f in features])
-    if aligned.isna().all(axis=1).any():
-        missing = int(aligned.isna().all(axis=1).sum())
-        raise ValueError(
-            f"{missing} of the {len(aligned)} Python features are absent from "
-            f"{Path(path).name} — the two runs are not on the same feature basis")
-    return aligned.to_numpy()
+    # Set equality, not just "every Python feature is present": R holding extra
+    # features means it selected a different HVG set, which the old one-sided
+    # reindex check could not see.
+    check_same_features(features, list(df.index),
+                        source=f"figures_dimreduc/{Path(path).name}",
+                        key=_r_feature_key)
+    return df.reindex([_r_feature_key(f) for f in features]).to_numpy()
 
 
 # ---------------------------------------------------------------------------
@@ -364,12 +407,18 @@ def load_pbmc3k_object(data_dir=None):
     )
 
 
-def prep(obj, n_hvg=N_HVG, n_pcs=N_PCS):
+def prep(obj, n_hvg=N_HVG, n_pcs=N_PCS, out_dir=None):
     """Normalize → HVG → scale → PCA, and write the HVG list for the R reference.
 
     Scales only the variable features (Seurat's ``ScaleData`` default): JackStraw
     subsets ``scale.data`` to the reduction's features anyway, so scaling the
     other 11k genes would cost time and change nothing.
+
+    ``out_dir`` exists so a caller that is not the tutorial can keep its hands
+    off the handoff. The test suite runs this on synthetic data, and writing to
+    the default left ``figures_dimreduc/hvg_features.txt`` holding 100 genes
+    called ``GENE171`` — which ``pbmc3k_dimreduc_verify.R`` would then have read
+    as the feature list to compare against.
     """
     normalize_data(obj, normalization_method="LogNormalize", scale_factor=10000)
     find_variable_features(obj, selection_method="vst", nfeatures=n_hvg)
@@ -377,9 +426,10 @@ def prep(obj, n_hvg=N_HVG, n_pcs=N_PCS):
     scale_data(obj, features=hvg)
     run_pca(obj, n_pcs=n_pcs, features=hvg, reduction_name="pca")
 
-    FIGURES.mkdir(exist_ok=True)
-    (FIGURES / "hvg_features.txt").write_text("\n".join(hvg) + "\n")
-    (FIGURES / "cells.txt").write_text("\n".join(obj.cell_names()) + "\n")
+    dest = FIGURES if out_dir is None else Path(out_dir)
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "hvg_features.txt").write_text("\n".join(hvg) + "\n")
+    (dest / "cells.txt").write_text("\n".join(obj.cell_names()) + "\n")
     return hvg
 
 
@@ -453,16 +503,26 @@ def report_concordance(obj, summary, verbose=True) -> dict | None:
     cells = obj.cell_names()
 
     def _read(name):
+        """Read an R cell × dim CSV, after checking it covers the same cells.
+
+        The check is not ceremony: ``reindex`` fills an absent barcode with NaN
+        rather than raising, so an R run that predates the current
+        ``cells.txt`` produced a table of ``nan`` correlations that printed
+        without complaint.
+        """
         path = FIGURES / name
         if not path.exists():
             return None
-        return pd.read_csv(path).set_index("cell").reindex(cells)
+        frame = pd.read_csv(path).set_index("cell")
+        check_same_cells(cells, frame, source=f"figures_dimreduc/{name}")
+        return frame.reindex(cells)
 
     r_pca = _read("r_pca.csv")
     py_pca = obj.reductions["pca"].cell_embeddings
 
     # --- step 0: the shared basis -----------------------------------------
     out = basis_agreement(py_pca, r_pca.to_numpy())
+    out["pca_basis_median_r"] = float(np.median(out["pca_basis_abs_r"]))
 
     # --- JackStraw ---------------------------------------------------------
     pcs_path = FIGURES / "r_jackstraw_pcs.csv"
@@ -485,6 +545,7 @@ def report_concordance(obj, summary, verbose=True) -> dict | None:
             "py_keep": n_leading_significant(py_scores),
             "r_keep": n_leading_significant(r_scores),
         })
+        out["jackstraw_keep_gap"] = abs(out["py_keep"] - out["r_keep"])
         if r_emp is not None:
             from scipy.stats import spearmanr
             n = min(r_emp.shape[1], obj.reductions["pca"].jackstraw
@@ -508,6 +569,10 @@ def report_concordance(obj, summary, verbose=True) -> dict | None:
         out["tsne_cross_knn"] = knn_overlap(py_tsne, r_tsne.to_numpy(), k=KNN_K)
         out["tsne_r_knn_vs_pca"] = knn_overlap(
             r_tsne.to_numpy(), r_pca.to_numpy()[:, :TSNE_DIMS], k=KNN_K)
+
+    # --- the declared bands ------------------------------------------------
+    out["band_verdicts"] = check_bands(BANDS, out)
+    out["bands_hold"] = all(v.ok for v in out["band_verdicts"])
 
     if verbose:
         _print_concordance(out, summary)
@@ -581,6 +646,11 @@ def _print_concordance(out, summary) -> None:
         print("  'kept from PCA' is each tool judged against its own input, so")
         print("  the two columns are directly comparable to each other.")
 
+    if "band_verdicts" in out:
+        section("Declared bands")
+        render_verdicts(out["band_verdicts"],
+                        "Each number that is allowed to move, and how far.")
+
 
 def run_full(data_dir=None, verbose=True, seed=42,
              num_replicate=JS_REPLICATES, do_reductions=True):
@@ -610,7 +680,11 @@ def run_full(data_dir=None, verbose=True, seed=42,
                   f"({time.time() - t1:.1f}s)")
 
     summary = summarize(obj, scores, js, verbose=verbose)
-    report_concordance(obj, summary, verbose=verbose)
+    concordance = report_concordance(obj, summary, verbose=verbose)
+    # Carried on the summary so a caller — the __main__ block below, or a test —
+    # can act on a band failure instead of having to read the printout.
+    summary["bands_hold"] = (
+        True if concordance is None else concordance.get("bands_hold", True))
 
     if verbose:
         section("Summary")
@@ -625,4 +699,6 @@ if __name__ == "__main__":
     parser.add_argument("--replicates", type=int, default=JS_REPLICATES,
                         help="JackStraw permutation replicates (Seurat default 100)")
     args = parser.parse_args()
-    run_full(data_dir=args.data_dir, num_replicate=args.replicates)
+    _, _summary = run_full(data_dir=args.data_dir, num_replicate=args.replicates)
+    if not _summary.get("bands_hold", True):
+        raise SystemExit(1)

@@ -85,6 +85,9 @@ from shanuz.markers import find_markers
 from shanuz.neighbors import find_neighbors
 from shanuz.preprocessing import find_variable_features, normalize_data, scale_data
 from shanuz.reduction import run_pca
+from tutorials.bands import (
+    Band, check_bands, check_shared_groups, render_verdicts,
+)
 
 FIGURES = Path(__file__).parent / "figures_de"
 IDENT_1, IDENT_2 = "0", "1"
@@ -108,6 +111,66 @@ TEST_MAP = {
 AUC_TOLERANCE = 5e-4
 # avg_log2FC is pure arithmetic on the shared matrix — it should be exact.
 LOG2FC_TOLERANCE = 1e-12
+
+# --- Declared bands --------------------------------------------------------
+# The parity table below used to live only in de_vignette.md, so nothing failed
+# when a number moved: `deseq2`'s top-50 overlap was described as "25/50" in
+# prose and had drifted to 22 without anyone noticing, and the same silence
+# would have covered a real regression in any other row.
+#
+# Seven of the eight tests are ports of the same statistic over the same cells,
+# so their bands are exact. `deseq2` is the one measurement of a *deliberate*
+# divergence — shanuz aggregates counts per sample and tests samples, Seurat's
+# `DESeq2DETest` tests cells as replicates — so its band comes from measurement:
+# resampling the pseudo-replicate split 20 times moves the overlap over 20-26
+# (median 22), and the previous cluster assignment gave 25.
+RANKED_TESTS = ("wilcox", "t", "bimod", "LR", "negbinom", "mast")
+
+_PARITY_TOP50 = (
+    "The same statistic on the same cells: the 50 most significant genes must "
+    "be the same 50. A single dropped gene here is a regression, not scatter — "
+    "this has read 50/50 on two different cluster assignments.")
+
+BANDS: dict[str, Band] = {
+    **{f"{t} top50": Band(TOP_N, TOP_N, _PARITY_TOP50, fmt=".0f")
+       for t in RANKED_TESTS},
+    "deseq2 top50": Band(
+        15, 32,
+        "A divergence measurement, not a parity target: shanuz tests pseudobulk "
+        "samples, Seurat's DESeq2DETest tests cells. 20-26 over 20 resampled "
+        "replicate splits and 25 on the previous cluster assignment. Bounded "
+        "well below 50 on purpose — reaching parity would mean the pseudobulk "
+        "aggregation had stopped happening and `sample_col` was being ignored.",
+        fmt=".0f"),
+    **{f"{t} rho>5%": Band(low, 1.0, why) for t, low, why in (
+        ("wilcox", 0.9999,
+         "Identical rank-sum statistic; measured exactly 1.0."),
+        ("t", 0.9999, "Identical Welch t; measured exactly 1.0."),
+        ("bimod", 0.9999, "Identical likelihood-ratio test; measured exactly 1.0."),
+        ("LR", 0.9999, "Identical logistic-regression LRT; measured exactly 1.0."),
+        ("negbinom", 0.88,
+         "Both fit a negative-binomial GLM but not with the same optimiser, so "
+         "the agreement is high rather than exact: 0.9165 here, 0.9194 before."),
+        ("mast", 0.99,
+         "shanuz's hurdle model is hand-rolled rather than a call to the MAST "
+         "package, so this is the closest a reimplementation gets: 0.9979."),
+    )},
+    "deseq2 rho>5%": Band(
+        0.12, 0.30,
+        "Pseudobulk against per-cell, so a low correlation is the expected "
+        "result and a high one would be the surprise. 0.1902-0.2021 over the 20 "
+        "resampled splits.", ),
+    "max |dlog2FC| (parity tests)": Band(
+        0, LOG2FC_TOLERANCE,
+        "avg_log2FC is arithmetic on the shared matrix with no statistics in "
+        "it, so every test that shares Seurat's cell-level definition must "
+        "agree to floating point: 6.4e-15 measured.", fmt=".2e"),
+    "roc max |dAUC|": Band(
+        0, AUC_TOLERANCE,
+        "Seurat rounds myAUC to three decimals inside DifferentialAUC, so this "
+        "cannot be tighter than half a unit in the last place however correct "
+        "both sides are.", fmt=".2e"),
+}
 
 
 def build(data_dir=None):
@@ -240,10 +303,46 @@ def report_concordance():
     for test in TEST_MAP:
         py = pd.read_csv(FIGURES / f"py_{test}.csv", index_col=0)
         r = pd.read_csv(FIGURES / f"r_{test.lower()}.csv", index_col=0)
+        # Before anything is compared: was this R table computed on the groups
+        # the Python side just wrote? Nothing else here can tell the difference
+        # between a port that regressed and an R run left over from a previous
+        # clustering, and the second reads exactly like the first.
+        check_shared_groups(py, r, source=f"figures_de/r_{test.lower()}.csv")
         rows.append({"test": test, **compare(py, r, test)})
     table = pd.DataFrame(rows).set_index("test")
     _print_report(table)
+    verdicts = check_bands(BANDS, measure_bands(table))
+    table.attrs["band_verdicts"] = verdicts
+    table.attrs["bands_hold"] = render_verdicts(
+        verdicts, "Declared bands — every row of the parity table.")
     return table
+
+
+def measure_bands(table: pd.DataFrame) -> dict[str, float]:
+    """Pull the numbers :data:`BANDS` judges out of the concordance table.
+
+    Kept separate from :func:`compare` so the bands can be checked against a
+    table read from anywhere — including a deliberately damaged one in the
+    tests, which is the only way to know the assertions can fail.
+    """
+    measured: dict[str, float] = {}
+    for test in table.index:
+        if f"{test} top50" in BANDS:
+            measured[f"{test} top50"] = table.loc[test].get(
+                f"top{TOP_N}_overlap", float("nan"))
+        if f"{test} rho>5%" in BANDS:
+            measured[f"{test} rho>5%"] = table.loc[test].get(
+                "p_spearman_expressed", float("nan"))
+    # One band over every test that shares Seurat's cell-level fold change.
+    # deseq2 is excluded by name rather than by threshold: its fold change is
+    # computed on summed counts, so ~3.5 is correct there and would silently
+    # set the maximum for everyone else.
+    cell_level = [t for t in table.index if t != "deseq2"]
+    measured["max |dlog2FC| (parity tests)"] = float(
+        table.loc[cell_level, "log2fc_max_abs_diff"].max())
+    if "auc_max_abs_diff" in table.columns:
+        measured["roc max |dAUC|"] = float(table.loc["roc", "auc_max_abs_diff"])
+    return measured
 
 
 def _print_report(table: pd.DataFrame) -> None:
@@ -271,7 +370,11 @@ def main():
                         help="compare against figures_de/r_<test>.csv")
     args = parser.parse_args()
     if args.report:
-        report_concordance()
+        table = report_concordance()
+        # Exit non-zero so `--report` can be used as a check rather than read as
+        # a table. A band that only prints is the situation this replaced.
+        if not table.attrs.get("bands_hold", True):
+            raise SystemExit(1)
         return
     run_full(data_dir=args.data_dir)
     print(f"\n  Wrote {FIGURES}")
