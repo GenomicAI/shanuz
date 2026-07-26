@@ -171,6 +171,38 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **`add_module_score` read the expression matrix once per gene, and was 100×
+  slower than it needed to be.** Each gene's row was pulled out on its own
+  (`mat[i, :]` inside a list comprehension) and the stack handed to `np.mean`.
+  Every assay layer here is **CSC**, so slicing a single row walks the whole
+  column-major matrix: on the THP-1 ECCITE data (18,381 × 20,729, 69.5M
+  nonzeros) that is ~22 ms per gene, and the default `ctrl=100` draws a couple
+  of thousand control genes. **50 of 51 profiled seconds** were inside one scipy
+  call, `get_csr_submatrix`, invoked once per gene. Now one row selection per
+  gene set, transposed to CSR so the rows are summed in the order they were
+  asked for:
+
+  | | before | after |
+  |---|---|---|
+  | `cell_cycle_scoring` (THP-1, 2 programs) | 168.4 s | **0.90 s** |
+  | `add_module_score` (30-gene program) | 51.3 s | **0.51 s** |
+
+  R's `CellCycleScoring` takes ~12 s on the same data, so shanuz now runs it an
+  order of magnitude faster rather than 14× slower. The spelling is load-bearing
+  and **bit-identical** to the old arithmetic: an indicator-vector matvec
+  (`ind @ mat`) is faster still but lands 7.5e-16 away, and summing the CSC
+  selection directly 2.5e-15 away, because each accumulates the columns in a
+  different order.
+- **The same seed gave a different module score in a different process.** The
+  control genes were collected in a `set`, and a mean depends on the order its
+  terms are added. Python randomises `str` hashing per process, so iterating
+  that set summed the control expression in a different order every run — the
+  same object at `seed=1` scored 9.7e-16 apart in two processes. A `dict` now,
+  which is also R's semantics (`AddModuleScore` applies `unique()` to the
+  sampled names and indexes the matrix with the result). THP-1 `S.Score`,
+  `G2M.Score` and the interferon program move by at most 2.1e-15 against the old
+  code — which had no fixed value to move from — and all 20,729 `Phase` calls
+  are unchanged.
 - **A reduction that could not use every feature you asked for labelled its
   loadings with the features you asked for anyway.** `_get_scaled_data` filtered
   the request down to what the layer carried and returned only the matrix, so
