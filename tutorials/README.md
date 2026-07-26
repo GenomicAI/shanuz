@@ -606,6 +606,439 @@ same "don't chase the RNG" residual as `clara` (hashing) and the MULTI-seq KDE.
 
 ---
 
+## Tutorial 11 — Dimensional-Reduction Extras (R vs Python)
+
+> **Walkthrough:** [`dimreduc_vignette.md`](dimreduc_vignette.md)
+
+The three reductions that sit beside the standard PCA → UMAP path, and the
+question every guided-clustering run has to answer first: **how many PCs are
+real?** Same PBMC 3k object and HVG basis as Tutorial 1.
+
+```bash
+python  tutorials/pbmc3k_dimreduc_tutorial.py   # downloads ~8 MB, writes the shared lists
+Rscript tutorials/pbmc3k_dimreduc_verify.R      # slow: 100 PCA refits, ~2 min
+python  tutorials/generate_dimreduc_plots.py    # figures + the side-by-side numbers
+```
+
+**What you'll learn:**
+- `jack_straw` / `score_jackstraw` — Seurat's `JackStraw`/`ScoreJackStraw`: a
+  permutation test for how many PCs carry real signal, not just the elbow guess
+- `run_ica` — Seurat's `RunICA`, matched to R one-to-one by |Pearson r| via the
+  Hungarian algorithm, since a component's sign and order are not defined
+- `run_tsne` — Seurat's `RunTSNE`, compared on neighbourhood structure preserved
+  from the PCA space rather than on raw coordinates, which never agree across
+  Barnes-Hut and scikit-learn
+- Why a stochastic PC-count answer needs a declared **band**, not a point
+  comparison — and how a 60-seed sweep turns "close enough" into something
+  `--report` can fail on
+
+**Key output figures** (in `tutorials/figures_dimreduc/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_jackstraw_scores.png` | JackStraw significance score per PC |
+| `py_02_nsig_compare.png` | Features below threshold per PC, shanuz vs R |
+| `py_03_elbow.png` | The cheap first-look elbow plot |
+| `py_04_tsne.png` | t-SNE embedding, coloured by *LYZ* |
+| `py_05_ica.png` | ICA embedding, coloured by *LYZ* |
+
+**Accuracy vs R** (PCA basis matched through PC 20, |r| ≥ 1.0000):
+
+| Comparison | Agreement |
+|---|---:|
+| PCs kept (shanuz vs R's 13) | **14**, band \|Δ\| ≤ 2 (modal answer over 60 seeds: 13) |
+| ICA, mean matched \|Pearson r\| over 20 components | **0.9991** (worst pair 0.9960) |
+| t-SNE, 30-NN retained from PCA (shanuz / R) | 0.474 / 0.477 |
+| t-SNE, 30-NN shared between the two tools | 0.862 |
+
+**Found and fixed two defects** — `jack_straw` built its permutation null
+against a fixed PCA basis instead of refitting per replicate, and
+`score_jackstraw` ran a KS test where R runs `prop.test`, which together kept
+**all 20** PCs where Seurat keeps 13. Both are ported exactly and now match R
+to nine significant figures.
+
+---
+
+## Tutorial 12 — Leverage-Score Sketching (R vs Python)
+
+> **Walkthrough:** [`sketch_vignette.md`](sketch_vignette.md)
+
+The Seurat v5 answer to "this atlas has two million cells and I have a
+laptop": subsample by statistical leverage rather than uniformly, analyse the
+small subset, then push the answers back onto every cell. Reuses the **ifnb**
+object from Tutorial 8.
+
+```bash
+Rscript tutorials/export_seuratdata.R ifnb      # one-time counts export
+python  tutorials/ifnb_sketch_tutorial.py       # writes the shared lists
+Rscript tutorials/ifnb_sketch_verify.R          # ~3 min
+python  tutorials/generate_sketch_plots.py
+```
+
+**What you'll learn:**
+- `leverage_score` — Seurat's `LeverageScore`: a rank-50 truncated-SVD hat-matrix
+  score that decides which cells are worth keeping in a sketch
+- `sketch_data` — Seurat's `SketchData`, both `method="LeverageScore"` and the
+  uniform-sampling control that proves the leverage sketch is doing something
+  a random sample would not
+- `project_data` — Seurat's `ProjectData`: extend a sketch's clustering, UMAP
+  and labels back onto every cell the sketch never analysed
+- Why leverage has to be checked against something the algorithm was never
+  told — rarity by cell type — not just against R's numbers
+
+**Key output figures** (in `tutorials/figures_sketch/`, `r_*` = R Seurat):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_leverage_by_type.png` | Mean leverage per cell type, rarest to most common |
+| `py_02_sketch_enrichment.png` | Leverage sketch vs uniform draw, enrichment by type |
+| `py_03_leverage_vs_r.png` | Per-cell leverage score, shanuz vs R |
+| `py_04_rarity.png` | Leverage vs cell-type abundance |
+| `py_05_projected_umap.png` | The sketch's UMAP and labels, projected onto all 13,999 cells |
+
+**Accuracy vs R** (13,999 cells, exact-regime leverage):
+
+| Comparison | Agreement |
+|---|---:|
+| Leverage, exact regime — per-cell Spearman vs R | **1.000000** (max abs diff 3.4e-6) |
+| Does leverage track rarity? Spearman(mean leverage, type size) | shanuz −0.929 · R −0.929 |
+| `project_data` labels — per-cell agreement with R | **94.9 %** (98.1 % on a shared sketch) |
+| `project_data` accuracy vs held-out annotations | shanuz 0.9050 · R 0.9050 |
+
+**Found and fixed two defects** — `leverage_score` whitened against the full
+matrix rank instead of Seurat's rank-50 truncation, which flattened the
+sampling weights until leverage sampling was indistinguishable from uniform
+sampling. And `project_data` transferred labels through integration anchors,
+which is not what Seurat does and costs exactly what sketching exists to
+remove — the wrong version even scored higher, which is why it survived
+review until this tutorial checked the mechanism, not just the number.
+
+---
+
+## Tutorial 13 — The Object Model Itself (R vs Python)
+
+> **Walkthrough:** [`objects_vignette.md`](objects_vignette.md)
+
+Every other tutorial compares an *algorithm*. This one compares the
+**container** — the accessors, the v5 layer machinery, and the bookkeeping
+that Seurat's own command cheat sheet is made of. Same PBMC 3k object as
+Tutorial 1.
+
+```bash
+python tutorials/pbmc3k_objects_tutorial.py     # downloads ~24 MB on first run
+Rscript tutorials/pbmc3k_objects_verify.R       # writes r_anchors.json
+python tutorials/pbmc3k_objects_tutorial.py     # now prints the side-by-side table
+python tutorials/generate_objects_plots.py      # figures
+```
+
+**What you'll learn:**
+- `layers` / `layer_data` / `split_layers` / `join_layers` — Seurat's v5
+  layered `Assay`: `Layers`, `LayerData`, `split`, `JoinLayers`
+- `fetch_data` — Seurat's `FetchData`, including addressing an embedding
+  column by its reduction `Key` (`PC_1`)
+- `idents` / `which_cells` / `rename_idents` / `subset` — Seurat's identity
+  machinery, compared cell-by-cell and in order, not just by count
+- `obj.commands` — Seurat's `Command()` log, and why it is a lookup table
+  users query rather than decoration
+- Why almost nothing here is stochastic — 89 of 91 anchors are exact matches,
+  no tolerance at all, which is what makes this the sharpest net in the series
+
+**Key output figures** (in `tutorials/figures_objects/`):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_split_join.png` | The `split` → `JoinLayers` round trip, before and after |
+| `py_02_concordance.png` | Anchors matching R, by section |
+| `py_03_nn_degree.png` | kNN graph degree distribution, shanuz vs R |
+
+**Accuracy vs R** (2,700 cells × 13,714 genes, 91 anchors total):
+
+| Comparison | Agreement |
+|---|---:|
+| Anchors matching Seurat exactly | **91 / 91** |
+| Cells — order-sensitive md5 of the barcode vector | identical |
+| `nCount_RNA` total | **6,386,518** on both |
+| `FetchData` — `CD3E` column total | **2,831.901591** on both |
+| `split` → `JoinLayers` round trip | identity — name, cell order and matrix restored |
+| kNN / SNN graph edges | `RNA_nn` 54,000, `RNA_snn` 199,616 on both |
+
+**Found and fixed eleven defects** — the layered assay's `split`/`JoinLayers`
+pair returned the right numbers in the wrong columns, silently; `FetchData`
+returned sparse-matrix objects instead of expression values on the
+most-called accessor in the library; and the command log and `orig.ident`
+had never been wired up at all. All eleven are fixed in the same pull request
+as this tutorial; two further neighbour-graph differences it found but did
+not fix were closed later, in PR #55.
+
+---
+
+## Tutorial 14 — Spatial Statistics & the Spatial Container (R vs Python)
+
+> **Walkthrough:** [`svf_vignette.md`](svf_vignette.md)
+
+The spatial **container** — `FOV`, `Centroids`, `Segmentation` — and the one
+spatial **statistic** in the library, `FindSpatiallyVariableFeatures`,
+neither of which [Tutorial 5](xenium_spatial_tutorial.md) checked against R.
+Same Xenium mouse-brain slide.
+
+```bash
+python  tutorials/xenium_svf_tutorial.py    # writes anchors + cells.txt
+Rscript tutorials/xenium_svf_verify.R       # needs Rfast2
+python  tutorials/xenium_svf_tutorial.py --report
+python  tutorials/generate_svf_plots.py
+```
+
+**What you'll learn:**
+- `create_centroids` / `create_fov` / `create_segmentation` — Seurat's
+  `CreateCentroids`/`CreateFOV`/`CreateSegmentation`, down to auto-radius and
+  closed-ring polygon behaviour
+- `find_spatially_variable_features` — Seurat's
+  `FindSpatiallyVariableFeatures(selection.method="moransi")`, evaluated in row
+  blocks so the full n×n weight matrix — 10.7 GB on this slide — is never
+  built
+- Why a statistic has to match its *weights*, not just look plausible: a
+  k-nearest-neighbour approximation scored Pearson 0.986 against R and still
+  missed 3 of R's top 10 genes
+
+**Key output figures** (in `tutorials/figures_svf/`):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_moransi_vs_r.png` | Moran's I per gene, both weightings against Seurat |
+| `py_02_top_n_overlap.png` | Recovery of Seurat's top-N gene ranking |
+| `py_03_spot_radius.png` | The centroid spot radius, before and after |
+
+**Accuracy vs R** (36,602 cells × 248 genes, 39 anchors total):
+
+| Comparison | Agreement |
+|---|---:|
+| Anchors matching Seurat exactly | **38 / 39** |
+| Moran's I per gene vs R (2,000-cell shared subset) | max abs diff **1.6e-14**, Pearson 1.0000000000 |
+| Moran's I — Seurat's top 10 recovered | **10 / 10**, same order |
+| `Centroids.radius()` — auto radius vs `.AutoRadius` | 42.82543 vs 42.82543 |
+| Full-slide Moran's I, R's exact weights | 5.3 s / 0.95 GB, vs a 10.7 GB dense matrix in R |
+
+**Found and fixed three defects** — Moran's I was computed on a
+k-nearest-neighbour graph instead of Seurat's row-standardised inverse-square
+weights, answering a different question under the same name; `Centroids`
+never received a radius, which silently disabled every true-to-scale spot
+renderer; and `Segmentation` stored polygons open where R closes them. Two
+further divergences — the permutation p-value and the FOV `Key` string — are
+left standing on purpose, and the reasoning is in the vignette.
+
+---
+
+## Tutorial 15 — The Differential-Expression Test Suite (R vs Python)
+
+> **Walkthrough:** [`de_vignette.md`](de_vignette.md)
+
+All **eight** `find_markers` tests against `FindMarkers`, on a shared cell
+assignment so no clustering difference can pose as a DE difference. Runs on
+two clusters (692 and 515 cells) from PBMC 3k.
+
+```bash
+python  tutorials/pbmc3k_de_tutorial.py     # writes groups.csv and py_<test>.csv
+Rscript tutorials/pbmc3k_de_verify.R        # needs MAST + DESeq2
+python  tutorials/pbmc3k_de_tutorial.py --report
+python  tutorials/generate_de_plots.py
+```
+
+**What you'll learn:**
+- `find_markers(test_use=...)` — all eight of Seurat's tests: `wilcox` · `t` ·
+  `bimod` · `LR` · `negbinom` · `roc` · `mast` · `deseq2`
+- Why `avg_log2FC`'s pseudocount placement matters beyond the number it
+  reports — it feeds `logfc_threshold`, so a formula error changes **which
+  genes come back**, not just how they're described
+- Why `mast` and `deseq2` are deliberate reimplementations rather than calls
+  to the R packages, and where each is expected to diverge from them
+
+**Key output figures** (in `tutorials/figures_de/`):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_log2fc_vs_r.png` | `avg_log2FC`, before and after, vs R |
+| `py_02_threshold_impact.png` | Genes returned at each `logfc_threshold`, shanuz vs R |
+| `py_03_test_concordance.png` | All eight tests against Seurat |
+
+**Accuracy vs R** (13,712 shared genes):
+
+| Comparison | Agreement |
+|---|---:|
+| `avg_log2FC` vs Seurat, all genes | max abs diff **6.44e-15** |
+| Tests reproducing Seurat's top 50 genes | **7 of 7** per-cell tests |
+| `wilcox` / `t` / `bimod` / `LR` — p-value Spearman | 1.000000 / 0.999980 / 0.999994 / 0.999975 |
+| `mast` — Spearman, detected >5 % | **0.9979** |
+| `negbinom` — Spearman, detected >5 % | **0.9165** |
+
+**Found and fixed two defects** — `avg_log2FC` put Seurat's pseudocount on
+the group *mean* rather than the group *sum* (Seurat 4's formula, not
+Seurat 5's), which floored every fold change and changed which genes
+`logfc_threshold` returned; and `negbinom` ran a moment-dispersion
+likelihood-ratio test where Seurat runs an ML-dispersion Wald test.
+
+---
+
+## Tutorial 16 — Out of Core: `LazyMatrix` against BPCells (R vs Python)
+
+> **Walkthrough:** [`lazy_vignette.md`](lazy_vignette.md)
+
+Not a port comparison — there is no `LazyMatrix` inside Seurat to match
+value-for-value. Instead: does each tool's out-of-core path agree with its
+**own** in-memory path, and what does each format cost. Same PBMC 3k counts.
+
+```bash
+python tutorials/lazy_bpcells_tutorial.py       # writes anchors + cell list
+Rscript tutorials/lazy_bpcells_verify.R         # needs BPCells (not on CRAN)
+python tutorials/lazy_bpcells_tutorial.py --report
+python tutorials/generate_lazy_plots.py
+```
+
+**What you'll learn:**
+- `write_lazy_matrix` / `open_lazy_matrix` — shanuz's on-disk backend,
+  against Seurat's BPCells (`write_matrix_dir`/`open_matrix_dir`)
+- Streaming `LogNormalize` / `VST` / `ScaleData` over an on-disk layer without
+  ever densifying the whole matrix
+- Why "agrees with R to 1e-14" is not the same claim as "agrees with itself" —
+  BPCells computes in single precision, so **Seurat's own** on-disk and
+  in-memory runs disagree and select a different variable feature; shanuz's
+  two paths are bit-identical
+
+**Key output figures** (in `tutorials/figures_lazy/`):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_self_consistency.png` | Each tool's on-disk run against its own in-memory run |
+| `py_02_memory.png` | Peak memory, sparse vs lazy, before and after the fix |
+| `py_03_storage.png` | On-disk size: shanuz `LazyMatrix` vs BPCells |
+
+**Accuracy vs R** (13,714 genes × 2,638 cells):
+
+| Comparison | Agreement |
+|---|---:|
+| Anchors matching Seurat | **14 / 14** (7 exact) |
+| Variable features shared with Seurat's in-memory run | 1998 / 2000 |
+| shanuz on-disk vs in-memory, normalised values | **0 — bit-identical** (Seurat's own: 1.02e-06) |
+| shanuz on-disk vs in-memory, variable features agreeing | **2000 / 2000** (Seurat's own: 1999 / 2000) |
+| DE tests supported out of core | **all 8** (Seurat's IterableMatrix: `wilcox` only) |
+
+**Found and fixed seven defects** — five functions densified an entire
+on-disk layer on read, so going out of core made peak memory **worse**, not
+better; object construction ended laziness before any analysis could run; and
+a NumPy LOESS fit was chaotically dependent on sort order, moving fitted
+values by up to 28.8 % under a 1e-15 input nudge. All are pre-existing bugs
+this tutorial was the first to notice, not consequences of going out of core.
+
+---
+
+## Tutorial 17 — Visium: the Spatial Container (R vs Python)
+
+> **Walkthrough:** [`visium_vignette.md`](visium_vignette.md)
+
+The Visium loader and container — and the first tutorial in the series where
+**Seurat is the one that's wrong**. 2,695 in-tissue spots, 10x
+`V1_Mouse_Brain_Sagittal_Anterior`.
+
+```bash
+python  tutorials/visium_tutorial.py    # downloads the bundle (~64 MB)
+Rscript tutorials/visium_verify.R
+python  tutorials/visium_tutorial.py --report
+python  tutorials/generate_visium_plots.py
+```
+
+**What you'll learn:**
+- `load_visium` — Seurat's `Load10X_Spatial`/`Read10X_Image`, including the
+  headerless Space Ranger 1.1.0 `tissue_positions_list.csv` layout
+- `VisiumV2.radius()` — reachable where Seurat's own `Radius()` returns `NULL`
+  on its current-generation Visium class
+- Why the Visium slide's fixed 100 µm spot pitch settles, from geometry alone
+  and without consulting either tool, that Seurat stores a **diameter** in a
+  slot named **radius** — and why shanuz deliberately does not match that
+
+**Key output figures** (in `tutorials/figures_visium/`):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_radius_geometry.png` | Spot spacing and the diameter-vs-radius geometry |
+| `py_02_spots_on_tissue.png` | Spots plotted on the tissue image |
+| `py_03_pca_isolation.png` | PCA gap isolated to the upstream feature-selection difference |
+
+**Accuracy vs R** (2,695 spots × 32,285 genes):
+
+| Comparison | Agreement |
+|---|---:|
+| Anchors matching Seurat exactly | **24 / 24** (17 exactly) |
+| Spot coordinates | max\|dx\| = max\|dy\| = **0** across all 2,695 spots |
+| Tissue image, both backends vs R | **1.68e-08** (float32 epsilon) |
+| PCA stdev, on Seurat's own 2,000 features | max relative diff **2.49e-05** |
+| `radius()` ratio, shanuz vs Seurat (deliberate) | **2.000000** |
+
+**Found one shanuz bug and aligned three defaults to Seurat** — the tissue
+image came back 255× apart depending on whether matplotlib or Pillow was
+installed, from the same file; and the in-tissue filter, image resolution and
+image key defaults were changed to match Seurat's (`filter_by_tissue=True`,
+`lowres`, `"slice1"`). Seurat's own radius bug — a diameter stored in a slot
+named radius, with `Radius()` returning `NULL` on `VisiumV2` — is reported,
+not matched.
+
+---
+
+## Tutorial 18 — Anchor Internals: CCA & RPCA (R vs Python)
+
+> **Walkthrough:** [`anchors_vignette.md`](anchors_vignette.md)
+
+[Tutorial 8](integration_vignette.md) compares the **clusterings** integration
+produces. This one compares the **anchors** underneath them — which
+mutual-nearest-neighbour pairs each tool calls an anchor, what score it gives
+them, and what the corrected expression comes out as — on both the v4
+(`FindIntegrationAnchors`/`IntegrateData`) and v5 (`IntegrateLayers`) paths.
+ifnb, 2,400 cells (v4) and the full 13,999 (v5).
+
+```bash
+Rscript tutorials/export_seuratdata.R ifnb     # one-time counts export
+python  tutorials/anchors_tutorial.py          # writes the cell list + HVGs
+Rscript tutorials/anchors_verify.R             # writes the Seurat anchors
+python  tutorials/anchors_tutorial.py --report
+python  tutorials/generate_anchors_plots.py
+```
+
+**What you'll learn:**
+- `find_integration_anchors` / `integrate_data` — Seurat's v4
+  `FindIntegrationAnchors`/`IntegrateData`, checked anchor-by-anchor rather
+  than only by the clustering that follows
+- `integrate_layers` — Seurat's v5 `IntegrateLayers`, and why it dispatches to
+  a genuinely different algorithm (`IntegrateEmbeddings`) than the v4 path,
+  not the same code under a new name
+- Reading compiled Seurat internals (`FindWeightsC`, `IntegrateDataC`) by
+  calling them directly on controlled input, rather than inferring their
+  behaviour from the R wrapper
+
+**Key output figures** (in `tutorials/figures_anchors/`):
+
+| Figure | Description |
+|--------|-------------|
+| `py_01_anchor_agreement.png` | Anchor recall and precision, shanuz vs Seurat |
+| `py_02_correction.png` | Corrected expression over the query half, shanuz vs Seurat |
+
+**Accuracy vs R** (v4 path, 2,400-cell subsample, 2,000 shared anchor features):
+
+| Comparison | shanuz | Seurat |
+|---|---:|---:|
+| RPCA anchors recovered | **100.0 %** (649/649) | — |
+| RPCA anchor score, Pearson *r* | **0.99997** | — |
+| CCA anchors recovered | **99.9 %** (2,815 vs 2,814) | — |
+| RPCA embedding, v5 path, dims \|r\| > 0.99 (full 13,999 cells) | **30 / 30** | — |
+
+**Found and fixed eighteen defects across two rounds** — the dominant one was
+`RunCCA` standardizing each cell where shanuz L2-normalized it, which rotates
+the whole anchor space; on the v5 path, `integrate_layers` was silently
+running v4's `IntegrateData` behind the v5 `IntegrateEmbeddings` name, and
+`run_pca`'s randomized SVD drifted enough in its trailing components to
+corrupt reciprocal PCA, which standardizes per-dimension and is not rotation
+invariant. RPCA now agrees with Seurat on every v4 anchor and all 30 v5
+embedding dimensions, up from 1 of 30.
+
+---
+
 ## R Seurat → Shanuz API Quick Reference
 
 | Task | R (Seurat) | Python (Shanuz) |
