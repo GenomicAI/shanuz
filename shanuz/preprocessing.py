@@ -68,20 +68,19 @@ def _get_layer(assay_obj, layer: Optional[str]):
             return assay_obj.data
 
 
-def _set_layer(assay_obj, layer: str, value) -> None:
+def _set_layer(assay_obj, layer: str, value, features: Optional[list[str]] = None) -> None:
     """Store a data matrix in an assay."""
     from .assay import Assay
     from .assay5 import Assay5
 
     if isinstance(assay_obj, Assay5):
-        assay_obj.set_layer_data(layer, value)
+        assay_obj.set_layer_data(layer, value, feature_names=features)
+    elif layer == "counts":
+        assay_obj.counts = value
+    elif layer in ("scale_data", "scale.data"):
+        assay_obj._set_layer("scale_data", value, features)
     else:
-        if layer == "counts":
-            assay_obj.counts = value
-        elif layer in ("scale_data", "scale.data"):
-            assay_obj.scale_data = np.asarray(value)
-        else:
-            assay_obj.data = value
+        assay_obj.data = value
 
 
 # ------------------------------------------------------------------
@@ -769,7 +768,10 @@ def scale_data(
         # Store which features are scaled (needed for PCA)
         assay_obj._scaled_features = features_present
     else:
-        assay_obj.scale_data = sub
+        # Through `_set_layer` so the row labels are written with the matrix.
+        # Assigning `assay_obj.scale_data` directly leaves `_scaled_features`
+        # describing whatever was there before.
+        assay_obj._set_layer("scale_data", sub, features_present)
     log_shanuz_command(
         seurat, "ScaleData", assay=assay or seurat.active_assay,
         params={"do_center": do_center, "do_scale": do_scale,

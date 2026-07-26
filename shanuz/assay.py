@@ -25,7 +25,12 @@ class Assay(KeyMixin):
     -----
     counts        : raw counts / TPMs  (features × cells)
     data          : normalised expression (features × cells)
-    scale_data    : scaled expression  (features × cells, dense)
+    scale_data    : scaled expression  (features × cells, dense) — a *subset*
+                    of the features, since ScaleData defaults to the variable
+                    ones. R's slot is a matrix and carries its own rownames;
+                    a bare ndarray does not, so the labels live alongside it in
+                    `_scaled_features` and every read of the layer goes through
+                    `features("scale_data")`.
     assay_orig    : name of original assay this was derived from
     var_features  : list of highly variable feature names
     meta_features : per-feature metadata DataFrame (features × cols)
@@ -44,6 +49,7 @@ class Assay(KeyMixin):
         "_key",
         "_feature_names",
         "_cell_names",
+        "_scaled_features",
     )
 
     def __init__(
@@ -51,6 +57,7 @@ class Assay(KeyMixin):
         counts: Optional[Union[np.ndarray, sp.spmatrix]] = None,
         data: Optional[Union[np.ndarray, sp.spmatrix]] = None,
         scale_data: Optional[np.ndarray] = None,
+        scaled_features: Optional[list[str]] = None,
         feature_names: Optional[list[str]] = None,
         cell_names: Optional[list[str]] = None,
         assay_orig: Optional[str] = None,
@@ -97,6 +104,7 @@ class Assay(KeyMixin):
         self.counts = counts if counts is not None else empty_sparse(n_features, n_cells)
         self.data = data if data is not None else self.counts
         self.scale_data = scale_data if scale_data is not None else empty_dense(0, n_cells)
+        self._scaled_features = self._resolve_scaled_features(scaled_features)
         self.assay_orig = assay_orig
         self.var_features = list(var_features) if var_features else []
         self.meta_features = (
@@ -113,10 +121,38 @@ class Assay(KeyMixin):
     def cells(self) -> list[str]:
         return list(self._cell_names)
 
+    def _resolve_scaled_features(
+        self, scaled_features: Optional[list[str]]
+    ) -> list[str]:
+        """Labels for `scale_data`'s rows, checked against its height.
+
+        Only a full-height (or empty) `scale_data` can be labelled without being
+        told: any other height is a subset, and which subset is not recoverable
+        from the matrix. Refusing to guess is the whole point — the guess that
+        used to stand here took the *first* n features, and ScaleData's subset is
+        the variable ones, which are scattered through the assay.
+        """
+        n_rows = self.scale_data.shape[0]
+        if scaled_features is not None:
+            if len(scaled_features) != n_rows:
+                raise ValueError(
+                    f"scaled_features has {len(scaled_features)} names for "
+                    f"{n_rows} rows of scale_data."
+                )
+            return list(scaled_features)
+        if n_rows == 0:
+            return []
+        if n_rows == len(self._feature_names):
+            return list(self._feature_names)
+        raise ValueError(
+            f"scale_data has {n_rows} rows but the assay has "
+            f"{len(self._feature_names)} features, so it holds a subset — pass "
+            f"`scaled_features=` naming those rows. They cannot be inferred."
+        )
+
     def features(self, layer: Optional[str] = None) -> list[str]:
-        if layer == "scale_data":
-            n = self.scale_data.shape[0]
-            return self._feature_names[:n]
+        if layer in ("scale_data", "scale.data"):
+            return list(self._scaled_features)
         return list(self._feature_names)
 
     # ------------------------------------------------------------------
@@ -126,8 +162,8 @@ class Assay(KeyMixin):
     def get_assay_data(self, layer: str = "data"):
         return self.layer_data(layer)
 
-    def set_assay_data(self, layer: str, new_data) -> None:
-        self._set_layer(layer, new_data)
+    def set_assay_data(self, layer: str, new_data, features: Optional[list[str]] = None) -> None:
+        self._set_layer(layer, new_data, features)
 
     def layer_data(
         self,
@@ -156,13 +192,16 @@ class Assay(KeyMixin):
             raise KeyError(f"Layer '{layer}' not found. Choose from {list(layers)}.")
         return layers[layer]
 
-    def _set_layer(self, layer: str, value) -> None:
+    def _set_layer(self, layer: str, value, features: Optional[list[str]] = None) -> None:
         if layer == "counts":
             self.counts = value
         elif layer == "data":
             self.data = value
-        elif layer == "scale_data":
+        elif layer in ("scale_data", "scale.data"):
             self.scale_data = np.asarray(value)
+            # Relabel with the new matrix, never leave the old names behind: a
+            # stale label list is worse than none, because every reader trusts it.
+            self._scaled_features = self._resolve_scaled_features(features)
         else:
             raise KeyError(f"Unknown layer '{layer}'. Must be counts, data, or scale_data.")
 
@@ -207,6 +246,7 @@ class Assay(KeyMixin):
             counts=self.counts,
             data=self.data,
             scale_data=self.scale_data.copy() if self.scale_data is not None else None,
+            scaled_features=list(self._scaled_features),
             feature_names=list(self._feature_names),
             cell_names=list(self._cell_names),
             assay_orig=self.assay_orig,
@@ -246,16 +286,26 @@ class Assay(KeyMixin):
         new_meta = self.meta_features.iloc[row_idx].copy()
         new_var = [f for f in self.var_features if f in set(new_features)]
 
+        # Subset scale_data by *name*, not by the assay's row indices: it holds
+        # its own subset of features, so `row_idx` addresses a different matrix.
+        # Dropping the layer whenever it was not full-height — which is what
+        # stood here, and which is every assay ScaleData has touched — silently
+        # cost the subset its scaled values.
         sd = self.scale_data
-        if not is_matrix_empty(sd) and sd.shape[0] == len(self._feature_names):
-            new_sd = sd[row_idx, :][:, col_idx]
-        else:
+        if is_matrix_empty(sd):
             new_sd = empty_dense(0, len(new_cells))
+            new_scaled = []
+        else:
+            keep = set(new_features)
+            sd_rows = [i for i, f in enumerate(self._scaled_features) if f in keep]
+            new_sd = sd[sd_rows, :][:, col_idx]
+            new_scaled = [self._scaled_features[i] for i in sd_rows]
 
         return Assay(
             counts=_sub(self.counts),
             data=_sub(self.data),
             scale_data=new_sd,
+            scaled_features=new_scaled,
             feature_names=new_features,
             cell_names=new_cells,
             assay_orig=self.assay_orig,

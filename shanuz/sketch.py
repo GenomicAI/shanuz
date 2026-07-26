@@ -62,7 +62,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from .dimreduc import DimReduc
-from .reduction import _default_features, _get_scaled_data
+from .reduction import _default_features, _get_scaled_data, _layer_feature_names
 
 
 # ----------------------------------------------------------------------
@@ -351,31 +351,25 @@ _EXACT_NDIMS = 50
 def _leverage_matrix(assay_obj, features: list[str], layer: str):
     """The ``(features × cells)`` matrix to score, sparse if the layer is sparse."""
     from .assay5 import Assay5
+    from .reduction import _select_features
 
+    # Which names label the layer's rows is `_layer_feature_names`'s business —
+    # only `scale.data` holds a subset, and this function used to carry its own
+    # copy of that rule. The filtering and the dropped-feature warning come from
+    # `_select_features` for the same reason: two implementations of one rule
+    # drift, and the drift is silent by construction.
     if isinstance(assay_obj, Assay5) and layer in assay_obj.layers:
         mat = assay_obj.layers[layer]
-        # Only scale.data is stored against a feature subset; every other layer is
-        # indexed by the assay's full feature list. Mixing the two silently reads
-        # the wrong rows.
-        stored = assay_obj._all_feature_names
-        if layer == "scale.data":
-            stored = getattr(assay_obj, "_scaled_features", None) or stored
-        pos = {f: i for i, f in enumerate(stored)}
-        idx = [pos[f] for f in features if f in pos]
+        stored = _layer_feature_names(assay_obj, layer)
     elif not isinstance(assay_obj, Assay5) and layer in ("data", "counts"):
         mat = assay_obj.data if layer == "data" else assay_obj.counts
-        pos = {f: i for i, f in enumerate(assay_obj._feature_names)}
-        idx = [pos[f] for f in features if f in pos]
+        stored = list(assay_obj._feature_names)
     else:
         # Anything else (notably "scale.data") goes through the shared accessor,
         # which handles the fallbacks and returns dense.
         return np.asarray(_get_scaled_data(assay_obj, features, layer), dtype=float)
 
-    if not idx:
-        raise ValueError(
-            f"None of the {len(features)} requested features are present in layer "
-            f"{layer!r}; nothing to score."
-        )
+    idx, _ = _select_features(stored, features, layer, action="score")
     if sp.issparse(mat):
         return sp.csr_matrix(mat)[idx, :].astype(float)
     return np.asarray(mat, dtype=float)[idx, :]

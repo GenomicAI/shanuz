@@ -50,7 +50,7 @@ class JackStrawData:
 def _scaled_matrix_for_reduction(seurat, dr, layer: str):
     """Return (features_used × cells) scaled matrix in the reduction's feature
     order, plus the feature-name list. Falls back to the assay's scale.data."""
-    from .reduction import _get_scaled_data
+    from .reduction import _prep_dr
 
     assay_obj = seurat.assays[dr.assay_used or seurat.active_assay]
     features = list(dr.features())
@@ -61,7 +61,10 @@ def _scaled_matrix_for_reduction(seurat, dr, layer: str):
             assay_obj.variable_features if isinstance(assay_obj, Assay5)
             else assay_obj.var_features
         ) or assay_obj.features()
-    mat = _get_scaled_data(assay_obj, features, layer)
+    # Take back the list `_prep_dr` actually filled: returning the *requested*
+    # names against a shorter matrix hands every per-feature p-value below the
+    # first dropped gene to the wrong gene.
+    mat, features = _prep_dr(assay_obj, features, layer)
     # Own the buffer: jack_straw scrambles rows in place while building the null,
     # and must never disturb the layer it read them from.
     return np.array(mat, dtype=float, copy=True), features
