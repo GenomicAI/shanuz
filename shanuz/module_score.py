@@ -41,11 +41,32 @@ def _assay_data(seurat, assay: Optional[str], layer: str = "data"):
         return (data if not is_matrix_empty(data) else assay_obj.counts), feats
 
 
-def _row(mat, idx) -> np.ndarray:
-    row = mat[idx, :]
-    if sp.issparse(row):
-        return np.asarray(row.todense()).flatten()
-    return np.asarray(row).flatten()
+def _mean_over_rows(mat, rows: list[int]) -> np.ndarray:
+    """Per-cell mean over ``rows`` — one row selection, not one per row.
+
+    This used to pull each gene out on its own (``mat[i, :]`` in a list
+    comprehension) and hand the stack to ``np.mean``. Every assay layer here is
+    **CSC**, and slicing a single row out of a column-major matrix walks all of
+    it: on the THP-1 ECCITE data (18,381 × 20,729, 69.5M nonzeros) that was
+    ~22 ms per gene, and a default ``ctrl=100`` draws a couple of thousand
+    control genes. 50 of 51 profiled seconds were inside
+    ``scipy.sparse._sparsetools.get_csr_submatrix``, called once per gene.
+
+    Selecting the rows in one go and transposing to CSR first costs 0.12 s for
+    the same 2,268 genes — **410× faster** — and is **bit-identical**, which is
+    the reason for this exact spelling. Two other formulations are faster still
+    and are not: an indicator-vector matvec (``ind @ mat``) differs by 7.5e-16
+    and summing the CSC slice directly by 2.5e-15, because each accumulates the
+    columns in a different order. Summing a *CSR* selection walks the rows in
+    the order they were asked for, which is what the old loop did.
+    """
+    sub = mat[rows, :]
+    if sp.issparse(sub):
+        # sum(axis=0)/k rather than mean(axis=0): scipy's mean divides
+        # elementwise on the way through and lands a few ulps away.
+        return np.asarray(sub.tocsr().sum(axis=0)).ravel() / len(rows)
+    # np.mean over a list of rows *is* this, once the list is stacked.
+    return np.asarray(sub).mean(axis=0)
 
 
 def _alnum(s: str) -> str:
@@ -154,7 +175,13 @@ def add_module_score(
             continue
 
         # Control gene set: per program-gene, sample `ctrl` from its bin.
-        ctrl_genes: set[str] = set()
+        # A dict, not a set: a mean depends on the order its terms are added,
+        # and Python randomises str hashing per process, so iterating a set of
+        # gene names gave a control score that differed in its last bits from
+        # one run to the next. First-seen order is also R's — `AddModuleScore`
+        # applies `unique()` to the sampled names and indexes the matrix with
+        # the result.
+        ctrl_genes: dict[str, None] = {}
         for g in used:
             b = gene_to_bin.get(g)
             if b is None:
@@ -164,11 +191,11 @@ def add_module_score(
                 continue
             size = min(ctrl, len(candidates))
             picked = rng.choice(candidates, size=size, replace=False)
-            ctrl_genes.update(picked.tolist())
+            ctrl_genes.update(dict.fromkeys(picked.tolist()))
 
-        feat_scores = np.mean([_row(mat, feat_idx[g]) for g in used], axis=0)
+        feat_scores = _mean_over_rows(mat, [feat_idx[g] for g in used])
         if ctrl_genes:
-            ctrl_scores = np.mean([_row(mat, feat_idx[g]) for g in ctrl_genes], axis=0)
+            ctrl_scores = _mean_over_rows(mat, [feat_idx[g] for g in ctrl_genes])
         else:
             ctrl_scores = np.zeros(n_cells)
         seurat.meta_data[label] = feat_scores - ctrl_scores
