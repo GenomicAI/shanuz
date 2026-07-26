@@ -606,13 +606,15 @@ def find_conserved_markers(
     *every* level, and combines their per-level p-values with Fisher's method
     (:func:`scipy.stats.combine_pvalues`).
 
+    Every argument not listed below is forwarded verbatim to
+    :func:`find_markers`.
+
     Parameters
     ----------
     ident_1      : cluster label(s) for group 1.
     grouping_var : metadata column whose levels define the independent
                    comparisons (e.g. condition, batch, donor).
     ident_2      : cluster label(s) for group 2 (None = all other cells).
-    (remaining args are forwarded to :func:`find_markers`.)
 
     Returns
     -------

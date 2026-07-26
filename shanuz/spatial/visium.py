@@ -145,9 +145,9 @@ class VisiumV2(FOV):
 
     Slots
     -----
-    image            : (H, W[, C]) array, or None
-    scale_factors    : ScaleFactors, or None
-    image_resolution : 'hires' | 'lowres' — which image is stored
+    - ``image`` (np.ndarray) — (H, W[, C]), or None
+    - ``scale_factors`` (ScaleFactors) — or None
+    - ``image_resolution`` (str) — ``'hires'`` or ``'lowres'``, which image is stored
     """
 
     __slots__ = ("image", "scale_factors", "image_resolution")

@@ -61,20 +61,20 @@ class IntegrationAnchors:
 
     Slots
     -----
-    anchors         : DataFrame with columns ``dataset1, cell1, dataset2,
-                      cell2, score``. ``dataset1`` is always the reference; the
-                      cell columns hold *within-dataset* 0-based row indices.
-    objects         : the list of Shanuz objects passed to
-                      :func:`find_integration_anchors` (order preserved).
-    reference       : index into ``objects`` of the reference dataset.
-    reduction       : ``"cca"`` or ``"rpca"`` — how the shared space was built.
-    anchor_features : the features the anchors (and correction) run on.
-    dims            : number of shared dimensions used.
-    weight_embeddings : ``{query_index: (n_query_cells × dims) array}`` — each
-                      query dataset's cells in the shared anchor space. Kept for
-                      inspection; :func:`integrate_data` does *not* weight with
-                      it, because Seurat weights in a fresh PCA of the merged
-                      pair instead.
+    - ``anchors`` — DataFrame with columns ``dataset1, cell1, dataset2,
+      cell2, score``. ``dataset1`` is always the reference; the
+      cell columns hold *within-dataset* 0-based row indices.
+    - ``objects`` — the list of Shanuz objects passed to
+      :func:`find_integration_anchors` (order preserved).
+    - ``reference`` — index into ``objects`` of the reference dataset.
+    - ``reduction`` — ``"cca"`` or ``"rpca"`` — how the shared space was built.
+    - ``anchor_features`` — the features the anchors (and correction) run on.
+    - ``dims`` — number of shared dimensions used.
+    - ``weight_embeddings`` — ``{query_index: (n_query_cells × dims) array}`` — each
+      query dataset's cells in the shared anchor space. Kept for
+      inspection; :func:`integrate_data` does *not* weight with
+      it, because Seurat weights in a fresh PCA of the merged
+      pair instead.
     """
 
     __slots__ = (

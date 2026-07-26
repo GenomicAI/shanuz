@@ -3,6 +3,11 @@
 [![PyPI](https://img.shields.io/pypi/v/shanuz.svg)](https://pypi.org/project/shanuz/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docs](https://img.shields.io/badge/docs-genomicai.github.io%2Fshanuz-17423a.svg)](https://genomicai.github.io/shanuz/)
+
+📖 **[Documentation](https://genomicai.github.io/shanuz/)** — API reference, all
+eighteen tutorials, and [how the port is checked against R
+Seurat](https://genomicai.github.io/shanuz/fidelity/).
 
 **Shanuz** is a Python port of the [Seurat](https://satijalab.org/seurat/) single-cell RNA-seq
 analysis framework, implementing Seurat's core data structures, preprocessing pipeline,

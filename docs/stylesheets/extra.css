@@ -1,0 +1,96 @@
+/*
+ * A palette of its own rather than one of Material's named ones.
+ *
+ * This site is mostly two things: dense tables of numbers, and prose arguing
+ * about whether two numbers agree. So the chrome stays quiet — a deep pine that
+ * reads as ink rather than as a brand — and the one saturated colour, a burnt
+ * amber, is spent on links and on the things a reader is meant to act on.
+ */
+
+:root {
+  --md-primary-fg-color:        #17423a;
+  --md-primary-fg-color--light: #2c6157;
+  --md-primary-fg-color--dark:  #0e2b26;
+  --md-primary-bg-color:        #f3f6f4;
+  --md-primary-bg-color--light: #f3f6f4bf;
+
+  --md-accent-fg-color:         #b2560d;
+  --md-accent-fg-color--transparent: #b2560d1a;
+
+  /* Neutrals biased a few degrees toward the primary, so greys read as chosen
+     rather than inherited. */
+  --md-default-fg-color:        #16211f;
+  --md-default-fg-color--light: #3f4b48;
+  --md-default-fg-color--lighter: #7c8784;
+  --md-default-bg-color:        #fcfdfc;
+  --md-code-bg-color:           #f0f3f1;
+  --md-typeset-a-color:         #a04e0b;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color:        #0e2b26;
+  --md-primary-fg-color--light: #2c6157;
+  --md-primary-fg-color--dark:  #081c19;
+  --md-primary-bg-color:        #e6ede9;
+
+  --md-accent-fg-color:         #eb9d5c;
+  --md-accent-fg-color--transparent: #eb9d5c1f;
+
+  --md-default-fg-color:        #dfe6e3;
+  --md-default-bg-color:        #131a19;
+  --md-code-bg-color:           #1c2523;
+  --md-typeset-a-color:         #e8a066;
+}
+
+/* Numbers in the comparison tables line up in columns; they should be read
+   column-wise, so give them figures of equal width. */
+.md-typeset table:not([class]) td,
+.md-typeset table:not([class]) th {
+  font-variant-numeric: tabular-nums;
+}
+
+.md-typeset table:not([class]) th {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/*
+ * The vignettes put R and Python side by side in a raw two-column <table>.
+ * Material renders each line of a code block as a block-level span inside a
+ * `display: grid` <code>; in a half-width table cell those spans clip their own
+ * text without ever reporting overflow, so no scrollbar appears and the line
+ * simply ends mid-word. Wrapping is the right answer rather than a scrollbar:
+ * the whole point of the layout is reading the two columns against each other,
+ * and a horizontal scroll in one of them defeats that.
+ */
+.md-typeset td .highlight pre > code,
+.md-typeset td .highlight pre > code > span {
+  white-space: pre-wrap;
+}
+
+.md-typeset td .highlight pre > code {
+  overflow-x: auto; /* backstop for a long line with nowhere to wrap */
+}
+
+/* Tutorial figures are wide plots on white; a hairline keeps them from
+   dissolving into the page in light mode and floating in dark mode. */
+.md-typeset img:not(.twemoji) {
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 2px;
+  background: #fff;
+}
+
+/* mkdocstrings signatures are the densest thing on the API pages. */
+.md-typeset .doc-signature > pre {
+  font-size: 0.72rem;
+}
+
+.md-typeset .doc-heading code {
+  background: transparent;
+  padding-left: 0;
+}
+
+/* The uppercase eyebrow above each API symbol group. */
+.md-typeset .doc-symbol {
+  letter-spacing: 0.04em;
+}

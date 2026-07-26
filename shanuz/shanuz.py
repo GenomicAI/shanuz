@@ -28,19 +28,19 @@ class Shanuz:
 
     Slots
     -----
-    assays        : dict[str, AnyAssay]
-    meta_data     : pd.DataFrame           cells × metadata columns
-    active_assay  : str
-    active_ident  : pd.Categorical
-    graphs        : dict[str, Graph]
-    neighbors     : dict[str, Neighbor]
-    reductions    : dict[str, DimReduc]
-    images        : dict[str, FOV]
-    project_name  : str
-    misc          : dict
-    version       : packaging.version.Version
-    commands      : list[ShanuzCommand]
-    tools         : dict
+    - ``assays`` (dict[str, AnyAssay])
+    - ``meta_data`` (pd.DataFrame) — cells × metadata columns
+    - ``active_assay`` (str)
+    - ``active_ident`` (pd.Categorical)
+    - ``graphs`` (dict[str, Graph])
+    - ``neighbors`` (dict[str, Neighbor])
+    - ``reductions`` (dict[str, DimReduc])
+    - ``images`` (dict[str, FOV])
+    - ``project_name`` (str)
+    - ``misc`` (dict)
+    - ``version`` (packaging.version.Version)
+    - ``commands`` (list[ShanuzCommand])
+    - ``tools`` (dict)
     """
 
     __slots__ = (

@@ -38,7 +38,7 @@ class Segmentation(SpatialImage):
 
     Slots
     -----
-    _coords : pd.DataFrame  columns: x, y, cell   (multiple rows per cell)
+    - ``_coords`` (pd.DataFrame) — columns: x, y, cell   (multiple rows per cell)
     """
 
     __slots__ = ("_coords", "assay", "misc", "_key")

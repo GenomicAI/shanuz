@@ -17,9 +17,9 @@ class SpatialImage(KeyMixin, ABC):
 
     Slots
     -----
-    assay : str            associated assay name
-    misc  : dict           miscellaneous storage
-    _key  : str            (from KeyMixin)
+    - ``assay`` (str) — associated assay name
+    - ``misc`` (dict) — miscellaneous storage
+    - ``_key`` (str) — inherited from KeyMixin
     """
 
     __slots__ = ("assay", "misc", "_key")

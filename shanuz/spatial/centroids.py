@@ -38,10 +38,10 @@ class Centroids(SpatialImage):
 
     Slots
     -----
-    _coords  : pd.DataFrame   columns: x, y, cell
-    nsides   : int            number of polygon sides (0 = circle)
-    radius_  : Optional[float] spot radius (for spot-based technologies)
-    theta_   : Optional[float] angle offset
+    - ``_coords`` (pd.DataFrame) — columns: x, y, cell
+    - ``nsides`` (int) — number of polygon sides (0 = circle)
+    - ``radius_`` (Optional[float]) — spot radius (for spot-based technologies)
+    - ``theta_`` (Optional[float]) — angle offset
     """
 
     __slots__ = ("_coords", "nsides", "radius_", "theta_", "assay", "misc", "_key")

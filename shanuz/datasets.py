@@ -113,9 +113,9 @@ def cbmc_citeseq(
 
     Returns
     -------
-    (rna_counts, rna_genes, adt_counts, adt_proteins, cell_names)
-      rna_counts : (genes x cells) csc_matrix
-      adt_counts : (proteins x cells) csc_matrix, same cell order as rna_counts
+    (rna_counts, rna_genes, adt_counts, adt_proteins, cell_names), where
+    ``rna_counts`` is a (genes x cells) ``csc_matrix`` and ``adt_counts`` is a
+    (proteins x cells) ``csc_matrix`` in the same cell order.
     """
     import pandas as pd
 
@@ -306,9 +306,9 @@ def pbmc_hashing(
 
     Returns
     -------
-    (rna_counts, rna_genes, hto_counts, hto_names, cell_names)
-      rna_counts : (genes x cells) csc_matrix, raw counts
-      hto_counts : (8 x cells) csc_matrix, same cell order as rna_counts
+    (rna_counts, rna_genes, hto_counts, hto_names, cell_names), where
+    ``rna_counts`` is a (genes x cells) ``csc_matrix`` of raw counts and
+    ``hto_counts`` is an (8 x cells) ``csc_matrix`` in the same cell order.
     """
     from .io import _make_unique
 
@@ -371,11 +371,12 @@ def thp1_eccite(
 
     Returns
     -------
-    (rna_counts, rna_genes, adt_counts, adt_names, meta, cell_names)
-      rna_counts : (genes x cells) csc_matrix, raw counts
-      adt_counts : (proteins x cells) csc_matrix, same cell order
-      meta       : pandas.DataFrame indexed by cell barcode (guide_ID, gene,
-                   NT, crispr, replicate, Phase, S.Score, G2M.Score, ...)
+    (rna_counts, rna_genes, adt_counts, adt_names, meta, cell_names), where
+    ``rna_counts`` is a (genes x cells) ``csc_matrix`` of raw counts,
+    ``adt_counts`` is a (proteins x cells) ``csc_matrix`` in the same cell
+    order, and ``meta`` is a ``pandas.DataFrame`` indexed by cell barcode
+    (``guide_ID``, ``gene``, ``NT``, ``crispr``, ``replicate``, ``Phase``,
+    ``S.Score``, ``G2M.Score``, ...).
     """
     import pandas as pd
 

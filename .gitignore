@@ -25,6 +25,9 @@ coverage.xml
 htmlcov/
 .tox/
 
+# Built documentation (mkdocs.yml's site_dir); GitHub Pages builds its own
+site/
+
 # IDE
 .vscode/
 .idea/

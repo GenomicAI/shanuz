@@ -460,7 +460,9 @@ def sctransform(
     bw_adjust   : multiplier on the Sheather-Jones smoothing bandwidth (R's 3).
     set_default : make the new assay the active assay.
 
-    Returns ``seurat`` with the new assay added.
+    Returns
+    -------
+    ``seurat``, with the new assay added.
     """
     if vst_flavor not in ("v1", "v2"):
         raise ValueError(f"vst_flavor must be 'v1' or 'v2', got {vst_flavor!r}")

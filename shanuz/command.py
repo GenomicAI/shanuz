@@ -12,11 +12,11 @@ class ShanuzCommand:
 
     Slots
     -----
-    name        : str        function/method name
-    time_stamp  : datetime   when the command ran
-    assay_used  : Optional[str]
-    call_string : str        human-readable call representation
-    params      : dict       non-function parameters passed to the command
+    - ``name`` (str) — function/method name
+    - ``time_stamp`` (datetime) — when the command ran
+    - ``assay_used`` (Optional[str])
+    - ``call_string`` (str) — human-readable call representation
+    - ``params`` (dict) — non-function parameters passed to the command
     """
 
     __slots__ = ("name", "time_stamp", "assay_used", "call_string", "params", "key")

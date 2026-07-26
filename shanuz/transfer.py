@@ -69,18 +69,18 @@ class TransferAnchors:
 
     Slots
     -----
-    anchors          : DataFrame with columns ``cell1, cell2, score``.
-                       ``cell1`` is a *within-reference* 0-based cell index,
-                       ``cell2`` a *within-query* one; the reference is never
-                       moved.
-    reference        : the reference Shanuz object (annotated atlas).
-    query            : the query Shanuz object (to be annotated).
-    reduction        : ``"pcaproject"`` or ``"cca"`` — how the shared space was
-                       built.
-    anchor_features  : the features the anchors run on.
-    dims             : number of shared dimensions used.
-    query_embedding  : ``(n_query_cells × dims)`` — the query cells in the shared
-                       space, used by :func:`transfer_data` to weight anchors.
+    - ``anchors`` — DataFrame with columns ``cell1, cell2, score``.
+      ``cell1`` is a *within-reference* 0-based cell index,
+      ``cell2`` a *within-query* one; the reference is never
+      moved.
+    - ``reference`` — the reference Shanuz object (annotated atlas).
+    - ``query`` — the query Shanuz object (to be annotated).
+    - ``reduction`` — ``"pcaproject"`` or ``"cca"`` — how the shared space was
+      built.
+    - ``anchor_features`` — the features the anchors run on.
+    - ``dims`` — number of shared dimensions used.
+    - ``query_embedding`` — ``(n_query_cells × dims)`` — the query cells in the shared
+      space, used by :func:`transfer_data` to weight anchors.
     """
 
     __slots__ = (
