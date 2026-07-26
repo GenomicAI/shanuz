@@ -22,19 +22,19 @@ class Assay(KeyMixin):
 
     Slots
     -----
-    counts        : raw counts / TPMs  (features × cells)
-    data          : normalised expression (features × cells)
-    scale_data    : scaled expression  (features × cells, dense) — a *subset*
-                    of the features, since ScaleData defaults to the variable
-                    ones. R's slot is a matrix and carries its own rownames;
-                    a bare ndarray does not, so the labels live alongside it in
-                    `_scaled_features` and every read of the layer goes through
-                    `features("scale_data")`.
-    assay_orig    : name of original assay this was derived from
-    var_features  : list of highly variable feature names
-    meta_features : per-feature metadata DataFrame (features × cols)
-    misc          : dict for miscellaneous storage
-    _key          : string key prefix (inherited from KeyMixin)
+    - ``counts`` — raw counts / TPMs  (features × cells)
+    - ``data`` — normalised expression (features × cells)
+    - ``scale_data`` — scaled expression  (features × cells, dense) — a *subset*
+      of the features, since ScaleData defaults to the variable
+      ones. R's slot is a matrix and carries its own rownames;
+      a bare ndarray does not, so the labels live alongside it in
+      `_scaled_features` and every read of the layer goes through
+      `features("scale_data")`.
+    - ``assay_orig`` — name of original assay this was derived from
+    - ``var_features`` — list of highly variable feature names
+    - ``meta_features`` — per-feature metadata DataFrame (features × cols)
+    - ``misc`` (dict) — for miscellaneous storage
+    - ``_key`` (str) — ing key prefix (inherited from KeyMixin)
     """
 
     __slots__ = (

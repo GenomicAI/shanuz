@@ -862,10 +862,15 @@ regime. Don't "simplify" them.
   inside function bodies; `graph.py`/`neighbor.py` annotating each other's
   classes to dodge a circular import). Runtime is unaffected — string annotations
   are never evaluated, which is why 444 tests pass — but `typing.get_type_hints()`
-  raises `NameError` on them, which **blocks the documentation site below**, since
-  mkdocstrings resolves annotations. Fix with `if TYPE_CHECKING:` imports; keep
-  the lazy runtime imports exactly as they are (they keep matplotlib optional and
-  the import graph acyclic).
+  raises `NameError` on them. Fixed with `if TYPE_CHECKING:` imports, keeping the
+  lazy runtime imports exactly as they are (they keep matplotlib optional and the
+  import graph acyclic).
+  **This was recorded as blocking the documentation site, and it was not.**
+  `get_type_hints()` still raises on all 19 of them, because a `TYPE_CHECKING`
+  import does not execute — that is its purpose. mkdocstrings never calls it:
+  griffe reads annotations statically, without importing the module, so the
+  signatures render and cross-link precisely *because* those imports are there.
+  The site was built on top of exactly this state; see below.
 - Add `from __future__ import annotations` to all modules (already done on some)
 - Annotate all public function signatures (`mypy --strict` clean)
 
@@ -1268,21 +1273,38 @@ regime. Don't "simplify" them.
   it distribution-against-distribution over matched seeds — single-run pairs were
   actively misleading on T-sk's sketch composition.
 
-### Documentation site
-- **Do the type annotations first.** mkdocstrings resolves annotations, and
-  `typing.get_type_hints()` currently raises `NameError` on the plotting and
-  `graph`/`neighbor` signatures — the site would hit that on day one.
-- **Tool:** MkDocs + mkdocstrings (Material theme)
-- **Structure:**
-  ```
-  docs/
-    index.md          # Overview
-    installation.md
-    api/              # Auto-generated from docstrings
-    tutorials/        # Symlinks to tutorials/*.md
-    changelog.md
-  ```
-- **Deploy:** GitHub Actions → GitHub Pages on every push to `main`
+### Documentation site — ✅ delivered
+- **Tool:** MkDocs + Material + mkdocstrings, config in
+  [`mkdocs.yml`](https://github.com/GenomicAI/shanuz/blob/main/mkdocs.yml), pages in `docs/`.
+- **Structure:** as planned, except that `docs/tutorials` is a symlink to the
+  whole `tutorials/` directory rather than one symlink per vignette — the
+  vignettes reference their figures by relative path, so the figures have to
+  come with them. `docs/CHANGELOG.md` and `docs/ROADMAP.md` are symlinks under
+  their repo names, which keeps the relative links *inside* those two files
+  working unchanged.
+- **Deploy:** [`.github/workflows/docs.yml`](https://github.com/GenomicAI/shanuz/blob/main/.github/workflows/docs.yml) —
+  `mkdocs build --strict` on every pull request, deploy to GitHub Pages on push
+  to `main`. **Needs Pages set to "GitHub Actions" as its source** in the repo
+  settings; until then the build runs and the deploy step is the only part that
+  fails.
+- **The blocker this item led with was wrong, and worth recording as wrong.**
+  It said mkdocstrings resolves annotations and that `typing.get_type_hints()`
+  raising `NameError` on the plotting and `graph`/`neighbor` signatures would
+  stop the site on day one. `get_type_hints()` still raises, on 19 callables.
+  mkdocstrings never calls it — griffe reads annotations statically, without
+  importing the module — so those signatures render and cross-link *because*
+  the `if TYPE_CHECKING:` imports are there. Clearing mypy (#69, #70) was worth
+  doing on its own merits; it was not a prerequisite for this.
+- **What the site found.** Three `Returns` sections parsed as parameters, all
+  370 documented parameters putting their description in the type slot, 129
+  Sphinx roles rendering as literal text, fifteen `Slots` blocks collapsing into
+  one line, and two dead heading anchors. Details in
+  [`CHANGELOG.md`](CHANGELOG.md); the parameter and role fixes live in
+  [`tools/griffe_sphinx_roles.py`](https://github.com/GenomicAI/shanuz/blob/main/tools/griffe_sphinx_roles.py) as a build-time
+  translation rather than as source churn.
+- **Guarded by** [`tests/test_docs.py`](https://github.com/GenomicAI/shanuz/blob/main/tests/test_docs.py): every public export
+  reaches an API page, every `:::` directive resolves, no symbol is documented
+  twice, every nav entry and figure exists, and the site builds under `--strict`.
 
 ### Changelog — ✅ delivered
 - **File:** [`CHANGELOG.md`](CHANGELOG.md) at repo root, in

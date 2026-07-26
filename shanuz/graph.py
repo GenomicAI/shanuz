@@ -23,9 +23,9 @@ class Graph:
 
     Slots
     -----
-    _matrix    : scipy.sparse.csc_matrix   underlying adjacency matrix
-    assay_used : Optional[str]             assay that generated this graph
-    _cell_names: list[str]                 row/col names (cells)
+    - ``_matrix`` (scipy.sparse.csc_matrix) — underlying adjacency matrix
+    - ``assay_used`` (Optional[str]) — assay that generated this graph
+    - ``_cell_names`` (list[str]) — row/col names (cells)
     """
 
     __slots__ = ("_matrix", "assay_used", "_cell_names")

@@ -60,7 +60,16 @@ dev = [
     "build",
     "twine",
 ]
-all = ["shanuz[analysis,anndata,integration,deseq2,dev]"]
+# The documentation site. In `all` on purpose: tests/test_docs.py builds the
+# site with --strict, which is the only check that catches a broken
+# cross-reference or a stale heading anchor, and it can only run if the
+# toolchain is present in the same environment CI tests in.
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
+all = ["shanuz[analysis,anndata,integration,deseq2,dev,docs]"]
 
 [project.urls]
 Homepage = "https://github.com/GenomicAI/shanuz"

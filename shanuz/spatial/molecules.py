@@ -15,8 +15,8 @@ class Molecules(SpatialImage):
 
     Slots
     -----
-    _coords : pd.DataFrame  columns: x, y, gene, [cell]
-                             'cell' is optional (not all FISH protocols assign cells)
+    - ``_coords`` (pd.DataFrame) — columns: x, y, gene, [cell]
+      'cell' is optional (not all FISH protocols assign cells)
     """
 
     __slots__ = ("_coords", "assay", "misc", "_key")

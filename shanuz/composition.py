@@ -52,9 +52,11 @@ def composition_test(
     reference : which ``split_by`` level is the denominator (default: the first
                 sorted level). log2 > 0 ⇒ enriched in the *other* level.
 
-    Returns a DataFrame ordered by ``log2_ratio`` with columns:
-    ``group, n_<ref>, n_<test>, prop_<ref>, prop_<test>, log2_ratio,
-    odds_ratio, p, padj, sig, enriched_in``.
+    Returns
+    -------
+    A DataFrame ordered by ``log2_ratio``, with the columns ``group``,
+    ``n_<ref>``, ``n_<test>``, ``prop_<ref>``, ``prop_<test>``, ``log2_ratio``,
+    ``odds_ratio``, ``p``, ``padj``, ``sig`` and ``enriched_in``.
     """
     md = seurat.meta_data
     for col in (group_by, split_by):

@@ -21,9 +21,9 @@ class FOV(SpatialImage):
 
     Slots
     -----
-    molecules             : dict[str, Molecules]
-    boundaries            : dict[str, BoundaryType]
-    coords_x_orientation  : str   which axis x maps to in visualisation
+    - ``molecules`` (dict[str, Molecules])
+    - ``boundaries`` (dict[str, BoundaryType])
+    - ``coords_x_orientation`` (str) — which axis x maps to in visualisation
     """
 
     __slots__ = (

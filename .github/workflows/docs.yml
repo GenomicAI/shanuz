@@ -1,0 +1,59 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One deployment at a time, and never cancel one halfway: a cancelled Pages
+# deploy can leave the site serving a partial build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Create venv and install
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[docs]"
+
+      # --strict, deliberately. Every warning mkdocs can raise on this site is a
+      # real defect: a nav entry with no file, a link to a heading that was
+      # renamed, a `:::` directive naming a function that no longer exists, or a
+      # docstring section a NumPy parser cannot read. Letting those through
+      # would publish a site that looks fine and is quietly wrong, which is the
+      # failure mode this whole repo is built to avoid.
+      - name: Build
+        run: uv run mkdocs build --strict
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # Only from main. A pull request gets the build above — which is the part
+    # that catches breakage — without publishing anything.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

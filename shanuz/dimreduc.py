@@ -16,15 +16,15 @@ class DimReduc(KeyMixin):
 
     Slots
     -----
-    cell_embeddings              : np.ndarray  (n_cells × n_dims)   required
-    feature_loadings             : np.ndarray  (n_features × n_dims) optional
-    feature_loadings_projected   : np.ndarray  projected loadings    optional
-    assay_used                   : str         source assay name
-    global_                      : bool        if True, persists when assay is removed
-    stdev                        : np.ndarray  per-dimension std devs
-    jackstraw                    : JackStrawData
-    misc                         : dict
-    _key                         : str         prefix, e.g. "PC_"
+    - ``cell_embeddings`` (np.ndarray) — (n_cells × n_dims), required
+    - ``feature_loadings`` (np.ndarray) — (n_features × n_dims), optional
+    - ``feature_loadings_projected`` (np.ndarray) — projected loadings, optional
+    - ``assay_used`` (str) — source assay name
+    - ``global_`` (bool) — if True, persists when assay is removed
+    - ``stdev`` (np.ndarray) — per-dimension std devs
+    - ``jackstraw`` (JackStrawData)
+    - ``misc`` (dict)
+    - ``_key`` (str) — prefix, e.g. "PC_"
     """
 
     __slots__ = (

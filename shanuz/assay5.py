@@ -30,14 +30,14 @@ class StdAssay(KeyMixin, ABC):
 
     Slots
     -----
-    layers      : dict[str, AnyMatrix]   named expression matrices (features × cells)
-    cells       : LogMap                 per-layer boolean cell membership
-    features    : LogMap                 per-layer boolean feature membership
-    default     : int                    index of the default layer
-    assay_orig  : Optional[str]
-    meta_data   : pd.DataFrame           per-feature metadata
-    misc        : dict
-    _key        : str                    (from KeyMixin)
+    - ``layers`` (dict[str, AnyMatrix]) — named expression matrices (features × cells)
+    - ``cells`` (LogMap) — per-layer boolean cell membership
+    - ``features`` (LogMap) — per-layer boolean feature membership
+    - ``default`` (int) — index of the default layer
+    - ``assay_orig`` (Optional[str])
+    - ``meta_data`` (pd.DataFrame) — per-feature metadata
+    - ``misc`` (dict)
+    - ``_key`` (str) — inherited from KeyMixin
     """
 
     __slots__ = (

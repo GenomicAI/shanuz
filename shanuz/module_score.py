@@ -132,7 +132,9 @@ def add_module_score(
     search   : if True, resolve program genes not found verbatim by a
                case/punctuation-insensitive match (local ``UpdateSymbolList``).
 
-    Stores one metadata column per program and returns ``seurat``.
+    Returns
+    -------
+    ``seurat``, with one metadata column added per program.
     """
     rng = np.random.default_rng(seed)
 

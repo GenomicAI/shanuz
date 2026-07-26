@@ -18,11 +18,11 @@ class Neighbor:
 
     Slots
     -----
-    nn_idx       : int matrix  (n_cells × k), neighbor indices (1-based in R; 0-based here)
-    nn_dist      : float matrix (n_cells × k), corresponding distances
-    alg_idx      : Any         algorithm index object (e.g. annoy index)
-    alg_info     : dict        metadata about the algorithm used
-    cell_names   : list[str]   cell barcodes, length n_cells
+    - ``nn_idx`` (int matrix) — (n_cells × k), neighbor indices (1-based in R; 0-based here)
+    - ``nn_dist`` (float matrix) — (n_cells × k), corresponding distances
+    - ``alg_idx`` (Any) — algorithm index object (e.g. annoy index)
+    - ``alg_info`` (dict) — metadata about the algorithm used
+    - ``cell_names`` (list[str]) — cell barcodes, length n_cells
     """
 
     __slots__ = ("nn_idx", "nn_dist", "alg_idx", "alg_info", "cell_names")

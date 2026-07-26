@@ -1,0 +1,29 @@
+# Differential expression
+
+`find_markers` implements all eight of Seurat's tests: `wilcox` (tie-corrected),
+`t`, `bimod`, `LR`, `negbinom`, `roc`, `mast` and `deseq2`. Seven of them are
+per-cell and reproduce Seurat's top 50 genes exactly on PBMC 3k; `deseq2` is
+pseudobulk and deliberately does not, because it is answering a different
+question — see [the DE vignette](../tutorials/de_vignette.md).
+
+Two numbers to know before reading a result table:
+
+- **`avg_log2FC` carries Seurat's pseudocount on the group *sum*, not the group
+  mean.** Getting that backwards shifts every fold change and also changes which
+  genes clear `logfc_threshold`, so it silently changes the returned gene set,
+  not just a column.
+- **`pct.1` and `pct.2` are rounded to three decimals**, by Seurat, inside
+  `FindMarkers`. Anything comparing two runs gene-by-gene should not expect them
+  closer than 5e-4.
+
+## Per-cluster and per-pair tests
+
+::: shanuz.markers.find_markers
+
+::: shanuz.markers.find_all_markers
+
+::: shanuz.markers.find_conserved_markers
+
+## Pseudobulk
+
+::: shanuz.aggregate.aggregate_expression

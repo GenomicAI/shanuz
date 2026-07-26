@@ -1,0 +1,216 @@
+site_name: shanuz
+site_description: A Python port of Seurat's single-cell pipeline, verified against R Seurat test by test
+site_url: https://genomicai.github.io/shanuz/
+repo_url: https://github.com/GenomicAI/shanuz
+repo_name: GenomicAI/shanuz
+edit_uri: edit/main/docs/
+copyright: MIT-licensed. Seurat is a trademark of its own authors; shanuz is an independent port.
+
+# The vignettes and their figures live in `tutorials/`, next to the scripts that
+# produce them, and `docs/tutorials` is a symlink there. That keeps one copy of
+# each vignette — the one a reader of the repo finds — instead of a docs copy
+# that drifts from it. It is also why the exclusions below exist: the symlink
+# brings the whole tutorial working directory with it, intermediates included.
+docs_dir: docs
+site_dir: site
+
+# `mkdocs serve` watches docs_dir and the config; the API pages are generated
+# from the package, so it has to be told about the source too — otherwise a
+# docstring edit shows no change until the server is restarted.
+watch:
+  - shanuz
+  - tools
+
+exclude_docs: |
+  # Regenerable handoff data between the Python and R sides of each tutorial —
+  # megabytes of CSV that nothing on the site links to. The `.py` and `.R`
+  # sources are deliberately *not* excluded: several vignettes link to them,
+  # and a reader following "the script that produced this" should land on it.
+  tutorials/figures*/*.csv
+  tutorials/figures*/*.json
+  tutorials/figures*/*.txt
+  tutorials/figures*/*.npy
+  tutorials/figures*/*_store*/
+  tutorials/figures*/*.lazy/
+  tutorials/**/__pycache__/
+
+not_in_nav: |
+  tutorials/*.py
+  tutorials/*.R
+
+validation:
+  # A nav entry pointing at a file that no longer exists, or a heading link that
+  # no longer resolves, is exactly the kind of rot this site is meant not to
+  # have. Both are errors, and CI builds with --strict.
+  nav:
+    omitted_files: info
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: info
+    unrecognized_links: info
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Follow system
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+      # GitHub's heading slugs, not python-markdown's. The vignettes are read on
+      # GitHub as well as here and link to each other's headings, and the two
+      # sluggers disagree wherever a heading contains an em dash or a middle dot
+      # — `## Step 12 · UMAP` is `step-12--umap` there and `step-12-umap` here.
+      # Matching GitHub keeps one set of links correct in both places; the
+      # alternative was rewriting anchors in the vignettes and breaking them on
+      # the repo page instead.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify {kwds: {case: lower}}
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tilde
+  - pymdownx.caret
+  - pymdownx.smartsymbols
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["."]
+          options:
+            extensions:
+              # The docstrings use Sphinx roles. Translated to autorefs links
+              # here rather than rewritten across 129 source sites.
+              - tools/griffe_sphinx_roles.py:SphinxRolesExtension
+            # The package documents itself in NumPy style — 54 `Parameters
+            # ----------` blocks and no Google-style `Args:` anywhere.
+            docstring_style: numpy
+            # `table` squeezes annotations like `Optional[Union[list[int],
+            # range]]` into a narrow Type column where they wrap mid-bracket.
+            # The separate signature above already carries every annotation, so
+            # the parameter list only has to carry prose.
+            docstring_section_style: list
+            # Signatures rendered separately, with annotations, and every type
+            # linked where it resolves. `matplotlib.figure.Figure`,
+            # `Neighbor` and `Shanuz` are all annotation-only imports guarded by
+            # `if TYPE_CHECKING:`; griffe reads them statically, so they render
+            # here even though `typing.get_type_hints()` cannot resolve them at
+            # runtime. See docs/fidelity.md.
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            line_length: 88
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            heading_level: 2
+            filters: ["!^_"]
+            merge_init_into_class: true
+            inherited_members: false
+            annotations_path: brief
+
+nav:
+  - Home:
+      - index.md
+      - installation.md
+      - quickstart.md
+      - fidelity.md
+  - Tutorials:
+      - tutorials/README.md
+      - Foundations:
+          - tutorials/pbmc3k_tutorial.md
+          - tutorials/advanced_pbmc8k_subclustering.md
+          - tutorials/objects_vignette.md
+      - Normalization and DE:
+          - tutorials/sctransform_vignette.md
+          - tutorials/de_vignette.md
+          - tutorials/dimreduc_vignette.md
+          - tutorials/cellcycle_vignette.md
+      - Integration and mapping:
+          - tutorials/integration_vignette.md
+          - tutorials/anchors_vignette.md
+          - tutorials/refmap_vignette.md
+      - Multimodal and screens:
+          - tutorials/multimodal_citeseq.md
+          - tutorials/hashing_vignette.md
+          - tutorials/mixscape_vignette.md
+      - Spatial:
+          - tutorials/xenium_spatial_tutorial.md
+          - tutorials/svf_vignette.md
+          - tutorials/visium_vignette.md
+      - Scale:
+          - tutorials/sketch_vignette.md
+          - tutorials/lazy_vignette.md
+  - API reference:
+      - api/index.md
+      - api/objects.md
+      - api/preprocessing.md
+      - api/dimreduc.md
+      - api/clustering.md
+      - api/markers.md
+      - api/integration.md
+      - api/scoring.md
+      - api/demux.md
+      - api/spatial.md
+      - api/scale.md
+      - api/plotting.md
+      - api/generics.md
+      - api/io.md
+  - Project:
+      - CHANGELOG.md
+      - ROADMAP.md

@@ -23,6 +23,58 @@ on `main`; none of it is on PyPI.
 
 ### Added
 
+- **A documentation site.** MkDocs + Material + mkdocstrings, built from `main`
+  and published to GitHub Pages, at
+  [genomicai.github.io/shanuz](https://genomicai.github.io/shanuz/). The API
+  reference is generated from the docstrings — which is the point: eighteen
+  tutorials' worth of hard-won fidelity notes lived in them and rendered
+  nowhere. Alongside it, four hand-written pages (overview, installation, a
+  quickstart whose every line was executed to produce the output it shows, and
+  **Fidelity**, which collects how the port is checked against R, what the
+  checking has caught, and the differences that are real), plus all eighteen
+  vignettes and their figures. `docs/tutorials` is a symlink to `tutorials/`, so
+  there is one copy of each vignette rather than a docs copy that drifts.
+
+  **The blocker recorded for this item was not real.** `ROADMAP.md` said
+  mkdocstrings resolves annotations and that `typing.get_type_hints()` raising
+  `NameError` on the plotting and `graph`/`neighbor` signatures would stop the
+  site on day one. It still raises, on 19 callables — but mkdocstrings reads
+  annotations statically through griffe, without importing the module, so those
+  signatures render and cross-link *because* the `if TYPE_CHECKING:` imports are
+  there. Measured rather than assumed, and written up on the Fidelity page.
+
+  Building it surfaced defects the site was the first consumer to notice:
+
+  - **Three `Returns` sections were being parsed as parameters.** `sctransform`,
+    `add_module_score` and `composition_test` each ended their parameter list
+    with a bare `Returns ...` sentence at the same indentation, so a NumPy
+    parser read it as another parameter and the functions documented no return
+    value at all. `composition_test` also had its eleven output column names
+    parsed as eleven parameters.
+  - **Every one of the 370 documented parameters put its description in the
+    type slot.** The convention across the package is `name : what it does` —
+    prose, never a type, because the types are in the signatures. NumPy format
+    reads that slot as the type, so the site printed "min features a cell must
+    have to be kept" as `min_features`'s type and left its description empty.
+    Fixed in `tools/griffe_sphinx_roles.py`, a build-time translation, rather
+    than by rewriting 370 lines of source that are not wrong.
+  - **129 Sphinx cross-reference roles rendered as literal `:func:` text.** The
+    same extension turns them into real links, but **only** when the target is
+    one the site actually publishes; anything else degrades to a code span,
+    because `--strict` treats an unresolvable link as a failure.
+  - **Fifteen `Slots` blocks collapsed into one run-on line.** Markdown joins
+    consecutive lines, so an aligned column block became a paragraph. Rewritten
+    as bullet lists in the source, which reads better under `help()` too.
+  - **Two heading anchors in `xenium_spatial_tutorial.md` were dead** under
+    python-markdown's slugger while being correct on GitHub. Fixed by adopting
+    GitHub's slugger site-wide, so one set of links works in both places.
+
+  `tests/test_docs.py` asserts the parts that rot silently: every public export
+  appears on an API page, every `:::` directive names something that still
+  exists, no symbol is rendered twice, every nav entry and every vignette figure
+  resolves, and the whole site builds under `--strict`. All nine mutations of
+  those guards were killed.
+
 - **The two R-comparison numbers that were allowed to move are now asserted
   bands, and the reports refuse a stale R reference.** `deseq2`'s overlap with
   Seurat's top 50 and JackStraw's PC cutoff both differ from R for understood
