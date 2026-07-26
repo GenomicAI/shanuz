@@ -77,7 +77,7 @@ Two deliberate, documented choices differ from a literal reading of R:
 """
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -293,7 +293,10 @@ def run_mixscape(
     try:
         for gene in genes:
             gene_local = np.where(labels_vec == gene)[0]
-            info = {"n_cells": int(gene_local.size), "n_de": 0, "n_iter": 0, "n_ko": 0}
+            # Counts plus a "scores" DataFrame-or-None, so not dict[str, int].
+            info: dict[str, Any] = {
+                "n_cells": int(gene_local.size), "n_de": 0, "n_iter": 0, "n_ko": 0,
+            }
 
             if gene_local.size < min_cells:
                 _assign(mixscape_class, global_class, gene_local, gene, "NP", prtb_type)

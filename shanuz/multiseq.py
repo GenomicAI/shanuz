@@ -113,14 +113,13 @@ def multiseq_demux(
             f"MULTIseqDemux needs at least 2 barcodes; assay {assay!r} has {n_bc}."
         )
 
-    if qrange is None:
-        qrange = np.round(np.arange(0.1, 0.9 + 1e-9, 0.05), 4)
-    else:
-        qrange = np.asarray(qrange, dtype=float)
+    # A local array rather than rebinding the Sequence[float]|None parameter.
+    qs = (np.round(np.arange(0.1, 0.9 + 1e-9, 0.05), 4) if qrange is None
+          else np.asarray(qrange, dtype=float))
 
     if autothresh:
         calls, thresholds, q_used = _auto_classify(
-            data, feats, qrange, maxiter, verbose
+            data, feats, qs, maxiter, verbose
         )
     else:
         calls, thresholds = _classify_cells(data, feats, quantile)

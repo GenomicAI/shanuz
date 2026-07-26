@@ -163,6 +163,19 @@ def test_autothresh_recovers_singlets():
     assert (call[singlet] == truth[singlet]).mean() >= 0.9
 
 
+def test_autothresh_sweeps_only_the_given_qrange():
+    # `qrange` had no coverage at all — the sweep quietly used its own default
+    # whatever you passed. The chosen quantile is reported in misc, so a
+    # deliberately off-default single-element range makes the wiring visible.
+    obj, _ = _hashing_object()
+    multiseq_demux(obj, autothresh=True, qrange=[0.42])
+    assert obj.misc["multiseq_demux"]["HTO"]["quantile"] == pytest.approx(0.42)
+
+    obj_two, _ = _hashing_object()
+    multiseq_demux(obj_two, autothresh=True, qrange=[0.11, 0.13])
+    assert obj_two.misc["multiseq_demux"]["HTO"]["quantile"] in (0.11, 0.13)
+
+
 def test_normalize_false_uses_data_layer():
     obj, truth = _hashing_object()
     normalize_data(obj, normalization_method="CLR", margin=1, assay="HTO")

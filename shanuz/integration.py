@@ -175,7 +175,7 @@ def integrate_layers(
 
 def _integrate_anchor_reduction(
     seurat,
-    group_by: str,
+    group_by: Union[str, list[str]],
     reduction: str,
     new_reduction: str,
     orig_reduction: str = "pca",
@@ -210,14 +210,18 @@ def _integrate_anchor_reduction(
     from .anchors import find_integration_anchors, integrate_embeddings
     from .preprocessing import scale_data
 
+    # `integrate_layers` accepts Harmony's list of covariates; the anchor path
+    # takes exactly one. A local, so `column` is a str from here down.
     if isinstance(group_by, (list, tuple)):
         if len(group_by) != 1:
             raise ValueError(
                 "CCA/RPCA integration supports a single group_by column."
             )
-        group_by = group_by[0]
-    if group_by not in seurat.meta_data.columns:
-        raise KeyError(f"group_by column {group_by!r} not found in meta_data.")
+        column = group_by[0]
+    else:
+        column = group_by
+    if column not in seurat.meta_data.columns:
+        raise KeyError(f"group_by column {column!r} not found in meta_data.")
 
     if orig_reduction not in seurat.reductions:
         raise KeyError(
@@ -232,14 +236,14 @@ def _integrate_anchor_reduction(
     # k.filter = NA. v4's default of 200 only applies to the object-list API.
     kwargs.setdefault("k_filter", None)
 
-    groups = list(pd.unique(seurat.meta_data[group_by]))
+    groups = list(pd.unique(seurat.meta_data[column]))
     if len(groups) < 2:
         raise ValueError(
-            f"group_by={group_by!r} has < 2 levels; nothing to integrate."
+            f"group_by={column!r} has < 2 levels; nothing to integrate."
         )
 
     all_cells = seurat.cell_names()
-    labels = seurat.meta_data[group_by]
+    labels = seurat.meta_data[column]
     objects = [
         seurat.subset(cells=[c for c in all_cells if labels.loc[c] == g])
         for g in groups

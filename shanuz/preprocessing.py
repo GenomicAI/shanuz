@@ -65,7 +65,10 @@ def _get_layer(assay_obj, layer: Optional[str]):
             for candidate in ("data", "counts"):
                 if candidate in assay_obj.layers:
                     return assay_obj.layers[candidate]
-            return assay_obj.layers[assay_obj.default_layer]
+            default = assay_obj.default_layer
+            if default is None:
+                raise ValueError("No layers available.")
+            return assay_obj.layers[default]
         return assay_obj.layers[layer]
     else:
         if layer == "counts":

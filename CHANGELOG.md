@@ -171,6 +171,27 @@ on `main`; none of it is on PyPI.
 
 ### Fixed
 
+- **Any plot with more than 36 groups raised `AttributeError` on matplotlib
+  3.9 or newer.** `_palette` fills the first 36 colours from a fixed list and
+  falls back to a colormap past that, and the fallback called
+  `plt.cm.get_cmap(name, lut)` — deprecated in 3.7 and **removed in 3.9**. The
+  project has supported `matplotlib>=3.7` throughout, so on any current install
+  the branch was dead code that crashed the moment it was reached. Nine plotting
+  functions route through it; no test had ever asked for that many groups. It
+  now uses `.resampled`, the documented replacement, which reaches back to 3.6
+  and so works across the whole supported range.
+- **A layerless v5 assay came back as `KeyError: None`.** `Assay5.default_layer`
+  is `None` when the assay holds no layers, and the two layer getters — in
+  `preprocessing` and in `plotting` — indexed the layer dict with it directly.
+  Both now raise `ValueError("No layers available.")`, matching what
+  `Assay5.layer_data` has always said for the same condition.
+- **`multiseq_demux` and `_integrate_anchor_reduction` rebound their own
+  parameters**, the same idiom as the dataset loaders below; both use a local
+  now. No behaviour change, but neither `multiseq_demux`'s `qrange` nor
+  `integrate_layers`' single-element `group_by` list had any test coverage, so
+  both are now pinned. This clears the last of the package's type-checker
+  errors: **`mypy shanuz` reports none**, down from 44.
+
 - **`cbmc_citeseq` reported an unrelated error when the species filter matched
   nothing.** A `species_prefix` that no gene starts with — the wrong one, or a
   file whose row labels are not prefixed — left every chunk empty and surfaced
