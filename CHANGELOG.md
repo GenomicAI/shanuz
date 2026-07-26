@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`tutorials/README.md` documented only 10 of the 18 tutorials.** The
+  overview table at the top listed all 18, but the detailed walkthrough
+  sections stopped after Tutorial 10 and jumped straight to the API quick
+  reference — so the eight tutorials added in Waves 2 and 3 (the object
+  model, dimensional-reduction extras, sketching, the spatial container and
+  Moran's I, the DE test suite, out-of-core `LazyMatrix`, Visium, and anchor
+  internals) had no written section, on GitHub or on the
+  [docs site](https://genomicai.github.io/shanuz/tutorials/). Added all
+  eight, in the same format as the rest.
+
 ## [0.9.0] - 2026-07-27
 
 Work from six milestones — reference mapping, extra reductions, pseudobulk DE,
