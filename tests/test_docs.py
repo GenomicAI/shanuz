@@ -29,8 +29,20 @@ DOCS = ROOT / "docs"
 API = DOCS / "api"
 
 _DIRECTIVE = re.compile(r"^:::\s+(?P<target>[\w.]+)\s*$", re.MULTILINE)
-# Markdown images, minus the absolute and remote ones.
-_IMAGE = re.compile(r"!\[[^\]]*\]\((?P<src>(?!https?:|/)[^)\s]+)")
+# Images, minus the absolute and remote ones. Both syntaxes: the vignettes
+# write most of their figures as raw `<img>` inside HTML tables, to put the R
+# and the Python plot side by side, and a check that only understood Markdown
+# syntax was blind to 126 of the 149 figure references on the site.
+_IMAGE = re.compile(
+    r"!\[[^\]]*\]\((?P<md>(?!https?:|/)[^)\s]+)"
+    r"|<img\b[^>]*?\bsrc=\"(?P<html>(?!https?:|/|data:)[^\"]+)\""
+)
+
+
+def image_sources(text: str):
+    """Every relative image path in a page, whichever syntax wrote it."""
+    for match in _IMAGE.finditer(text):
+        yield match.group("md") or match.group("html")
 
 
 def api_targets() -> dict[str, Path]:
@@ -163,16 +175,56 @@ def test_every_vignette_is_in_the_nav():
     assert not missing, f"vignettes missing from the site nav: {missing}"
 
 
+def doc_pages():
+    return list(DOCS.glob("*.md")) + list(API.glob("*.md")) + list((ROOT / "tutorials").glob("*.md"))
+
+
 def test_every_markdown_image_resolves():
     """Figures are committed, and a vignette linking a missing one is a 404."""
     broken = []
-    pages = list(DOCS.glob("*.md")) + list(API.glob("*.md")) + list((ROOT / "tutorials").glob("*.md"))
-    for page in pages:
-        for match in _IMAGE.finditer(page.read_text()):
-            src = match.group("src").split("#")[0]
-            if not (page.parent / src).resolve().exists():
+    for page in doc_pages():
+        for src in image_sources(page.read_text()):
+            if not (page.parent / src.split("#")[0]).resolve().exists():
                 broken.append(f"{page.relative_to(ROOT)} -> {src}")
-    assert not broken, "markdown images with no file behind them:\n  " + "\n  ".join(broken)
+    assert not broken, "images with no file behind them:\n  " + "\n  ".join(broken)
+
+
+def test_image_paths_are_written_relative_to_their_own_page():
+    """The one path in the source has to be the one GitHub resolves.
+
+    The build hook re-anchors these onto the page URL. It can only do that from
+    a path that is correct relative to the source file, so a `../` that reaches
+    out of `tutorials/` — the shape someone lands on when they fix the site by
+    hand and break the repo page — is wrong at the source even though both
+    surfaces may happen to render.
+    """
+    escaping = [
+        f"{page.relative_to(ROOT)} -> {src}"
+        for page in doc_pages()
+        for src in image_sources(page.read_text())
+        if src.startswith("../")
+    ]
+    assert not escaping, (
+        "image paths must be relative to their own source file, not to the built page:\n  "
+        + "\n  ".join(escaping)
+    )
+
+
+def test_the_build_hook_reanchors_raw_html_images():
+    """Without this the ten table-built vignettes 404 every figure.
+
+    Pinned against the two URL styles, because the fix is a no-op under
+    `use_directory_urls: false` and has to stay correct if that ever changes.
+    """
+    sys.path.insert(0, str(ROOT / "tools"))
+    import mkdocs_html_relpaths as hook
+
+    src_uri = "tutorials/advanced_pbmc8k_subclustering.md"
+    src = "figures_advanced/r_01_qc_violin.png"
+    assert hook.target_of(src, src_uri) == "tutorials/figures_advanced/r_01_qc_violin.png"
+    # Directory URLs put the page a level deeper than its source; plain ones do not.
+    assert hook.rewrite(src, src_uri, "tutorials/advanced_pbmc8k_subclustering/") == f"../{src}"
+    assert hook.rewrite(src, src_uri, "tutorials/advanced_pbmc8k_subclustering.html") == src
 
 
 def test_the_tutorials_symlink_still_points_at_the_tutorials():

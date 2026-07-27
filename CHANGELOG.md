@@ -30,6 +30,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [docs site](https://genomicai.github.io/shanuz/tutorials/). Added all
   eight, in the same format as the rest.
 
+- **Most figures on the docs site 404'd.** MkDocs re-anchors relative paths
+  written in Markdown syntax onto the built page, which under
+  `use_directory_urls` sits a directory deeper than its source — but it passes
+  raw HTML through untouched, and the vignettes write most of their figures as
+  `<img>` inside HTML tables so the R and the Python plot sit side by side.
+  Those resolved one directory too deep: 110 of the site's 133 figures were
+  broken, and the ten vignettes built entirely out of those tables showed no
+  images at all. Added a build hook (`tools/mkdocs_html_relpaths.py`) that
+  applies the same rewrite to raw `<img src>`, so the one path in the source
+  stays correct both on the site and on GitHub, where the vignettes are also
+  read. A reference with no file behind it is now a warning, which
+  `mkdocs build --strict` turns into a failed CI build.
+
+  The existing figure-existence test only understood Markdown image syntax, so
+  it was blind to 126 of the 149 references it was meant to be guarding; it now
+  reads both syntaxes.
+
 ## [0.9.0] - 2026-07-27
 
 Work from six milestones — reference mapping, extra reductions, pseudobulk DE,

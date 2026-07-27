@@ -123,6 +123,13 @@ markdown_extensions:
   - pymdownx.caret
   - pymdownx.smartsymbols
 
+hooks:
+  # The vignettes put the R and the Python figure side by side in raw HTML
+  # tables, and MkDocs only rewrites relative paths written in Markdown syntax.
+  # This re-anchors the raw `<img src>` ones the same way, so one path in the
+  # source renders correctly both here and on GitHub.
+  - tools/mkdocs_html_relpaths.py
+
 plugins:
   - search
   - mkdocstrings:
