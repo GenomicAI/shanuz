@@ -233,6 +233,30 @@ def test_the_tutorials_symlink_still_points_at_the_tutorials():
     assert link.resolve() == (ROOT / "tutorials").resolve()
 
 
+def test_the_generics_exception_the_api_index_documents_is_real():
+    """`docs/api/index.md` says most of the API is top-level, and names the exceptions.
+
+    Prose cannot be built into a link, so nothing else checks it. It said
+    *everything* was top-level until an agent following it wrote
+    ``shanuz.features(obj)`` and got an ``AttributeError``. The counts in that
+    paragraph are asserted here so a re-export cannot quietly falsify them.
+    """
+    from shanuz import generics
+
+    exported = set(shanuz.__all__)
+    public = {n for n in dir(generics)
+              if not n.startswith("_") and callable(getattr(generics, n))}
+
+    also_top_level = {"create_shanuz_object", "create_assay_object", "create_centroids",
+                      "create_segmentation", "create_fov", "get_tissue_coordinates", "as_graph"}
+    assert public & exported == also_top_level
+    assert len(public - exported) == 66, (
+        f"{len(public - exported)} generics are module-only; docs/api/index.md says 66"
+    )
+    # The specific call the paragraph warns about.
+    assert not hasattr(shanuz, "features")
+
+
 # ---------------------------------------------------------------------------
 # The griffe extension
 # ---------------------------------------------------------------------------

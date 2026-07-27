@@ -1,8 +1,18 @@
 # API reference
 
-Everything on these pages is exported from the top level, so `shanuz.find_markers`
-and `shanuz.markers.find_markers` are the same object. The grouping below is for
+Most of what follows is exported from the top level, so `shanuz.find_markers` and
+`shanuz.markers.find_markers` are the same object. The grouping below is for
 reading; it is not a package layout you need to know.
+
+Two pages are the exception, and on those the import path shown is the one to
+use. The [generics](generics.md) live on `shanuz.generics` —
+`shanuz.generics.features(obj)`, not `shanuz.features(obj)`, which raises
+`AttributeError`. Seven of them are re-exported at the top level as well
+(`create_shanuz_object`, `create_assay_object`, `create_centroids`,
+`create_segmentation`, `create_fov`, `get_tissue_coordinates`, `as_graph`); the
+other 66 are not. The loaders on [Loading data](io.md) likewise stay on their own
+modules: `shanuz.io.read_10x`, `shanuz.datasets.pbmc3k`,
+`shanuz.compat.anndata.as_anndata`.
 
 The docstrings are the primary source. Many of them record a specific decision
 about matching R — which of Seurat's two code paths a function follows, where a
