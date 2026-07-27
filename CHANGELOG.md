@@ -18,7 +18,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Agent skills for LLM-assisted work with the package** (`skills/`). Ten
+  skills in the [Claude Agent Skills](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
+  format — plain Markdown with YAML frontmatter, so they are equally usable as
+  context for any other model. A router (`shanuz`) carrying the API contracts
+  that break code silently, bundled with a full signature-and-Seurat-equivalent
+  API map and an object-model reference; then one skill per area: `workflow`,
+  `differential-expression`, `integration`, `multimodal`, `spatial`, `at-scale`,
+  `plotting`, `from-seurat`, and `dev` for working on the package itself.
+
+  The content is aimed at the mistakes a model actually makes against this API
+  rather than at re-describing the docs: that analysis functions mutate in place
+  and return `None` (so `obj = normalize_data(obj)` leaves you holding `None`),
+  that `dims` is 0-based, that matrices are features × cells, that the generics
+  are not top-level, and — in each domain skill — which differences from Seurat
+  are deliberate and must not be "fixed". Every signature, default and measured
+  number in them was derived from the installed package or from a recorded R
+  comparison; a validation pass resolves each `shanuz.*` and `generics.*` name
+  in all thirteen files against the live package.
+
+  `.claude/skills` is a symlink to `skills/`, so Claude Code discovers them when
+  run in this repo — the same idiom `docs/tutorials` already uses, and for the
+  same reason: one copy, not a second one that drifts.
+
 ### Fixed
+
+- **The API reference claimed the whole API is exported from the top level.**
+  `docs/api/index.md` opened with "Everything on these pages is exported from
+  the top level", which is true for eleven of the thirteen pages and false for
+  two. 66 of the 73 public generics live only on `shanuz.generics`, so
+  `shanuz.features(obj)` — the call the sentence invites — raises
+  `AttributeError`; the loaders on the Loading data page are likewise
+  `shanuz.io.read_10x`, `shanuz.datasets.pbmc3k`,
+  `shanuz.compat.anndata.as_anndata`. Rewritten to say *most*, name both
+  exceptions, and list the seven generics that genuinely are re-exported.
+  `tests/test_docs.py` now pins the counts, since prose is the one thing
+  `mkdocs build --strict` cannot check.
 
 - **`tutorials/README.md` documented only 10 of the 18 tutorials.** The
   overview table at the top listed all 18, but the detailed walkthrough
