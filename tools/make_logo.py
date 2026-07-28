@@ -344,26 +344,44 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 
 def _render_png(svg_path: pathlib.Path, out: pathlib.Path, width: int) -> None:
-    """Render at 1024 with Chrome, then downsample with Pillow.
+    """Render at a whole multiple of the target size, then downsample.
 
     Chrome refuses window sizes below about 50px, and downsampling a large
     render is what a favicon pipeline does anyway -- it antialiases far better
     than asking the renderer for 16 pixels.
+
+    Two things here were got wrong once, and both showed up in the exported
+    lockup rather than in the square assets, which is what made them easy to
+    miss:
+
+    * **The window is an exact multiple of the output grid, and the SVG is
+      given those same pixel dimensions outright** instead of being sized
+      against the viewport in ``vw``/``vh``. A 1024-wide window for the lockup
+      wants to be 271.33 tall and can only be 271, and laid out that way the
+      art was placed nine pixels down inside it -- so the bottom of the tile
+      fell outside the frame and its rounded corners were cut mid-curve.
+      Sizing the element and the window to the same integers leaves nothing to
+      disagree about. It was *not* the inline-element baseline gap, which is
+      the obvious suspect and makes no difference here.
+    * **The render is never smaller than the output.** A fixed 1024 meant the
+      1200px lockup was being scaled *up*, which is what softened its edges.
     """
     from PIL import Image
 
     svg = svg_path.read_text()
+    vb = svg.split('viewBox="', 1)[1].split('"', 1)[0].split()
+    ratio = float(vb[3]) / float(vb[2])
+    out_w, out_h = width, max(1, round(width * ratio))
+    k = max(2, math.ceil(1024 / out_w))     # at least 2x, and at least ~1024px
+    big_w, big_h = out_w * k, out_h * k
+
     head, rest = svg.split("<svg ", 1)
-    sized = f'{head}<svg style="width:100vw;height:100vh" {rest}'
+    sized = (f'{head}<svg style="position:absolute;top:0;left:0;'
+             f'width:{big_w}px;height:{big_h}px" preserveAspectRatio="none" {rest}')
     with tempfile.TemporaryDirectory() as td:
         page = pathlib.Path(td) / "p.html"
         shot = pathlib.Path(td) / "p.png"
-        # aspect ratio comes from the viewBox, so render into a matching window
-        vb = svg.split('viewBox="', 1)[1].split('"', 1)[0].split()
-        ratio = float(vb[3]) / float(vb[2])
-        big_w = 1024
-        big_h = max(1, round(big_w * ratio))
-        page.write_text(f"<style>html,body{{margin:0}}</style>{sized}")
+        page.write_text(f"<style>html,body{{margin:0;padding:0}}</style>{sized}")
         subprocess.run(
             [CHROME, "--headless", "--disable-gpu", f"--screenshot={shot}",
              f"--window-size={big_w},{big_h}", "--hide-scrollbars",
@@ -371,7 +389,7 @@ def _render_png(svg_path: pathlib.Path, out: pathlib.Path, width: int) -> None:
             check=True, capture_output=True,
         )
         im = Image.open(shot).convert("RGBA")
-    im.resize((width, max(1, round(width * ratio))), Image.LANCZOS).save(out)
+    im.resize((out_w, out_h), Image.LANCZOS).save(out)
 
 
 def main() -> int:
