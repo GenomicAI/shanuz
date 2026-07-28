@@ -33,6 +33,11 @@ exclude_docs: |
   tutorials/figures*/*_store*/
   tutorials/figures*/*.lazy/
   tutorials/**/__pycache__/
+  # Usage notes for the logo files, addressed to someone browsing the repo
+  # rather than the site. It links to `tools/make_logo.py`, which is outside
+  # docs_dir, so building it would mean either a broken link here or a link
+  # that is wrong on GitHub. The assets themselves are still published.
+  assets/logo/README.md
 
 not_in_nav: |
   tutorials/*.py
@@ -54,6 +59,13 @@ validation:
 theme:
   name: material
   language: en
+  # The header is the primary colour in both palettes -- pine in light, a
+  # darker pine in slate -- so the header logo is always sitting on a dark
+  # ground, and it is the cream-ink file that goes there in both. It is the
+  # simplified glyph rather than the pointillist mark because the header renders
+  # it at about 24px, well under the 48px the dots need to hold together.
+  logo: assets/logo/shanuz-glyph-open.svg
+  favicon: assets/logo/favicon.svg
   icon:
     repo: fontawesome/brands/github
   features:

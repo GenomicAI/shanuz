@@ -1,3 +1,12 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)"
+            srcset="docs/assets/logo/shanuz-lockup-inverse-1200.png">
+    <img src="docs/assets/logo/shanuz-lockup-1200.png"
+         alt="shanuz" width="420">
+  </picture>
+</p>
+
 # Shanuz — Python Single-Cell Genomics Toolkit
 
 [![PyPI](https://img.shields.io/pypi/v/shanuz.svg)](https://pypi.org/project/shanuz/)
