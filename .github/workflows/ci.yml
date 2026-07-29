@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The `freshdeps` job below is the one that needs a clock. Everything else
+  # installs from `uv.lock` and only changes when someone changes it.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -39,9 +44,20 @@ jobs:
         run: uv python install ${{ matrix.python-version }}
 
       - name: Create venv and install
-        run: |
-          uv venv --python ${{ matrix.python-version }}
-          uv pip install -e ".[all]"
+        # From `uv.lock`, not resolved fresh. The tutorial figures are committed
+        # to the repository and their generators run in a developer's own
+        # environment, so "what CI tested" and "what drew that PNG" have to be
+        # the same set of versions or the figures drift for reasons no number
+        # reports. UMAP is the clear case: the layout moved visibly across an
+        # umap-learn/sklearn/numpy step while every anchor the tutorial checks
+        # stayed identical, because clustering runs off the SNN graph and the
+        # embedding is only ever displayed.
+        #
+        # `--locked` fails rather than silently re-resolving when `uv.lock` has
+        # fallen behind `pyproject.toml`, which is the failure this is for: a
+        # dependency edit that never made it into the lock would otherwise be
+        # tested here and missing everywhere else.
+        run: uv sync --all-extras --locked --python ${{ matrix.python-version }}
 
       - name: Lint (ruff, advisory)
         # Pre-existing lint debt in older modules is not yet cleared, so the
@@ -55,9 +71,11 @@ jobs:
         # and settings come from [tool.mypy] in pyproject.toml, so this bare
         # `mypy` and a developer's bare `mypy` check the same file set.
         #
-        # The count differs per leg (81-85) because each resolves its own
-        # dependency versions against the `>=` floors in pyproject. Read it as a
-        # scale, not a score; only a jump is worth chasing.
+        # The count no longer drifts per leg: both legs install the same pinned
+        # versions from `uv.lock`, so ruff's and mypy's own versions are pinned
+        # too and the number only moves when someone moves it. It is a figure
+        # worth reading now rather than a scale — but clearing it is still a
+        # separate change, so this stays advisory.
         run: uv run mypy || true
 
       - name: Run tests
@@ -70,6 +88,42 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
+
+  freshdeps:
+    name: Resolve dependencies fresh (upstream canary)
+    # Pinning the test matrix to `uv.lock` buys reproducibility and gives up the
+    # thing the old unpinned install did for free: noticing that a new release
+    # of numpy, pandas or scikit-learn has broken us. `pyproject.toml` declares
+    # `>=` floors, so that is what a user installing today actually gets.
+    #
+    # This job is that check, moved somewhere it belongs. It resolves fresh,
+    # ignoring the lock, and it *fails* rather than reporting quietly — a
+    # `|| true` here would be a green tick for a check that had stopped
+    # checking. It runs weekly and on demand instead of on every pull request,
+    # so upstream breaking is never mistaken for the pull request breaking.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install with the lock ignored
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[all]"
+
+      - name: Show what resolved
+        run: uv pip list
+
+      - name: Run tests against the newest dependencies
+        run: uv run --no-sync pytest tests/ -q
 
   build:
     name: Build and verify the distributions

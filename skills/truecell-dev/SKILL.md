@@ -14,9 +14,14 @@ Repo: <https://github.com/GenomicAI/truecell> · Python 3.12+ · hatchling · MI
 ```bash
 git clone https://github.com/GenomicAI/truecell.git
 cd truecell
-uv venv && source .venv/bin/activate
-uv pip install -e ".[all]"
+uv sync --all-extras --locked
+source .venv/bin/activate
 ```
+
+**`--locked`, not `uv pip install -e ".[all]"`.** The lock is what CI installs
+and what the committed tutorial figures were drawn with; resolving fresh gives
+you a different scientific stack and the figures move for reasons no anchor
+reports. Regenerate figures only from a locked environment.
 
 `[all]` = analysis + anndata + integration + deseq2 + dev + docs. The docs
 toolchain is in it **on purpose**: `tests/test_docs.py` builds the site with
