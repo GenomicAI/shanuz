@@ -44,10 +44,17 @@ which is which.
 ```bash
 git clone https://github.com/GenomicAI/truecell.git
 cd truecell
-uv venv
+uv sync --all-extras --locked
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-uv pip install -e ".[all]"
 ```
+
+`uv sync --locked` installs the exact versions in `uv.lock` — the same ones CI
+tests against. Use it rather than `uv pip install -e ".[all]"`, which resolves
+fresh against the `>=` floors and can hand you a different scientific stack than
+the one the committed tutorial figures were drawn with. UMAP is the visible
+case: its layout moves across an umap-learn/scikit-learn/NumPy step even when
+every number the tutorial checks is unchanged, because clustering runs off the
+SNN graph and the embedding is only ever displayed.
 
 A source checkout is also what the [tutorials](tutorials/README.md) expect: each
 one is a script in `tutorials/` next to the R script it is checked against.

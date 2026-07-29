@@ -16,7 +16,17 @@ env/
 
 # uv
 .uv/
-uv.lock
+# `uv.lock` is deliberately NOT ignored. The usual advice for a library is to
+# leave it out, because what a user installs is set by the `>=` floors in
+# `pyproject.toml` and the lock has no say in it. That advice is about the
+# published package, and it still holds — this lock constrains the development
+# and CI environment only.
+#
+# It is committed because that environment has an output: the tutorial figures
+# are checked into the repository, and they are drawn on a developer's machine.
+# While this file was ignored, CI resolved fresh, every contributor resolved
+# fresh, and an umap-learn/scikit-learn/NumPy step moved ten CITE-seq figures by
+# 11% of their pixels without moving a single number the vignettes assert.
 
 # Testing
 .pytest_cache/

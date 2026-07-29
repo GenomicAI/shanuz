@@ -18,6 +18,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CI installs from `uv.lock`, and so should you.** The test matrix ran
+  `uv pip install -e ".[all]"`, which ignores the lock and resolves fresh
+  against the `>=` floors in `pyproject.toml` — so CI, and every contributor,
+  could be on a different scientific stack from the one the committed tutorial
+  figures were drawn with.
+
+  That is not hypothetical. Rebuilding a development environment moved
+  umap-learn, scikit-learn and NumPy forward, and ten CITE-seq figures shifted
+  by up to 11% of their pixels while **every** number the vignette asserts
+  stayed identical — Pearson 0.9847, 99.29% label concordance, 16 and 21
+  clusters, the whole per-cell-type weight table. Clustering runs off the SNN
+  graph; the UMAP embedding is only ever displayed. So the figures drift and no
+  anchor reports it.
+
+  **`uv.lock` was itself gitignored**, which is the same bug one level down: a
+  lock only its author has is not a lock. It is committed now. The usual advice
+  to leave a library's lock out of the repository is about the *published*
+  package and still holds — what a user installs is set by the `>=` floors in
+  `pyproject.toml`, which this does not touch. It constrains the development and
+  CI environment, and that environment has an output: the committed figures.
+
+  `uv sync --all-extras --locked` now installs both matrix legs, and `--locked`
+  fails rather than re-resolving if `uv.lock` has fallen behind
+  `pyproject.toml`. `docs/installation.md` and the `truecell-dev` skill point at
+  the same command, so figures are regenerated from the versions CI tested.
+
+- **A weekly job resolves dependencies fresh, and fails when they break us.**
+  Pinning CI to the lock gives up what the unpinned install did for free:
+  noticing that a new numpy or pandas has broken the package a user installing
+  today would get. `freshdeps` is that check, moved rather than dropped — it
+  ignores the lock, runs the suite, and **fails loudly** instead of reporting
+  advisorily, because a `|| true` here would be a green tick on a check that had
+  stopped checking. It runs on a schedule and on demand, not per pull request,
+  so upstream breaking is never mistaken for the pull request breaking.
+
+  The distribution job deliberately still installs the wheel *unlocked*: it
+  exists to prove a plain `pip install truecell` works for a real user, and
+  pinning it would defeat the point.
+
+
 ## [1.0.0] - 2026-07-29
 
 The rename release. `shanuz` became `truecell`, and the version moves to 1.0.0
