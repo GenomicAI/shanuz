@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-29
+
+The rename release. `shanuz` became `truecell`, and the version moves to 1.0.0
+rather than continuing the 0.x line: `shanuz` 0.9.0 is the last release under
+the old name and `truecell` 0.9.0 was published from the same code before the
+rename settled, so neither number was available to carry this. It is the same
+codebase, renamed and re-verified, not a maturity claim -- the API is the one
+0.9.0 shipped.
+
 ### Changed
 
 - **The package is renamed from `shanuz` to `truecell`.** This is a breaking

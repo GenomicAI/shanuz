@@ -1,8 +1,13 @@
+<!-- The image URLs are absolute on purpose. This file is also the PyPI long
+     description, where it is rendered on its own and a relative path resolves
+     against pypi.org rather than against the repository. PyPI's sanitizer also
+     drops `<picture>` and `<source>`, so the `<img>` has to stand on its own:
+     GitHub gets the dark-mode switch, PyPI gets the light lockup. -->
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)"
-            srcset="docs/assets/logo/truecell-lockup-inverse-1200.png">
-    <img src="docs/assets/logo/truecell-lockup-1200.png"
+            srcset="https://raw.githubusercontent.com/GenomicAI/truecell/main/docs/assets/logo/truecell-lockup-inverse-1200.png">
+    <img src="https://raw.githubusercontent.com/GenomicAI/truecell/main/docs/assets/logo/truecell-lockup-1200.png"
          alt="truecell" width="420">
   </picture>
 </p>
