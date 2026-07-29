@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import tarfile
 import sys
 import textwrap
 import tomllib
@@ -269,4 +270,52 @@ def test_ruff_target_version_matches_the_floor():
     assert target == expected, (
         f"requires-python declares >={floor} (ruff `{expected}`) but "
         f"[tool.ruff] target-version is {target!r}"
+    )
+
+
+# ----------------------------------------------------------------------
+# the sdist
+# ----------------------------------------------------------------------
+# The sdist was once whatever happened to be on the build machine's disk.
+# `docs/tutorials` is a symlink to `tutorials/`, hatchling follows it, and the
+# tutorials write their intermediates into the directory they live in, so a
+# build run after a tutorial shipped BPCells stores and `.lazy` matrices --
+# 63 MB against a 0.24 MB wheel, from the same commit that otherwise produces
+# 0.5 MB. `.gitignore` does not help, because an sdist is not built from git.
+#
+# This builds one and looks inside it. Asserting on the config instead would
+# pass just as happily against a broken artifact, which is the thing that
+# actually shipped.
+
+
+def test_the_sdist_carries_the_package_and_not_the_tutorial_data(tmp_path):
+    proc = subprocess.run(
+        [sys.executable, "-m", "build", "--sdist", "--outdir", str(tmp_path)],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        pytest.skip(f"`python -m build` unavailable: {proc.stderr.strip()[-200:]}")
+
+    tarballs = list(tmp_path.glob("*.tar.gz"))
+    assert len(tarballs) == 1, f"expected one sdist, got {[t.name for t in tarballs]}"
+
+    with tarfile.open(tarballs[0]) as tar:
+        members = [m for m in tar.getmembers() if m.isfile()]
+    names = ["/".join(m.name.split("/")[1:]) for m in members]
+
+    assert any(n == "truecell/__init__.py" for n in names), "the package itself is missing"
+    assert any(n.startswith("tests/") for n in names), "the tests are missing"
+
+    # The figures are the payload that ran away: 145 PNGs plus whatever the
+    # tutorials had most recently written next to them.
+    strays = [n for n in names if "/figures" in n or n.startswith("tutorials/")]
+    assert not strays, (
+        f"{len(strays)} tutorial file(s) in the sdist, e.g. {strays[:3]} — "
+        "the sdist include list has stopped covering them"
+    )
+
+    total = sum(m.size for m in members)
+    assert total < 8 * 1024 * 1024, (
+        f"sdist unpacks to {total / 1048576:.1f} MB; it was 201 MB when the "
+        "tutorial directory was being followed"
     )

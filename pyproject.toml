@@ -79,6 +79,31 @@ Repository = "https://github.com/GenomicAI/truecell"
 [tool.hatch.build.targets.wheel]
 packages = ["truecell"]
 
+# Without this the sdist is whatever happens to be sitting in the working tree.
+# `docs/tutorials` is a symlink to `tutorials/`, hatchling follows it, and the
+# tutorials write their intermediates *into* the directory they live in — the
+# BPCells stores, the `.lazy` matrices, the R handoff CSVs. Those are all in
+# `.gitignore`, but an sdist is not built from git, so they were being shipped.
+# The published `shanuz` 0.9.0 sdist is 23.5 MB against a 0.24 MB wheel for that
+# reason, and building it on a machine that had just run the tutorials produced
+# 63 MB — the same version number, a different tarball, depending on the disk it
+# was built from.
+#
+# So the sdist is listed explicitly rather than filtered: it carries what you
+# need to build and test the package from source. The documentation and the
+# tutorials are a repository and a website, not a payload every installer pays
+# to download.
+[tool.hatch.build.targets.sdist]
+include = [
+  "truecell/",
+  "tests/",
+  "pyproject.toml",
+  "README.md",
+  "LICENSE",
+  "CHANGELOG.md",
+  "ROADMAP.md",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v"
