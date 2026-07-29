@@ -1,6 +1,6 @@
 """Generate all figures for the dimensional-reduction extras tutorial.
 
-Runs pbmc3k_dimreduc_tutorial.run_full() and renders the shanuz-side figures to
+Runs pbmc3k_dimreduc_tutorial.run_full() and renders the truecell-side figures to
 tutorials/figures_dimreduc/, alongside the r_*.png the R verify script writes:
   * py_01_jackstraw_scores.png  per-PC ScoreJackStraw, both tools
   * py_02_nsig_compare.png      features below the significance threshold, per PC
@@ -36,7 +36,7 @@ if str(_ROOT) not in sys.path:
 from tutorials.pbmc3k_dimreduc_tutorial import (
     run_full, FIGURES, ALPHA, SCORE_THRESH, TSNE_DIMS,
 )
-from shanuz.plotting import _palette
+from truecell.plotting import _palette
 
 FIGURES.mkdir(exist_ok=True)
 
@@ -66,7 +66,7 @@ def jackstraw_scores(summary):
 
     The headline figure: the two curves fall off the same cliff after PC 13, so
     both tools tell an analyst to keep the same PCs. Before the JackStraw fix
-    shanuz's curve never came down at all — it sat above 110 on every PC, noise
+    truecell's curve never came down at all — it sat above 110 on every PC, noise
     included, because the null was too tight and the KS-test aggregation was far
     too sensitive.
     """
@@ -77,7 +77,7 @@ def jackstraw_scores(summary):
     r = _r_pcs()
 
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.plot(pcs, -np.log10(py), "o-", color=_PY_COLOR, label="shanuz")
+    ax.plot(pcs, -np.log10(py), "o-", color=_PY_COLOR, label="truecell")
     if r is not None:
         ax.plot(r["PC"], -np.log10(np.maximum(r["R_Score"], _FLOOR)), "s--",
                 color=_R_COLOR, label="R Seurat")
@@ -109,7 +109,7 @@ def nsig_compare(summary):
     pcs = table["PC"].to_numpy()
     width = 0.4
     ax.bar(pcs - width / 2, table["py_n_sig_features"], width,
-           color=_PY_COLOR, label="shanuz")
+           color=_PY_COLOR, label="truecell")
     if r is not None:
         ax.bar(pcs + width / 2, r["R_n_sig_features"], width,
                color=_R_COLOR, label="R Seurat")
@@ -131,7 +131,7 @@ def elbow(obj, ndims=30):
     ax.plot(np.arange(1, stdev.size + 1), stdev, "o-", color=_PY_COLOR, ms=4)
     ax.set_xlabel("PC")
     ax.set_ylabel("standard deviation")
-    ax.set_title("Shanuz — elbow plot")
+    ax.set_title("Truecell — elbow plot")
     fig.tight_layout()
     return fig
 
@@ -158,7 +158,7 @@ def tsne_marker(obj, gene="LYZ"):
     fig.colorbar(sc, ax=ax, label=f"{gene} (log-normalized)")
     ax.set_xlabel("tSNE_1")
     ax.set_ylabel("tSNE_2")
-    ax.set_title(f"Shanuz — t-SNE (PC 1-{TSNE_DIMS}), {gene}")
+    ax.set_title(f"Truecell — t-SNE (PC 1-{TSNE_DIMS}), {gene}")
     fig.tight_layout()
     return fig
 
@@ -173,7 +173,7 @@ def ica_scatter(obj):
                edgecolors="none")
     ax.set_xlabel("ICA_1")
     ax.set_ylabel("ICA_2")
-    ax.set_title("Shanuz — ICA components 1 & 2")
+    ax.set_title("Truecell — ICA components 1 & 2")
     fig.tight_layout()
     return fig
 
@@ -189,7 +189,7 @@ def main(data_dir=None):
 
     if _r_pcs() is None:
         print("\n  NOTE: r_jackstraw_pcs.csv absent — the comparison figures show")
-        print("  only the shanuz series. Run pbmc3k_dimreduc_verify.R for both.")
+        print("  only the truecell series. Run pbmc3k_dimreduc_verify.R for both.")
     print(f"\n  Wrote figures to {FIGURES}")
 
 

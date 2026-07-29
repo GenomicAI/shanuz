@@ -1,6 +1,6 @@
-"""Xenium spatial tutorial — Shanuz Python implementation & figure generator.
+"""Xenium spatial tutorial — Truecell Python implementation & figure generator.
 
-Reproduces, in pure Python with **Shanuz**, the same style of Xenium mast/spatial
+Reproduces, in pure Python with **Truecell**, the same style of Xenium mast/spatial
 analysis used on internal celiac data — here on a public 10x Genomics dataset
 (mouse-brain coronal CTX+HP subset, the section featured in Seurat's spatial
 vignette). Every step mirrors an R Seurat call so the two can be shown side by
@@ -16,7 +16,7 @@ Usage
     python tutorials/generate_spatial_plots.py [--data-dir PATH]
 
 With no --data-dir the dataset auto-downloads (~20 MB) to
-~/.shanuz_data/xenium_mouse_brain via shanuz.datasets.xenium_mouse_brain().
+~/.truecell_data/xenium_mouse_brain via truecell.datasets.xenium_mouse_brain().
 
 Deterministic anchors (cell counts, marker-defined cell-type counts, spatial
 nearest-neighbour distances, region composition test) are written to
@@ -39,18 +39,18 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import xenium_mouse_brain
-from shanuz.spatial import load_xenium
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz import (
+from truecell.datasets import xenium_mouse_brain
+from truecell.spatial import load_xenium
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell import (
     get_tissue_coordinates, nearest_neighbor_distance, local_neighborhood,
     build_niche_assay, composition_test,
 )
-from shanuz.plotting import (
+from truecell.plotting import (
     vln_plot, dim_plot, image_dim_plot, image_feature_plot,
 )
 

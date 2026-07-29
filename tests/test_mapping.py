@@ -19,17 +19,17 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.umap import run_umap  # noqa: E402
-from shanuz.dimreduc import DimReduc  # noqa: E402
-from shanuz.transfer import find_transfer_anchors  # noqa: E402
-from shanuz.mapping import map_query, project_umap  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.umap import run_umap  # noqa: E402
+from truecell.dimreduc import DimReduc  # noqa: E402
+from truecell.transfer import find_transfer_anchors  # noqa: E402
+from truecell.mapping import map_query, project_umap  # noqa: E402
 
 
 def _labelled_object(batch, seed=0, n_per=40, G=200):
@@ -53,7 +53,7 @@ def _labelled_object(batch, seed=0, n_per=40, G=200):
             c += 1
 
     meta = pd.DataFrame({"celltype": celltype, "batch": batch}, index=cells)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(mat), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
         meta_data=meta,

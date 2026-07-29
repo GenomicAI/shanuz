@@ -36,7 +36,7 @@ TUT <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG <- file.path(TUT, "figures_de")
 dir.create(FIG, showWarnings = FALSE)
 
-DATA <- path.expand("~/.shanuz_data/pbmc3k")
+DATA <- path.expand("~/.truecell_data/pbmc3k")
 TESTS <- c("wilcox", "t", "bimod", "LR", "negbinom", "roc", "MAST", "DESeq2")
 
 cat("Building pbmc3k...\n")

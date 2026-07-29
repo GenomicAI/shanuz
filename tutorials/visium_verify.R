@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 # ---------------------------------------------------------------------------
 # R side of the Visium tutorial: Seurat 5.5.1 on the 10x V1_Mouse_Brain_Sagittal
-# _Anterior Space Ranger 1.1.0 bundle, the same files shanuz reads.
+# _Anterior Space Ranger 1.1.0 bundle, the same files truecell reads.
 #
 # Emits tutorials/figures_visium/r_anchors.json.
 #
@@ -22,7 +22,7 @@ suppressMessages(library(jsonlite))
 TUT <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 OUT <- file.path(TUT, "figures_visium")
 dir.create(OUT, showWarnings = FALSE)
-DATA <- path.expand("~/.shanuz_data/visium_mouse_brain")
+DATA <- path.expand("~/.truecell_data/visium_mouse_brain")
 
 anchors <- list()
 add <- function(name, value) anchors[[name]] <<- I(value)
@@ -30,7 +30,7 @@ addn <- function(name, value) anchors[[name]] <<- I(as.numeric(value))
 
 if (!dir.exists(file.path(DATA, "spatial"))) {
   stop("Visium bundle missing. Run in Python first:\n",
-       "  from shanuz.datasets import visium_mouse_brain; visium_mouse_brain()")
+       "  from truecell.datasets import visium_mouse_brain; visium_mouse_brain()")
 }
 
 # ---------------------------------------------------------------------------

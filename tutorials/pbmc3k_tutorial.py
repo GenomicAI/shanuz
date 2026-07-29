@@ -1,4 +1,4 @@
-"""PBMC 3k Tutorial — Shanuz Python implementation.
+"""PBMC 3k Tutorial — Truecell Python implementation.
 
 Mirrors the official Seurat PBMC 3k guided clustering tutorial step-by-step:
   https://satijalab.org/seurat/articles/pbmc3k_tutorial
@@ -11,7 +11,7 @@ Usage
     python tutorials/pbmc3k_tutorial.py [--data-dir PATH]
 
 If --data-dir is not supplied the PBMC 3k dataset is downloaded automatically
-to ~/.shanuz_data/pbmc3k (~24 MB, 10X Genomics).
+to ~/.truecell_data/pbmc3k (~24 MB, 10X Genomics).
 
 References
 ----------
@@ -35,19 +35,19 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import pbmc3k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data,
     find_variable_features,
     scale_data,
     percentage_feature_set,
 )
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.markers import find_markers, find_all_markers
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.markers import find_markers, find_all_markers
 
 
 # ---------------------------------------------------------------------------
@@ -136,10 +136,10 @@ def run_tutorial(data_dir: str | None = None) -> None:
           f"({time.time() - t0:.1f}s)")
 
     # -----------------------------------------------------------------------
-    section("2. Create Shanuz Object (min.cells=3, min.features=200)")
+    section("2. Create Truecell Object (min.cells=3, min.features=200)")
     # -----------------------------------------------------------------------
     t0 = time.time()
-    pbmc = create_shanuz_object(
+    pbmc = create_truecell_object(
         counts=counts,
         assay="RNA",
         min_cells=3,
@@ -397,7 +397,7 @@ def _assign_cell_types(
 FIGURES = Path(__file__).parent / "figures"
 
 # R's Read10X() rewrites underscores in gene symbols to dashes ("RP11-34P13_3"
-# -> "RP11-34P13-3"); shanuz's loader keeps the file's spelling. Map Python's
+# -> "RP11-34P13-3"); truecell's loader keeps the file's spelling. Map Python's
 # symbols through the same rule before joining, or ~30 genes silently drop out
 # of every per-gene comparison.
 def _r_symbols(genes) -> list:
@@ -407,7 +407,7 @@ def _r_symbols(genes) -> list:
 def match_partitions(a, b) -> dict:
     """Match two cluster labellings of the same cells one-to-one on overlap.
 
-    Cluster ids are arbitrary in both tools — shanuz's cluster 3 may be
+    Cluster ids are arbitrary in both tools — truecell's cluster 3 may be
     Seurat's cluster 5 — so a coordinate-wise comparison of the labels answers
     the wrong question. The Hungarian algorithm on the contingency table finds
     the pairing that maximises the number of cells the two agree on, and
@@ -460,7 +460,7 @@ def write_anchors(pbmc, all_markers) -> None:
     cells.to_csv(FIGURES / "py_cell_meta.csv", index=False)
 
     rna = pbmc.assays["RNA"]
-    # shanuz stores the VST statistics on the assay's meta_data under the names
+    # truecell stores the VST statistics on the assay's meta_data under the names
     # HVFInfo() uses, so these columns carry straight through to the R side of
     # the handoff without being renamed on the way out.
     hvf = rna.meta_data
@@ -519,7 +519,7 @@ def report() -> None:
         return
 
     print("=" * 78)
-    print("shanuz vs Seurat 5.5.1 — PBMC 3k guided clustering, end to end")
+    print("truecell vs Seurat 5.5.1 — PBMC 3k guided clustering, end to end")
     print("=" * 78)
 
     pc = pd.read_csv(FIGURES / "py_cell_meta.csv").set_index("cell")
@@ -529,9 +529,9 @@ def report() -> None:
     only_py = pc.index.difference(rc.index)
     only_r = rc.index.difference(pc.index)
     cells = pc.index.intersection(rc.index)
-    print(f"\n  QC — cells retained: shanuz {len(pc)}, R {len(rc)}, "
+    print(f"\n  QC — cells retained: truecell {len(pc)}, R {len(rc)}, "
           f"shared {len(cells)}")
-    print(f"       only shanuz {len(only_py)}   only R {len(only_r)}   "
+    print(f"       only truecell {len(only_py)}   only R {len(only_r)}   "
           f"{'IDENTICAL CELL SET' if not len(only_py) and not len(only_r) else 'SETS DIFFER'}")
     p, r = pc.loc[cells], rc.loc[cells]
     print(f"\n  {'per-cell metric':<18}{'max|diff|':>14}")
@@ -564,7 +564,7 @@ def report() -> None:
     py_sel = set(ph.index[ph["hvg_rank"].notna()])
     r_sel = set(rh.index[rh["hvg_rank"].notna()])
     both = py_sel & r_sel
-    print(f"    selected set  shanuz {len(py_sel)}  R {len(r_sel)}  "
+    print(f"    selected set  truecell {len(py_sel)}  R {len(r_sel)}  "
           f"shared {len(both)} ({len(both) / max(len(r_sel), 1):.4f})")
     if both:
         rr = spearmanr(ph.loc[sorted(both), "hvg_rank"],
@@ -584,11 +584,11 @@ def report() -> None:
 
     # ---- 4. clusters: match the partitions, then score ---------------------
     m = match_partitions(p["cluster"], r["cluster"])
-    print(f"\n  Clusters — shanuz {m['n_a']}, R {m['n_b']}")
+    print(f"\n  Clusters — truecell {m['n_a']}, R {m['n_b']}")
     print(f"    adjusted Rand index {m['ari']:.4f}   "
           f"best-match concordance {m['concordance']:.4f} "
           f"({int(round(m['concordance'] * len(cells)))}/{len(cells)} cells)")
-    print(f"\n    {'shanuz':>8}{'R':>6}{'n py':>8}{'n R':>8}{'shared':>9}"
+    print(f"\n    {'truecell':>8}{'R':>6}{'n py':>8}{'n R':>8}{'shared':>9}"
           f"   cell type py / R")
     print(f"    {'-' * 62}")
     for a, b in m["mapping"].items():
@@ -602,8 +602,8 @@ def report() -> None:
     # are the whole difference between the two runs and must not be left out of
     # the table just because the matching had nowhere to put them — so name
     # them, and say where the other side put their cells instead.
-    for label, side, other in (("shanuz", p, r), ("R", r, p)):
-        paired = set(m["mapping"]) if label == "shanuz" else set(m["mapping"].values())
+    for label, side, other in (("truecell", p, r), ("R", r, p)):
+        paired = set(m["mapping"]) if label == "truecell" else set(m["mapping"].values())
         for c in sorted(set(side["cluster"].astype(str)) - paired, key=int):
             mask = side["cluster"].astype(str) == c
             lands = other.loc[mask, "cluster"].astype(str).value_counts()
@@ -629,7 +629,7 @@ def report() -> None:
           f"{agree}/{len(m['mapping'])} matched clusters carry the same label")
     py_ct = p["celltype"].value_counts()
     r_ct = r["celltype"].value_counts()
-    print(f"\n    {'label':<16}{'shanuz':>9}{'R':>9}")
+    print(f"\n    {'label':<16}{'truecell':>9}{'R':>9}")
     print(f"    {'-' * 34}")
     for ct in sorted(set(py_ct.index) | set(r_ct.index)):
         print(f"    {ct:<16}{py_ct.get(ct, 0):>9}{r_ct.get(ct, 0):>9}")
@@ -639,7 +639,7 @@ def report() -> None:
     rm = pd.read_csv(FIGURES / "r_markers.csv")
     pm["cluster"] = pm["cluster"].astype(str)
     rm["cluster"] = rm["cluster"].astype(str)
-    print(f"\n  Markers — {len(pm)} rows shanuz, {len(rm)} R "
+    print(f"\n  Markers — {len(pm)} rows truecell, {len(rm)} R "
           f"(only.pos, min.pct 0.25, logfc 0.25, return.thresh 0.01)")
     print("  Rows are per matched cluster pair. `top10 by p` is scored twice"
           " because R's\n  Wilcoxon p-values underflow to exactly 0 for the"
@@ -669,7 +669,7 @@ def report() -> None:
     # ---- 7. scalars ---------------------------------------------------------
     pa_ = json.loads((FIGURES / "py_anchors.json").read_text())
     ra_ = json.loads((FIGURES / "r_anchors.json").read_text())
-    print(f"\n  {'anchor':<16}{'shanuz':>22}{'R Seurat':>22}   verdict")
+    print(f"\n  {'anchor':<16}{'truecell':>22}{'R Seurat':>22}   verdict")
     print(f"  {'-' * 66}")
     for k in ("n_genes_raw", "n_cells_raw", "n_cells_qc", "n_hvg", "n_clusters",
               "n_markers", "knn_nnz", "snn_nnz", "snn_weight_sum", "data_sum"):
@@ -696,7 +696,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data-dir",
         default=None,
-        help="Directory for PBMC3k data (default: ~/.shanuz_data/pbmc3k)",
+        help="Directory for PBMC3k data (default: ~/.truecell_data/pbmc3k)",
     )
     parser.add_argument("--report", action="store_true",
                         help="compare against the R reference and exit")

@@ -1,16 +1,16 @@
-# Leverage-Score Sketching — R Seurat vs Shanuz (Python)
+# Leverage-Score Sketching — R Seurat vs Truecell (Python)
 
 The Seurat v5 answer to "this atlas has two million cells and I have a laptop":
 don't subsample uniformly, subsample by **statistical leverage**, analyse the
 small subset, then push the answers back onto every cell. Every R Seurat call is
-paired with the Shanuz equivalent and both outputs are shown side by side.
+paired with the Truecell equivalent and both outputs are shown side by side.
 
 > **Dataset:** ifnb — 13,999 human PBMCs, half stimulated with interferon-beta
 > (Kang et al. 2018), the same object used in
 > [Tutorial 8](integration_vignette.md). Exported once from SeuratData.
-> **R reference:** Seurat 5.5.1 · **Python:** Shanuz
+> **R reference:** Seurat 5.5.1 · **Python:** Truecell
 
-| Seurat | Shanuz |
+| Seurat | Truecell |
 |---|---|
 | `LeverageScore(obj, features = hvg)` | `leverage_score(obj, features=hvg)` |
 | `SketchData(obj, ncells = 2000, method = "LeverageScore")` | `sketch_data(obj, ncells=2000, method="LeverageScore")` |
@@ -34,10 +34,10 @@ paired with the Shanuz equivalent and both outputs are shown side by side.
 | **Leverage, exact regime** — per-cell Spearman vs R | **1.000000** (max abs diff 3.4e-6) |
 | Leverage, exact regime — top-200 / top-1000 cells shared | **100 %** / 99.9 % |
 | Leverage, sketched regime — Spearman vs R | 0.946 (differing RNGs) |
-| **Does leverage track rarity?** Spearman(mean leverage, type size) | **shanuz −0.929 · R −0.929** |
+| **Does leverage track rarity?** Spearman(mean leverage, type size) | **truecell −0.929 · R −0.929** |
 | Rarest type (Eryth, n = 55) mean leverage vs overall | **2.89×** |
 | `project_data` labels — per-cell agreement with R | **94.9 %** (98.1 % on a shared sketch) |
-| `project_data` accuracy vs held-out annotations | **shanuz 0.9050 · R 0.9050** |
+| `project_data` accuracy vs held-out annotations | **truecell 0.9050 · R 0.9050** |
 | Lazy on-disk matrix — leverage vs in-memory | identical (2.3e-16) |
 
 ---
@@ -50,7 +50,7 @@ Leverage is a property of a *matrix*: if the two disagree about which cells or
 genes are in play, nothing below is interpretable.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -70,7 +70,7 @@ ifnb <- NormalizeData(ifnb)
 <td>
 
 ```python
-import shanuz
+import truecell
 from tutorials.ifnb_sketch_tutorial import (
     load_ifnb_sketch_object, prep)
 
@@ -118,7 +118,7 @@ both on one dataset by moving the threshold rather than the data:
 | 5000 | `13999 ≥ 1.5 × 5000` | CountSketch → QR → Johnson–Lindenstrauss | ~70,000 |
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -135,7 +135,7 @@ c(sum = sum(s), cv = sd(s) / mean(s))
 <td>
 
 ```python
-s = shanuz.leverage_score(
+s = truecell.leverage_score(
     obj, features=hvg, nsketch=10_000, seed=123)
 s.sum(), s.std() / s.mean()
 #> (50.000000, 0.350600)
@@ -222,7 +222,7 @@ Cluster and embed the 2,000-cell sketch, then extend both, plus its labels, to
 all 13,999 cells.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -256,7 +256,7 @@ project_data(
 
 ![projected UMAP](figures_sketch/py_05_projected_umap.png)
 
-| | shanuz | R |
+| | truecell | R |
 |---|---|---|
 | accuracy, all cells | **0.9050** | **0.9050** |
 | accuracy, cells *not* in the sketch | 0.8984 | — |
@@ -270,7 +270,7 @@ the 86 % never analysed.
 
 ## Lazy matrices — no R counterpart
 
-`LazyMatrix` / `open_lazy_matrix` are shanuz's on-disk backing; R's equivalent is
+`LazyMatrix` / `open_lazy_matrix` are truecell's on-disk backing; R's equivalent is
 BPCells, which is not installed here. So this is **not** a side-by-side — it
 checks the one property that matters, reported separately so it is not mistaken
 for an R comparison:
@@ -289,10 +289,10 @@ Going through disk does not change the answer.
 
 Seurat computes leverage from a **rank-50 truncated SVD** —
 `ℓ = rowSums(V²)` over the leading 50 right singular vectors, so the scores sum
-to 50. Shanuz whitened against the **full rank** instead.
+to 50. Truecell whitened against the **full rank** instead.
 
 Both are defensible as "leverage": the full-rank version is the classical
-hat-matrix definition, and shanuz's own test asserted it to six decimals. But
+hat-matrix definition, and truecell's own test asserted it to six decimals. But
 full-rank leverage is useless on data shaped like this. Scores sum to the rank
 and are capped at 1, so with 2,000 variable features over a few thousand cells
 every score is crushed towards `d/n`:
@@ -314,7 +314,7 @@ about the output looked wrong.
 
 `ProjectData` does not use integration anchors. It calls `TransferSketchLabels`,
 a weighted k-nearest-neighbour vote *inside the projected reduction*, with the
-sketch's own rows as the reference. Shanuz ran the full
+sketch's own rows as the reference. Truecell ran the full
 `find_transfer_anchors` → `transfer_data` path.
 
 **The wrong version scored better.** On ifnb the anchor route reached 0.936
@@ -340,8 +340,8 @@ both tools.
 
 ### Why the old tests missed both
 
-`tests/test_sketch.py` was green throughout. Its leverage test compared shanuz
-against *shanuz's own* definition of exact leverage, and asserted
+`tests/test_sketch.py` was green throughout. Its leverage test compared truecell
+against *truecell's own* definition of exact leverage, and asserted
 `scores.sum() == rank` — pinning the wrong answer to six decimals. Its sampling
 test used a 200-cell, 80-feature fixture, which is **outside the algorithm's
 regime**: keeping 50 of at most 80 components is barely a truncation. Exporting
@@ -362,7 +362,7 @@ misleading here.
 
 **The sketched regime** differs at Spearman 0.946. Over seeds 123/1/7/42/2024:
 
-| | shanuz | R |
+| | truecell | R |
 |---|---|---|
 | sum of scores | 69,611 – 70,968 | 70,278 – 70,867 |
 | coefficient of variation | 0.5600 – 0.5770 | 0.5657 – 0.5776 |
@@ -371,7 +371,7 @@ The distributions overlap, so this is the two RNGs, not the algorithm.
 
 **Sketch composition.** Over the same seeds:
 
-| type | n | shanuz | R |
+| type | n | truecell | R |
 |---|---|---|---|
 | Eryth | 55 | 1.44× (1.15–1.91) | 1.29× (**0.64–2.04**) |
 | pDC | 132 | 2.26× (1.91–2.49) | 2.23× (1.70–3.02) |
@@ -385,7 +385,7 @@ sketch, that is Poisson noise on a small count.
 **The two regimes against each other.** Seurat's sketched approximation tracks
 its *own* exact scores at Spearman only **0.31**. The JL projection is a large
 approximation and Seurat leaves it unscaled, so the sketched scores are not even
-on the same scale. Shanuz reproduces that gap at 0.31 too (R 0.309, shanuz
+on the same scale. Truecell reproduces that gap at 0.31 too (R 0.309, truecell
 0.307), which is the useful evidence that the sketched path is faithful.
 **Compare scores within one regime, never across the two.**
 
@@ -413,10 +413,10 @@ still runs and reports its own numbers.
   regime's sum to ~70,000 and are on the JL projection's own scale. They are not
   interchangeable, in either tool.
 - **`irlba` is unseeded in Seurat.** The exact regime is reproducible to ~1e-4
-  in R, not exactly. shanuz uses a deterministic truncated SVD and lands inside
+  in R, not exactly. truecell uses a deterministic truncated SVD and lands inside
   that band.
 - **`nsketch` is bumped, not rejected.** Below 1.1× the feature count Seurat
-  raises it and warns; shanuz does the same. Two hard stops are also ported: more
+  raises it and warns; truecell does the same. Two hard stops are also ported: more
   than 5,000 features ("too slow") and a matrix with too few cells per feature
   ("too square").
 - **`leverage_score` reads the `data` layer**, not `scale.data` — matching

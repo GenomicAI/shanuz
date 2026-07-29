@@ -1,4 +1,4 @@
-"""The object model itself — Shanuz vs R Seurat on pbmc3k.
+"""The object model itself — Truecell vs R Seurat on pbmc3k.
 
 Every other tutorial in this series compares an *algorithm*: does ``run_pca``
 land where ``RunPCA`` lands, does ``hto_demux`` call the same cells. This one
@@ -22,7 +22,7 @@ key strings, non-zero counts and command names either match R exactly or they
 are wrong — 89 of the 91 anchors are compared with no tolerance at all. The
 other tutorials have to argue about whether a 2 % gap is RNG or a bug; this one
 mostly does not have that conversation. The exceptions are the two anchors that
-read a PCA (``pca_stdev_head`` and ``abs_PC_1_sum``), where shanuz's randomized
+read a PCA (``pca_stdev_head`` and ``abs_PC_1_sum``), where truecell's randomized
 SVD and Seurat's ``irlba`` differ in the fourth decimal; they are named
 explicitly in :data:`FLOAT_TOLERANCES` rather than covered by a blanket rule.
 
@@ -32,13 +32,13 @@ exactly the right shape, full of exactly the right numbers, in the wrong order.
 
 Coverage gap this closes
 ------------------------
-``Assay5``, ``StdAssay``, ``Graph``, ``ShanuzCommand`` and ``log_shanuz_command``
+``Assay5``, ``StdAssay``, ``Graph``, ``TruecellCommand`` and ``log_truecell_command``
 are public exports that appeared in **no** tutorial before this one, and
 ``join_layers`` / ``split_layers`` had **zero call sites and zero tests**
 anywhere in the package — the defining feature of the v5 object model, and
 nothing had ever run it. (The legacy v3 ``Assay`` and ``create_assay_object``
 are still uncovered: this tutorial builds ``Assay5`` objects throughout, which
-is what ``create_shanuz_object`` returns.)
+is what ``create_truecell_object`` returns.)
 
 What it found
 -------------
@@ -48,7 +48,7 @@ and three in the object's bookkeeping. Most were in code no test touched; the
 rest were guarded by tests that could not fail.
 
 **The layered assay — ``split`` / ``JoinLayers`` was not a round trip.** After a
-split and a join, shanuz returned a layer named ``joined`` (Seurat restores the
+split and a join, truecell returned a layer named ``joined`` (Seurat restores the
 original name), holding the right numbers **in the split's order** rather than
 the assay's. The assay's own cell vector never moves during a split, so the
 matrix came back silently transposed against the metadata that indexes it: ask
@@ -57,7 +57,7 @@ and the checksums were right, because every value was still present. The
 no-argument ``join_layers()`` — R's idiom, and the only call a real script makes
 — additionally raised ``ValueError`` on any prepared assay, because it hstacked
 ``counts``, ``data`` and a variable-features-only ``scale.data`` together
-regardless of their differing feature counts. And ``shanuz.generics.split_layers``
+regardless of their differing feature counts. And ``truecell.generics.split_layers``
 was declared but never registered for any type, so the documented generic raised
 ``NotImplementedError`` while the method it should have dispatched to worked.
 
@@ -72,7 +72,7 @@ addressed by their ``Key`` (``PC_1`` raised ``KeyError``; R names them that way
 precisely so they can be), and an unqualified fetch read ``counts`` where R reads
 ``data``, returning raw integers where every vignette shows normalized values.
 
-**The command log was inert.** ``log_shanuz_command`` was a public export with no
+**The command log was inert.** ``log_truecell_command`` was a public export with no
 call sites, so ``obj.commands`` was always empty. Seurat logs five entries for
 this pipeline, keyed ``NormalizeData.RNA`` through ``FindNeighbors.RNA.pca``.
 Also: ``orig.ident`` — the first column of every Seurat object's metadata — was
@@ -116,17 +116,17 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz import generics as G  # noqa: E402
-from shanuz.datasets import pbmc3k  # noqa: E402
-from shanuz.graph import as_graph  # noqa: E402
-from shanuz.neighbors import find_neighbors  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell import generics as G  # noqa: E402
+from truecell.datasets import pbmc3k  # noqa: E402
+from truecell.graph import as_graph  # noqa: E402
+from truecell.neighbors import find_neighbors  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     find_variable_features,
     normalize_data,
     scale_data,
 )
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 FIGURES = Path(__file__).parent / "figures_objects"
 
@@ -164,7 +164,7 @@ def r_safe_names(names) -> list[str]:
     """Feature names as R's ``Read10X`` would spell them.
 
     ``Read10X`` rewrites ``_`` to ``-`` in gene symbols — pbmc3k carries
-    ``Y_RNA`` and a long tail of ``RP11-*_*`` — while shanuz's loader leaves them
+    ``Y_RNA`` and a long tail of ``RP11-*_*`` — while truecell's loader leaves them
     alone. That difference belongs to the two file readers, not to the object
     model this tutorial audits, so feature-name anchors are compared in R's
     spelling on both sides rather than being allowed to fail every field that
@@ -223,7 +223,7 @@ def split_join_roundtrip(assay, groups, layer="counts") -> dict:
     that indexes it, because the object's own cell vector never moved.
 
     Run on a **counts-only** assay in both tools, deliberately: on a prepared
-    object R's ``split`` divides every layer at once while shanuz's takes one
+    object R's ``split`` divides every layer at once while truecell's takes one
     layer at a time, and comparing those two would be comparing the API shapes
     rather than the round trip. Stripped to one layer, both tools are being
     asked exactly the same question.
@@ -270,7 +270,7 @@ def graph_neighbor_roundtrip(obj, graph_name="RNA_nn") -> dict:
     """``Graph`` ↔ ``Neighbor`` conversion — a within-tool invariant.
 
     Not compared against R, and kept out of the anchor tree for that reason:
-    ``as.Neighbor`` reads a *directed* kNN graph, and shanuz's is symmetrized
+    ``as.Neighbor`` reads a *directed* kNN graph, and truecell's is symmetrized
     (one of the two divergences this tutorial reports but does not fix), so the
     two tools are not being asked the same question here.
 
@@ -310,7 +310,7 @@ def join_all_layers(assay, groups, layer="counts") -> dict:
     After the standard pipeline an assay holds ``counts``, ``data`` and
     ``scale.data``, and ``scale.data`` has only the variable features. Seurat's
     ``JoinLayers(obj)`` handles that by rejoining each split stem separately and
-    leaving everything else alone. Whether shanuz's no-argument call survives
+    leaving everything else alone. Whether truecell's no-argument call survives
     the same object is the question.
     """
     split = assay.split_layers(list(groups), layer=layer)
@@ -329,7 +329,7 @@ def assign_idents(obj, markers=IDENT_MARKERS, other=IDENT_OTHER) -> np.ndarray:
     to its own normalized matrix, so the two partitions can be compared cell by
     cell.
 
-    Reads the layer directly rather than through :func:`shanuz.generics.fetch_data`
+    Reads the layer directly rather than through :func:`truecell.generics.fetch_data`
     — the obvious way to write this — because ``fetch_data`` is one of the things
     under test here, and a tutorial that assigns its identities with the function
     it is auditing cannot report on it. See :func:`fetch_anchor`.
@@ -362,7 +362,7 @@ def ident_anchor(idents) -> dict:
 #: that almost everything in it is an exact comparison, and a general tolerance
 #: would quietly buy back all the sensitivity that makes it worth running.
 #:
-#: Both entries are the same cause — shanuz's PCA uses a randomized SVD where
+#: Both entries are the same cause — truecell's PCA uses a randomized SVD where
 #: Seurat's `RunPCA` uses `irlba`, and the two agree to about four decimals on
 #: this data. Neither is a property of the object model.
 #: Measured on pbmc3k: stdevs agree to ~4e-4 relative, and the summed absolute
@@ -378,7 +378,7 @@ FLOAT_TOLERANCES = {
 #: Fields whose *contents* are compared but whose order is not. Seurat's own
 #: order here is an artifact of how `JoinLayers` rebuilds the assay — it returns
 #: `data, counts, scale.data`, which is not the order it started in either — so
-#: requiring a match would be requiring shanuz to reproduce an accident.
+#: requiring a match would be requiring truecell to reproduce an accident.
 UNORDERED_FIELDS = {"join_all_layers.layers_after_join"}
 
 
@@ -433,7 +433,7 @@ def load_pbmc3k_object(data_dir=None):
     different cells before the accessors under test are ever called.
     """
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    return create_shanuz_object(
+    return create_truecell_object(
         counts=counts, assay="RNA", min_cells=MIN_CELLS, min_features=MIN_FEATURES,
         project=PROJECT, feature_names=list(genes), cell_names=list(cells),
     )

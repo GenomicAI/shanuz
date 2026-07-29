@@ -24,7 +24,7 @@ from tutorials.thp1_cellcycle_tutorial import (  # noqa: E402
     phase_distribution,
     build_scoreboard,
 )
-from shanuz.module_score import CC_GENES  # noqa: E402
+from truecell.module_score import CC_GENES  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +88,7 @@ def _synthetic_thp1(seed=0):
     """A tiny THP-1 stand-in with planted S and G2/M cycling populations.
 
     Returns the loader's 6-tuple (rna, genes, adt, adt_names, meta, cells) so it
-    can substitute for shanuz.datasets.thp1_eccite. Cells fall in three groups:
+    can substitute for truecell.datasets.thp1_eccite. Cells fall in three groups:
     S-cyclers (S-phase genes up), G2/M-cyclers (G2/M genes up), and resting — so
     cell_cycle_scoring has all three phases to recover. A third of cells also
     carry the interferon program, to exercise add_module_score.

@@ -4,7 +4,7 @@
 # Mirrors thp1_mixscape_tutorial.py: builds the RNA object from the same GEO
 # bytes, computes the perturbation signature (CalcPerturbSig), classifies each
 # guide's cells into KO / NP (RunMixscape), and fits the guide-separating LDA
-# (MixscapeLDA) — the references for shanuz.calc_perturb_sig / run_mixscape /
+# (MixscapeLDA) — the references for truecell.calc_perturb_sig / run_mixscape /
 # mixscape_lda. Writes the per-cell calls (r_calls.csv) that the Python
 # tutorial's report_concordance() reads, plus the R-side figures for the
 # side-by-side tables into tutorials/figures_mixscape/:
@@ -32,7 +32,7 @@ set.seed(42)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_mixscape")
-DATA <- Sys.getenv("MIXSCAPE_DATA", path.expand("~/.shanuz_data/thp1_eccite"))
+DATA <- Sys.getenv("MIXSCAPE_DATA", path.expand("~/.truecell_data/thp1_eccite"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 
 RNA_TSV  <- file.path(DATA, "GSM4633614_ECCITE_cDNA_counts.tsv.gz")

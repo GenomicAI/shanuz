@@ -2,9 +2,9 @@
 
 Two numbers in the R-comparison suite are expected to differ from Seurat's, and
 both were recorded as prose. `deseq2`'s overlap with Seurat's top 50 genes is a
-*divergence measurement* — shanuz tests pseudobulk samples where `DESeq2DETest`
+*divergence measurement* — truecell tests pseudobulk samples where `DESeq2DETest`
 tests cells — and JackStraw's PC cutoff moves with the seed, because R's
-`JackRandom` seeds each replicate from its loop index and shanuz seeds from its
+`JackRandom` seeds each replicate from its loop index and truecell seeds from its
 `seed` argument. A sentence in a vignette does not fail, so a genuine regression
 that landed anywhere inside the expected spread read as ordinary variation. This
 module gives each of those a :class:`Band` with a stated reason, and gives the

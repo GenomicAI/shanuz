@@ -9,7 +9,7 @@ Covers ``tutorials/ifnb_sketch_tutorial.py``:
     without the 14,000-cell download.
 
 The real-data numbers live in ``tests/test_tutorial_smoke.py`` and only run when
-``SHANUZ_TUTORIAL_SMOKE=1`` is set. Network-free.
+``TRUECELL_TUTORIAL_SMOKE=1`` is set. Network-free.
 """
 import sys
 from pathlib import Path
@@ -21,8 +21,8 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import normalize_data, find_variable_features  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import normalize_data, find_variable_features  # noqa: E402
 from tutorials.ifnb_sketch_tutorial import (  # noqa: E402
     agreement,
     composition,
@@ -215,7 +215,7 @@ def small_object():
             cols.append(rng.poisson(prof))
             ct.append(f"T{k}")
             cells.append(f"c{len(cells)}")
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(np.array(cols).T), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
         meta_data=pd.DataFrame({"seurat_annotations": ct}, index=cells),

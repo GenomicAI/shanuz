@@ -1,21 +1,21 @@
-# PBMC 3k Tutorial — R Seurat vs Shanuz (Python)
+# PBMC 3k Tutorial — R Seurat vs Truecell (Python)
 
 A step-by-step translation of the official
 [Seurat PBMC 3k tutorial](https://satijalab.org/seurat/articles/pbmc3k_tutorial)
-into Python using the **Shanuz** package.
+into Python using the **Truecell** package.
 Every R code block is paired with the equivalent Python code and both plots are
 shown side by side so R users can follow along directly.
 
 > **Dataset:** 3k PBMCs from a Healthy Donor — 10x Genomics (2016)  
 > **R reference:** Seurat v5 · Hao et al. 2024  
-> **Python:** Shanuz v0.1.0
+> **Python:** Truecell v0.1.0
 
 ---
 
 ## Setup
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -31,20 +31,20 @@ library(ggplot2)     # theming
 
 ```python
 # Data structures + analysis
-from shanuz.datasets import pbmc3k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features,
     scale_data, percentage_feature_set,
 )
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.markers import find_markers, find_all_markers
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.markers import find_markers, find_all_markers
 
 # Plotting (mirrors Seurat's plotting API)
-from shanuz.plotting import (
+from truecell.plotting import (
     dim_plot, feature_plot, vln_plot,
     elbow_plot, feature_scatter,
     variable_feature_plot, dim_heatmap,
@@ -59,7 +59,7 @@ import matplotlib.pyplot as plt   # save / display figures
 </table>
 
 > **Key difference:** R plots render to the graphics device automatically.
-> Shanuz functions return a `matplotlib.Figure` — display it in a Jupyter
+> Truecell functions return a `matplotlib.Figure` — display it in a Jupyter
 > notebook (it shows inline), or save it with `fig.savefig("out.png")`.
 
 ---
@@ -67,7 +67,7 @@ import matplotlib.pyplot as plt   # save / display figures
 ## Step 1 · Load Data
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -83,7 +83,7 @@ pbmc.data <- Read10X(
 <td>
 
 ```python
-# Downloads automatically to ~/.shanuz_data/pbmc3k
+# Downloads automatically to ~/.truecell_data/pbmc3k
 # (or pass data_dir= to point at an existing folder)
 counts, genes, cells = pbmc3k()
 # counts : scipy.sparse.csc_matrix  (32,738 × 2,700)
@@ -100,7 +100,7 @@ counts, genes, cells = pbmc3k()
 ## Step 2 · Create Object
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -118,7 +118,7 @@ pbmc <- CreateSeuratObject(
 <td>
 
 ```python
-pbmc = create_shanuz_object(
+pbmc = create_truecell_object(
     counts       = counts,
     project      = "pbmc3k",
     min_cells    = 3,    # keep genes in ≥3 cells
@@ -128,7 +128,7 @@ pbmc = create_shanuz_object(
 )
 # 13,714 features × 2,700 cells
 print(pbmc)
-# Shanuz object — pbmc3k
+# Truecell object — pbmc3k
 #   2700 cells × 13714 features
 #   Active assay: 'RNA'
 ```
@@ -137,7 +137,7 @@ print(pbmc)
 </tr>
 </table>
 
-> **Naming:** `CreateSeuratObject` → `create_shanuz_object`.
+> **Naming:** `CreateSeuratObject` → `create_truecell_object`.
 > Arguments use `_` instead of `.` (`min.cells` → `min_cells`).
 > The returned object exposes the same slots: `pbmc.meta_data`, `pbmc.assays`, etc.
 
@@ -146,7 +146,7 @@ print(pbmc)
 ## Step 3 · QC Metrics & Violin Plot
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -202,7 +202,7 @@ fig.savefig("qc_violin.png", dpi=150, bbox_inches="tight")
 ## Step 4 · QC Scatter Plots
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -249,7 +249,7 @@ fig2 = feature_scatter(
 ## Step 5 · Filter Cells
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -289,7 +289,7 @@ pbmc = pbmc.subset(cells=list(md.index[keep]))
 ## Step 6 · Normalise Data
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -325,7 +325,7 @@ normalize_data(
 ## Step 7 · Highly Variable Features
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -374,11 +374,11 @@ print(top10)
 </table>
 
 > Both plots use **Standardized Variance** on the y-axis, matching R's `VariableFeaturePlot`.
-> Shanuz reproduces Seurat's `vst` algorithm faithfully: it fits the mean–variance LOESS on
+> Truecell reproduces Seurat's `vst` algorithm faithfully: it fits the mean–variance LOESS on
 > the **raw counts**, then ranks genes by the variance of the standardized values after
 > clipping each to `sqrt(n_cells)` (the clip step that stops single-cell outliers from
 > dominating).
-> R's `LabelPoints` (with `ggrepel`) avoids label overlaps; Shanuz uses `matplotlib.annotate`
+> R's `LabelPoints` (with `ggrepel`) avoids label overlaps; Truecell uses `matplotlib.annotate`
 > which may overlap in dense regions.
 > **Top-10 gene overlap: 9/10 (90%)** — the same `PPBP, LYZ, S100A9, IGLL5, GNLY, FTL, PF4,
 > FTH1, S100A8` HVGs as the R tutorial; `GNG11` sits just outside the top 10 (rank 11).
@@ -390,7 +390,7 @@ print(top10)
 ## Step 8 · Scale Data
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -418,7 +418,7 @@ scale_data(pbmc, features=all_genes)
 ## Step 9 · PCA
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -475,7 +475,7 @@ fig = dim_plot(pbmc, reduction="pca", label=False)
 ## Step 10 · Elbow Plot — Choose Dimensionality
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -500,7 +500,7 @@ fig = elbow_plot(pbmc, ndims=20)
 </tr>
 </table>
 
-| PC | R stdev | Shanuz stdev |
+| PC | R stdev | Truecell stdev |
 |----|---------|--------------|
 | 1  | ~6.8    | 6.766        |
 | 2  | ~4.8    | 4.808        |
@@ -511,7 +511,7 @@ fig = elbow_plot(pbmc, ndims=20)
 ## Step 11 · Find Neighbors & Cluster
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -543,10 +543,10 @@ find_clusters(
 </table>
 
 > Both use Louvain community detection via `igraph`. At `resolution = 0.5`
-> Seurat returns **9** clusters here and shanuz **8** — the two runs agree
+> Seurat returns **9** clusters here and truecell **8** — the two runs agree
 > about 2,554 of the 2,638 cells (**ARI 0.938**), and the single cluster
-> Seurat has and shanuz does not is a 32-cell dendritic-cell population whose
-> cells land, **all 32 of them**, in shanuz's CD14+ Mono cluster. DCs are
+> Seurat has and truecell does not is a 32-cell dendritic-cell population whose
+> cells land, **all 32 of them**, in truecell's CD14+ Mono cluster. DCs are
 > monocyte-lineage, so this is one borderline split at this resolution, not a
 > scattered disagreement.
 >
@@ -562,14 +562,14 @@ find_clusters(
 > Run `Rscript tutorials/pbmc3k_verify.R` then
 > `python tutorials/pbmc3k_tutorial.py --report` to reproduce every number in
 > this note. Tutorial 2 shows the same boundary going the other way, with
-> shanuz resolving a DC population that Seurat merges.
+> truecell resolving a DC population that Seurat merges.
 
 ---
 
 ## Step 12 · UMAP
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -613,7 +613,7 @@ fig = dim_plot(pbmc, reduction="umap", label=False)
 ## Step 13 · Feature Plots — Canonical Markers
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -660,7 +660,7 @@ fig = feature_plot(
 > **Note — minor visual differences are expected, not bugs.**
 > Both plots use the same yellow→red expression gradient and the `order=True` behaviour
 > (high-expression cells drawn on top). Cells with zero expression are rendered in light
-> gray in both R and Shanuz, making the expressing cells stand out clearly.
+> gray in both R and Truecell, making the expressing cells stand out clearly.
 > The **spatial layout** of the underlying UMAP differs for the same reason described
 > in Step 12 (different UMAP implementations), but the **gene expression patterns are
 > biologically identical**: MS4A1/CD79A in B cells, NKG7/GNLY in NK cells, LYZ/FCGR3A
@@ -671,7 +671,7 @@ fig = feature_plot(
 ## Step 14 · Violin Plots — Marker Expression
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -721,14 +721,14 @@ fig = vln_plot(
 </table>
 
 > Both show cluster-specific marker expression.
-> The `layer` argument in Shanuz maps directly to Seurat's `slot` argument.
+> The `layer` argument in Truecell maps directly to Seurat's `slot` argument.
 
 ---
 
 ## Step 15 · Find Markers
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -789,7 +789,7 @@ print(top2)
 ## Step 16 · Expression Heatmap
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -834,7 +834,7 @@ fig = do_heatmap(pbmc, features=top10_genes)
 ## Step 17 · Cell Type Annotation
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -891,7 +891,7 @@ fig = dim_plot(
 </tr>
 </table>
 
-> Cluster index ordering differs between R and Shanuz (Louvain is non-deterministic
+> Cluster index ordering differs between R and Truecell (Louvain is non-deterministic
 > by cluster ID), so the cluster-to-cell-type mapping uses different numeric keys.
 > The biological result — 9 identical cell types — is the same.
 
@@ -900,7 +900,7 @@ fig = dim_plot(
 ## Step 18 · Ridge Plot (Bonus)
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -935,16 +935,16 @@ fig = ridge_plot(
 
 > The published Seurat vignette prints no RidgePlot, so the R panel here is
 > generated by [`pbmc3k_verify.R`](pbmc3k_verify.R) (standard PBMC 3k workflow).
-> R's `RidgePlot` uses the `ggridges` package; Shanuz implements equivalent KDE
+> R's `RidgePlot` uses the `ggridges` package; Truecell implements equivalent KDE
 > ridgelines using `scipy.stats.gaussian_kde`.
 
 ---
 
 ## Quick Reference — API Translation
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
-| Create object | `CreateSeuratObject(counts, min.cells, min.features)` | `create_shanuz_object(counts, min_cells, min_features)` |
+| Create object | `CreateSeuratObject(counts, min.cells, min.features)` | `create_truecell_object(counts, min_cells, min_features)` |
 | % mito genes | `PercentageFeatureSet(pbmc, pattern="^MT-")` | `percentage_feature_set(pbmc, pattern=r"^MT-", col_name=...)` |
 | Normalise | `NormalizeData(pbmc, normalization.method, scale.factor)` | `normalize_data(pbmc, normalization_method, scale_factor)` |
 | HVGs | `FindVariableFeatures(pbmc, selection.method, nfeatures)` | `find_variable_features(pbmc, selection_method, nfeatures)` |
@@ -964,7 +964,7 @@ fig = ridge_plot(
 
 ### Plotting API Translation
 
-| R (Seurat) | Python (Shanuz) | Key argument changes |
+| R (Seurat) | Python (Truecell) | Key argument changes |
 |-----------|-----------------|---------------------|
 | `VlnPlot(pbmc, features, ncol, slot)` | `vln_plot(pbmc, features, ncol, layer)` | `slot` → `layer` |
 | `FeaturePlot(pbmc, features, order)` | `feature_plot(pbmc, features, order)` | same |
@@ -1000,11 +1000,11 @@ plt.show()
 ## Reproducing All Plots
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell
 uv venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -e ".[analysis]"
-python tutorials/generate_plots.py     # Shanuz plots -> tutorials/figures/
+python tutorials/generate_plots.py     # Truecell plots -> tutorials/figures/
 Rscript tutorials/pbmc3k_verify.R      # R Seurat RidgePlot + the numeric handoff
 ```
 
@@ -1030,7 +1030,7 @@ Neither side is pinned to the other: both run their own pipeline from the same
 10x bytes, which is what makes the comparison worth anything. What it reports
 on this dataset:
 
-| | shanuz vs Seurat 5.5.1 |
+| | truecell vs Seurat 5.5.1 |
 |---|---|
 | Cells surviving QC | **the same 2,638 barcodes**; nCount and nFeature exact, percent.mt to 5.3e-15 |
 | VST per gene (13,714) | mean 4.8e-14 · variance 1.6e-11 · `variance.expected` 2.5e-2 · `variance.standardized` 2.6e-2, all relative |

@@ -4,10 +4,10 @@ import pandas as pd
 import pytest
 import scipy.sparse as sp
 
-from shanuz import create_shanuz_object, find_spatially_variable_features
-from shanuz.preprocessing import normalize_data
-from shanuz.spatial.fov import create_fovs
-from shanuz.spatial.variable_features import (
+from truecell import create_truecell_object, find_spatially_variable_features
+from truecell.preprocessing import normalize_data
+from truecell.spatial.fov import create_fovs
+from truecell.spatial.variable_features import (
     _band_weights,
     _mark_variogram,
     _nn_spacing,
@@ -178,7 +178,7 @@ def spatial_obj():
         X[3 + i] = rng.poisson(5, n)
     # X[-1] ("silent") stays all zero.
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(np.abs(X) * 3),
         feature_names=genes,
         cell_names=[f"c{i}" for i in range(n)],

@@ -20,9 +20,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.preprocessing import normalize_data, scale_data  # noqa: E402
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.preprocessing import normalize_data, scale_data  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 N_CELLS, N_GENES, N_PCS = 900, 700, 30
 
@@ -37,7 +37,7 @@ def _object(n_cells=N_CELLS, n_genes=N_GENES, seed=0):
     counts = rng.poisson(lam).astype(float)
     genes = [f"g{i}" for i in range(n_genes)]
     cells = [f"c{i}" for i in range(n_cells)]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA", feature_names=genes, cell_names=cells
     )
     normalize_data(obj)

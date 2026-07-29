@@ -12,14 +12,14 @@ numbers did not keep. Four separate divergences:
     mvp.mean       = log1p(mean(expm1(x)))
     mvp.dispersion = log(var(expm1(x)) / mean(expm1(x)))
 
-shanuz took the mean and variance of the log-normalized values directly and
+truecell took the mean and variance of the log-normalized values directly and
 added an `eps` inside each logarithm. On PBMC 3k the resulting `mvp.mean`
 column ran 0-2 where Seurat's ran 1-7: not a rounding difference, a different
 quantity.
 
 **The bins were equal-frequency, not equal-width.** R's
 `cut(x, breaks = 20)` lays 20 bins of equal width across the range of the mean;
-shanuz used percentiles of `log(mean)`. Since the scaled dispersion is a
+truecell used percentiles of `log(mean)`. Since the scaled dispersion is a
 z-score *within a bin*, changing which genes share a bin changes every value.
 
 **Bins holding one gene were scored 0 rather than NaN.** R's `sd` of a single
@@ -30,11 +30,11 @@ dead-centre score the gene never earned, and dead centre is a real rank.
 **`mean.cutoff` and `dispersion.cutoff` were accepted and discarded.** Seurat
 has two selectors here, not one: `MVP` (`"mvp"` / `"mean.var.plot"`) keeps
 every gene inside both cutoffs and ignores `nfeatures`; `DISP` (`"dispersion"`
-/ `"disp"`) takes the top `nfeatures` and ignores the cutoffs. shanuz ran the
+/ `"disp"`) takes the top `nfeatures` and ignores the cutoffs. truecell ran the
 second for all four spellings — so `mean.var.plot` returned exactly
 `nfeatures` genes under a name that promises a cutoff. On PBMC 3k Seurat
-returns 1,006 features for `mvp`; shanuz returned 2,000. Both also rank by the
-*raw* dispersion; shanuz ranked by the scaled one, which reorders the list.
+returns 1,006 features for `mvp`; truecell returned 2,000. Both also rank by the
+*raw* dispersion; truecell ranked by the scaled one, which reorders the list.
 
 The golden values below come from Seurat 5.5.1 / SeuratObject 5.4.0, via
 `Seurat:::CalcDispersion` and `FindVariableFeatures` on the fixture in
@@ -45,8 +45,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell import create_truecell_object
+from truecell.preprocessing import (
     _dispersion_hvg,
     find_variable_features,
     normalize_data,
@@ -71,7 +71,7 @@ def _counts() -> np.ndarray:
 
 @pytest.fixture
 def obj():
-    o = create_shanuz_object(
+    o = create_truecell_object(
         counts=sp.csc_matrix(_counts()),
         assay="RNA",
         feature_names=[f"g{i}" for i in range(N_GENES)],
@@ -294,7 +294,7 @@ def test_a_gene_detected_in_no_cell_scores_nan_under_either_binning():
     """
     counts = _counts()
     counts[[3, 17]] = 0.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(N_GENES)],
         cell_names=[f"c{j}" for j in range(N_CELLS)],
@@ -332,7 +332,7 @@ def test_ties_in_dispersion_keep_assay_order():
     """
     counts = _counts()
     counts[41] = counts[5]  # an exact duplicate, so the dispersions tie
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(N_GENES)],
         cell_names=[f"c{j}" for j in range(N_CELLS)],
@@ -398,7 +398,7 @@ def test_mvp_ignores_nfeatures_and_disp_honours_it(obj):
 
     `MVP` is cutoff-based, so `nfeatures` does not reach it: asking for 10 gets
     6 here and 1,006 on PBMC 3k. Routing all four spellings to the top-N
-    selector — which is what shanuz did — made `nfeatures` look respected and
+    selector — which is what truecell did — made `nfeatures` look respected and
     the cutoffs look applied, and neither was true of both.
     """
     find_variable_features(obj, selection_method="mvp", nfeatures=10)
@@ -469,7 +469,7 @@ def test_variable_feature_plot_draws_the_stored_mvp_dispersion(obj):
     pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
 
-    from shanuz.plotting import variable_feature_plot
+    from truecell.plotting import variable_feature_plot
 
     find_variable_features(obj, selection_method="mvp", nfeatures=10)
     fig = variable_feature_plot(obj, label=False)
@@ -490,7 +490,7 @@ def test_rerunning_with_another_method_retires_the_previous_columns(obj):
 
     SeuratObject can hold both methods at once because it namespaces the
     columns by method and layer and makes you name one to read them back.
-    shanuz's `meta_data` has a single flat name per statistic, so a vst run
+    truecell's `meta_data` has a single flat name per statistic, so a vst run
     followed by an mvp run left `variance.standardized` sitting beside an mvp
     selection — and `variable_feature_plot`, which picks its axis off whichever
     columns it finds, drew the vst figure over the mvp genes.
@@ -523,8 +523,8 @@ def test_sparse_and_dense_layers_give_the_same_statistics():
     args = dict(assay="RNA", feature_names=[f"g{i}" for i in range(N_GENES)],
                 cell_names=[f"c{j}" for j in range(N_CELLS)])
 
-    dense_obj = create_shanuz_object(counts=counts.copy(), **args)
-    sparse_obj = create_shanuz_object(counts=sp.csc_matrix(counts), **args)
+    dense_obj = create_truecell_object(counts=counts.copy(), **args)
+    sparse_obj = create_truecell_object(counts=sp.csc_matrix(counts), **args)
     for o in (dense_obj, sparse_obj):
         normalize_data(o)
 

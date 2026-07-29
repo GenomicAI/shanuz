@@ -1,4 +1,4 @@
-"""Reference mapping tutorial — annotate a query by label transfer with Shanuz on panc8.
+"""Reference mapping tutorial — annotate a query by label transfer with Truecell on panc8.
 
 A Python port of Seurat's *Mapping and annotating query datasets* vignette
 (https://satijalab.org/seurat/articles/integration_mapping) on the pancreatic
@@ -22,21 +22,21 @@ Seurat's vignette builds a multi-technology *integrated* reference. This
 tutorial deliberately uses a **single-technology reference** — CEL-seq2 (2,285
 cells, carrying all 13 annotated cell types) — and maps the **SMART-seq2** query
 (2,394 cells, also all 13 types) onto it. Two reasons: it isolates the label-
-transfer machinery (:func:`shanuz.find_transfer_anchors` /
-:func:`shanuz.transfer_data`) from the integration machinery the ifnb tutorial
+transfer machinery (:func:`truecell.find_transfer_anchors` /
+:func:`truecell.transfer_data`) from the integration machinery the ifnb tutorial
 already checks, and it is still a genuine cross-chemistry transfer (tag-based
 CEL-seq2 → full-length SMART-seq2). Because the query's own ``celltype`` labels
 ship with the data, the transfer can be scored directly for **accuracy** against
 ground truth, not merely for agreement with R.
 
-It demonstrates Shanuz's reference-mapping API side by side with Seurat's:
-  * :func:`shanuz.find_transfer_anchors` — Seurat's ``FindTransferAnchors``:
+It demonstrates Truecell's reference-mapping API side by side with Seurat's:
+  * :func:`truecell.find_transfer_anchors` — Seurat's ``FindTransferAnchors``:
     project the query into the reference's PCA (``reduction="pcaproject"``) and
     find scored mutual-nearest-neighbour anchors,
-  * :func:`shanuz.transfer_data` — Seurat's ``TransferData``: turn the anchors
+  * :func:`truecell.transfer_data` — Seurat's ``TransferData``: turn the anchors
     into a per-query-cell weighted vote over the reference labels
     (``predicted.id`` + ``prediction.score.*``),
-  * :func:`shanuz.map_query` / :func:`shanuz.project_umap` — Seurat's
+  * :func:`truecell.map_query` / :func:`truecell.project_umap` — Seurat's
     ``MapQuery`` / ``ProjectUMAP``: place the query in the reference's own UMAP
     so the new cells land on the atlas you already know how to read (figures).
 
@@ -50,7 +50,7 @@ them rare), genuine cross-technology batch structure, and a Seurat reference to
 match. The comparison target is **not** byte-identical coordinates — the query's
 projected embedding depends on irlba-vs-sklearn PCA sign and umap-learn-vs-uwot
 transform — but the *labels*, which are a robust weighted argmax, are directly
-comparable per cell: does shanuz assign each query cell the same ``predicted.id``
+comparable per cell: does truecell assign each query cell the same ``predicted.id``
 as Seurat, and does each tool recover the query's true cell type.
 
 Note on the data and the R comparison
@@ -96,13 +96,13 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import panc8
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.umap import run_umap
-from shanuz.transfer import find_transfer_anchors, transfer_data
-from shanuz.mapping import project_umap
+from truecell.datasets import panc8
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.umap import run_umap
+from truecell.transfer import find_transfer_anchors, transfer_data
+from truecell.mapping import project_umap
 
 FIGURES = Path(__file__).parent / "figures_refmap"
 
@@ -152,7 +152,7 @@ def label_concordance(pred_a, pred_b) -> float:
     """Fraction of query cells the two tools assign the *same* label.
 
     Distinct from :func:`transfer_accuracy`: this compares two *predictors* to
-    each other (shanuz vs Seurat's ``predicted.id``), not a predictor to ground
+    each other (truecell vs Seurat's ``predicted.id``), not a predictor to ground
     truth. 1.0 means the two tools annotate every cell identically.
     """
     pred_a = np.asarray(pred_a)
@@ -228,7 +228,7 @@ def load_panc8_split(reference_tech=REFERENCE_TECH, query_tech=QUERY_TECH,
     """
     counts, genes, cells, meta = panc8(data_dir=data_dir)
     keep = meta[[c for c in (TECH, CELLTYPE) if c in meta.columns]].copy()
-    full = create_shanuz_object(
+    full = create_truecell_object(
         counts=counts, assay="RNA", min_cells=min_cells, min_features=0,
         project="panc8", feature_names=list(genes), cell_names=list(cells),
         meta_data=keep,
@@ -251,7 +251,7 @@ def prep_reference(reference, n_hvg=N_HVG, n_pcs=N_PCS, do_umap=False, seed=42):
 
     The reference's standard ``NormalizeData %>% FindVariableFeatures %>%
     ScaleData %>% RunPCA``. When ``do_umap`` is set, also fit a returnable UMAP
-    (``run_umap`` stashes the model) so :func:`shanuz.project_umap` can place the
+    (``run_umap`` stashes the model) so :func:`truecell.project_umap` can place the
     query in the reference's embedding for the figures. Returns the selected
     variable-feature list — the shared basis written for the R run.
     """
@@ -287,7 +287,7 @@ def run_mapping(reference, query, features, do_umap=False, k_anchor=K_ANCHOR,
     the mutual-nearest-neighbour anchors, and carry the reference's
     :data:`CELLTYPE` across them to a per-query-cell ``predicted.id`` +
     ``prediction.score.*``. When ``do_umap`` is set, also
-    :func:`shanuz.project_umap` the query into the reference UMAP (Seurat's
+    :func:`truecell.project_umap` the query into the reference UMAP (Seurat's
     ``MapQuery``/``ProjectUMAP``) for the atlas-placement figure.
 
     Returns ``(anchors, predictions)``.
@@ -316,7 +316,7 @@ def summarize(reference, query, anchors, predictions, verbose=True) -> dict:
     per_class = per_class_recall(pred, truth)
 
     board = build_scoreboard([{
-        "tool": "shanuz (pcaproject)",
+        "tool": "truecell (pcaproject)",
         "n_query": int(len(query.cell_names())),
         "n_anchors": int(len(anchors.anchors)),
         "accuracy": round(acc, 4),
@@ -381,7 +381,7 @@ def report_concordance(query, predictions, r_calls_path=None, verbose=True) -> d
     if verbose:
         section("R-vs-Python concordance (shared counts & variable-feature basis)")
         tbl = pd.DataFrame([
-            {"tool": "shanuz", "accuracy": round(out["py_accuracy"], 4),
+            {"tool": "truecell", "accuracy": round(out["py_accuracy"], 4),
              "mean_score": round(out["py_mean_score"], 4)},
             {"tool": "Seurat R", "accuracy": round(out["r_accuracy"], 4),
              "mean_score": round(out["r_mean_score"], 4)},

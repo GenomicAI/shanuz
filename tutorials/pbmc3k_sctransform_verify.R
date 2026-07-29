@@ -30,7 +30,7 @@ set.seed(0)
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_sctransform")
 DATA <- Sys.getenv("PBMC3K_DATA",
-                   path.expand("~/.shanuz_data/pbmc3k/filtered_gene_bc_matrices/hg19"))
+                   path.expand("~/.truecell_data/pbmc3k/filtered_gene_bc_matrices/hg19"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 if (!file.exists(file.path(DATA, "matrix.mtx")))
   stop("PBMC 3k data not found at ", DATA,
@@ -139,7 +139,7 @@ cat("\nWrote r_02_sct_umap_celltypes.png and r_06_sct_vs_std_umap.png to", FIG, 
 # fitted model itself, per gene, so the Python side can check the thing
 # SCTransform actually computes rather than the picture drawn from it.
 #
-# This matters here more than anywhere else in the series. shanuz's SCT model
+# This matters here more than anywhere else in the series. truecell's SCT model
 # was once silently wrong in four separate ways — an anti-correlated theta, a
 # residual variance that ranked genes essentially at random — and the tutorial
 # still produced a plausible UMAP. Only a numeric comparison catches that.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Compare shanuz (Python) vs R Seurat deterministic anchors for the Xenium
+"""Compare truecell (Python) vs R Seurat deterministic anchors for the Xenium
 spatial tutorial, and print a MATCH/DIFF table with an overall verdict.
 
 Reads both JSONs from tutorials/figures_spatial/:
@@ -51,7 +51,7 @@ for g in sorted(py["composition"]):
           r["composition"][g]["padj"], tol=1e-4)
 
 w = max(len(n) for n, *_ in rows)
-print(f"{'anchor':<{w}}  {'shanuz':>16}  {'R Seurat':>16}  verdict")
+print(f"{'anchor':<{w}}  {'truecell':>16}  {'R Seurat':>16}  verdict")
 print("-" * (w + 44))
 for n, a, b, v in rows:
     fa = f"{a:.8g}" if isinstance(a, float) else str(a)
@@ -60,10 +60,10 @@ for n, a, b, v in rows:
 
 print("\nOdds-ratio (definitional difference: scipy sample OR vs R conditional MLE):")
 for g in sorted(py["composition"]):
-    print(f"  {g:<16} shanuz={py['composition'][g]['odds_ratio']:.4f}  "
+    print(f"  {g:<16} truecell={py['composition'][g]['odds_ratio']:.4f}  "
           f"R={r['composition'][g]['odds_ratio']:.4f}")
 
 print("\nStructural (stochastic, reported not matched): "
-      f"clusters shanuz={py['n_clusters']} R={r['n_clusters']}; "
-      f"niches shanuz={py['n_niches']} R={r['n_niches']}")
+      f"clusters truecell={py['n_clusters']} R={r['n_clusters']}; "
+      f"niches truecell={py['n_niches']} R={r['n_niches']}")
 print("\n" + ("ALL DETERMINISTIC ANCHORS MATCH" if ok_all else "SOME ANCHORS DIFFER"))

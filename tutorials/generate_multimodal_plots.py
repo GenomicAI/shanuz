@@ -1,6 +1,6 @@
 """Generate all figures for the multimodal CITE-seq tutorial.
 
-Runs cbmc_citeseq_tutorial.run_full() and renders the shanuz-side figures to
+Runs cbmc_citeseq_tutorial.run_full() and renders the truecell-side figures to
 tutorials/figures_multimodal/.
 
 Usage
@@ -22,7 +22,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.cbmc_citeseq_tutorial import run_full
-from shanuz.plotting import (
+from truecell.plotting import (
     dim_plot, feature_plot, ridge_plot, feature_scatter, vln_plot,
     _get_expression, _get_embedding, _palette,
 )

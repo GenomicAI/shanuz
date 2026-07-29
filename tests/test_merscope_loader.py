@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from shanuz import load_merscope
+from truecell import load_merscope
 
 
 def _write_merscope(tmp_path, cell_id_col="cell", with_blanks=True, with_fov=True):

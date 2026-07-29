@@ -169,7 +169,7 @@ def test_report_concordance_accepts_a_reference_within_r_s_rounding(tmp_path,
                                                                     monkeypatch):
     """The guard must not fire on R's three-decimal pct columns.
 
-    Seurat rounds; shanuz does not. If this were exact, every real run would be
+    Seurat rounds; truecell does not. If this were exact, every real run would be
     rejected as stale.
     """
     monkeypatch.setattr(de, "FIGURES", tmp_path)

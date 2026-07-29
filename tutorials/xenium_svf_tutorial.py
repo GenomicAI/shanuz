@@ -1,4 +1,4 @@
-"""Spatial statistics and the spatial container — shanuz against Seurat 5.5.1.
+"""Spatial statistics and the spatial container — truecell against Seurat 5.5.1.
 
 Wave 2's last side-by-side. It takes the 10x Xenium mouse brain slide (36,602
 cells x 248 genes) and compares two things that the existing Xenium tutorial
@@ -19,7 +19,7 @@ Three defects, all fixed here.
 
 1. **Moran's I was computed on the wrong weight matrix.** Seurat builds
    ``1 / d²`` between every pair of cells and ``Rfast2::moranI`` row-standardises
-   it; shanuz used a k-nearest-neighbour graph. The kNN answer is a decent
+   it; truecell used a k-nearest-neighbour graph. The kNN answer is a decent
    approximation — Pearson 0.986 against R, 46 of R's top 50 genes — which is
    exactly why it survived: close enough to look right in a plot. It is not R's
    answer. It runs a median 1.23x high and agrees on only 7 of R's top 10, and
@@ -28,7 +28,7 @@ Three defects, all fixed here.
 
 2. **Centroids never got a radius.** ``SeuratObject`` always computes one
    (``.AutoRadius`` = 1% of the mean bounding-box dimension: 42.83 on this
-   slide). shanuz left it ``None``, and ``_spot_collection`` returns ``None`` for
+   slide). truecell left it ``None``, and ``_spot_collection`` returns ``None`` for
    a ``None`` radius — so every true-to-scale spot renderer silently degraded to
    a fixed-size scatter on every FOV that did not come from a Visium
    ``scalefactors_json.json``. Nothing raised; the plots just quietly stopped
@@ -45,18 +45,18 @@ point of this file:
 * **The Moran's I p-value.** R runs a 999-permutation test. On this 248-gene
   panel that yields 14 distinct p-values and ties **233 genes** at its 1/1025
   floor — it cannot rank the most spatially variable gene against the
-  two-hundredth. shanuz's normal-approximation p-value is continuous and
+  two-hundredth. truecell's normal-approximation p-value is continuous and
   deterministic. Matching R here would cost information and buy nothing, so the
   statistic was fixed and the p-value deliberately was not. Parity is the goal
   right up until it makes the port worse.
-* **The FOV ``Key``.** R derives it from the assay (``RNA_``); shanuz hardcodes
+* **The FOV ``Key``.** R derives it from the assay (``RNA_``); truecell hardcodes
   ``fov_``. It appears in ``__repr__`` and nowhere else — no lookup, no
   prefixing, no fetch — so changing a default to fix a display string was not
   worth the churn.
 
 Result: **38 of 39 anchors match Seurat exactly.** The one that does not is the
 shape of ``get_tissue_coordinates`` — R returns ``x, y, cell`` as three columns,
-shanuz returns ``x, y`` and carries the cell as the index. Same information, and
+truecell returns ``x, y`` and carries the cell as the index. Same information, and
 the object-level accessor already materialises ``cell`` as a column; adding a
 second copy alongside the index would only give the two a way to disagree.
 
@@ -70,7 +70,7 @@ slack it did not earn.
 
 The Moran's I comparison runs on a **2,000-cell subset**, because Seurat cannot
 do otherwise: ``RunMoransI`` materialises the full n x n weight matrix, which on
-36,602 cells is a 10.7 GB allocation. shanuz evaluates the same weights in row
+36,602 cells is a 10.7 GB allocation. truecell evaluates the same weights in row
 blocks and does run on the whole slide — that comparison is reported too, against
 itself, since there is no R number to check it against.
 
@@ -90,9 +90,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shanuz.datasets import xenium_mouse_brain
-from shanuz.preprocessing import normalize_data
-from shanuz.spatial import (
+from truecell.datasets import xenium_mouse_brain
+from truecell.preprocessing import normalize_data
+from truecell.spatial import (
     create_centroids,
     create_fov,
     create_segmentation,
@@ -371,7 +371,7 @@ def report_concordance() -> pd.DataFrame:
         )
     py = json.loads(py_path.read_text())
     r = json.loads(r_path.read_text())
-    # knn_vs_fixed has no R counterpart by construction — it is shanuz measuring
+    # knn_vs_fixed has no R counterpart by construction — it is truecell measuring
     # its own former behaviour — so it is not part of the parity table.
     py = {k: v for k, v in py.items() if k != "knn_vs_fixed"}
     table = compare_anchors(py, r)

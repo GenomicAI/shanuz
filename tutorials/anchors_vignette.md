@@ -33,7 +33,7 @@ as a claim to check rather than a place to stop —
 
 ![anchor agreement](figures_anchors/py_01_anchor_agreement.png)
 
-| | Seurat | shanuz | shared | recall | precision | score *r* | identical |
+| | Seurat | truecell | shared | recall | precision | score *r* | identical |
 |---|---|---|---|---|---|---|---|
 | **CCA** | 2,814 | 2,815 | 2,811 | **99.9 %** | 99.9 % | 0.99985 | 97.2 % |
 | **RPCA** | 649 | 649 | 649 | **100.0 %** | 100.0 % | 0.99997 | 99.5 % |
@@ -44,7 +44,7 @@ the last bit. Before this work CCA recovered **70.0 %** of Seurat's anchors at
 
 ![correction](figures_anchors/py_02_correction.png)
 
-| correction over the query half | shanuz | Seurat |
+| correction over the query half | truecell | Seurat |
 |---|---|---|
 | CCA mean \|Δ\| | 0.099286 | 0.099201 |
 | CCA fraction of entries moved | 0.6461 | 0.6460 |
@@ -65,7 +65,7 @@ IntegrateDataC corrected = query − Wᵀ (query − ref)
 
 Both reproduce to `max|diff| = 0` on random input. The kernel matters: it *rises*
 with proximity and folds the anchor score **into the exponent**. A Gaussian in
-the raw distance multiplied by the score — which is what shanuz had — is a
+the raw distance multiplied by the score — which is what truecell had — is a
 different curve with a different ranking, and it even responds to its bandwidth
 in the opposite direction.
 
@@ -75,7 +75,7 @@ in the opposite direction.
 
 ### `find_integration_anchors`
 
-1. **`RunCCA` standardizes each cell; shanuz L2-normalized it.** The dominant
+1. **`RunCCA` standardizes each cell; truecell L2-normalized it.** The dominant
    one. A cross-covariance of standardized matrices is a *correlation* matrix
    between cells; of L2-normalized ones, *cosine similarity*. Different singular
    vectors, so every anchor moves. Recall alone: 70.0 % → 86.5 %.
@@ -87,7 +87,7 @@ in the opposite direction.
    `TopDimFeatures` — at most 200 genes picked from the CCA loadings (193 here),
    not the full 2,000-gene anchor set.
 4. **The filter ran on the wrong layer.** Seurat's `slot = "data"`, the
-   log-normalized values; shanuz used `scale.data`.
+   log-normalized values; truecell used `scale.data`.
 5. **The score used one pooled kNN.** `ScoreAnchors` gives each anchor member
    `k.score` neighbours *within its own dataset* **plus** `k.score` in the
    other — 2·k.score cells from four separate searches. With a batch effect
@@ -116,7 +116,7 @@ in the opposite direction.
 
 9. **The weights were computed in the wrong space.** `RunIntegration` merges the
    pair, re-runs `ScaleData` on the anchor features and runs a **fresh PCA**,
-   then searches there. shanuz reused the CCA embedding — a space built to make
+   then searches there. truecell reused the CCA embedding — a space built to make
    the batches overlap, which is not the same neighbourhood.
 10. **The kernel** (above).
 11. **`k_weight` counts anchors, not anchor cells.** `FindWeightsC` walks the
@@ -126,7 +126,7 @@ in the opposite direction.
     **unique** query anchor cells: a cell anchoring five times is one candidate.
 12. **`integrate_layers` corrected the wrong direction.** Seurat's
     `PairwiseIntegrateReference` reverses the merge pair whenever the second
-    object is bigger, so the reference is the **larger** batch. shanuz took the
+    object is bigger, so the reference is the **larger** batch. truecell took the
     first. Invisible on an even split; ifnb is CTRL 6,548 vs STIM 7,451.
 
 ---
@@ -193,7 +193,7 @@ the SVD solver, one layer down.
 
 Everything above is the v4 path: `FindIntegrationAnchors` + `IntegrateData`,
 called directly on a list of objects. Seurat also ships a v5 dispatch API,
-`IntegrateLayers(method = CCAIntegration)`, and shanuz's `integrate_layers`
+`IntegrateLayers(method = CCAIntegration)`, and truecell's `integrate_layers`
 wraps it. They are not the same algorithm wearing a different name.
 
 Reading `RPCAIntegration`'s source rather than assuming it delegates to
@@ -202,7 +202,7 @@ way, then hands them to **`IntegrateEmbeddings`**, which transposes the input
 PCA embedding into a fake assay whose "features" are the 30 dimensions and
 runs the *same* anchor-weighting machinery over *that* — correcting the
 embedding directly. `IntegrateData` corrects expression and leaves you to
-`ScaleData` + `RunPCA` again, landing in a new basis. shanuz's `integrate_layers`
+`ScaleData` + `RunPCA` again, landing in a new basis. truecell's `integrate_layers`
 was doing the latter behind the v5 name: a different object with the same
 shape, agreeing with Seurat's actual output on only **1 of 30 dimensions**
 above \|r\| = 0.99.
@@ -233,8 +233,8 @@ rather than copies will show noise there.
 **What is left is not integration, it's clustering.** RPCA's partition
 agreement with R (`ARI(py,R)`) is still only 0.774 even with the embedding
 matching to 30/30 dims. Clustering **Seurat's own** RPCA embedding through
-shanuz's `find_neighbors` + `find_clusters` gives batch-mix 0.990 and
-ARI→type 0.920 — essentially shanuz's own numbers, not Seurat's 0.917 / 0.736
+truecell's `find_neighbors` + `find_clusters` gives batch-mix 0.990 and
+ARI→type 0.920 — essentially truecell's own numbers, not Seurat's 0.917 / 0.736
 on that identical input. That divergence was chased separately and turned out
 **not** to be a defect: see
 [the clustering section of the integration vignette](integration_vignette.md#the-clustering-divergence-is-not-a-defect).
@@ -278,15 +278,15 @@ candidate formulas agree exactly once every gene's mean is zero).
 
 Not addressed here:
 
-- **The guide tree.** shanuz integrates reference-to-query; Seurat builds a
+- **The guide tree.** truecell integrates reference-to-query; Seurat builds a
   `BuildSampleTree` merge order for three or more datasets. Two-dataset
   integration is unaffected.
 - **Matching Seurat's modularity search.** The clustering divergence *was*
   investigated (see
   [the integration vignette](integration_vignette.md#the-clustering-divergence-is-not-a-defect)):
   the graphs agree, and the remaining difference is that Seurat runs 10
-  restarts of its own modularity optimiser where shanuz runs one igraph pass.
-  shanuz's shallower optimum is the better one on ifnb, so the search was
+  restarts of its own modularity optimiser where truecell runs one igraph pass.
+  truecell's shallower optimum is the better one on ifnb, so the search was
   deliberately left alone and no `n.start` equivalent was added. A
   faithful port of `RunModularityClusteringCpp` would close `ARI(py,R)`
   at the cost of that result.

@@ -24,8 +24,8 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.clustering import _group_singletons  # noqa: E402
-from shanuz.neighbors import _build_snn, _knn_to_sparse  # noqa: E402
+from truecell.clustering import _group_singletons  # noqa: E402
+from truecell.neighbors import _build_snn, _knn_to_sparse  # noqa: E402
 
 
 def _ranked(n=60, k=20, seed=0):
@@ -64,7 +64,7 @@ def test_nn_graph_keeps_the_in_degree_signal():
 
 def test_snn_keeps_the_self_diagonal():
     """``ComputeSNN`` stores SNN[i,i] = k/(2k-k) = 1 for every cell; all 13999
-    were present in Seurat's graph and none in shanuz's."""
+    were present in Seurat's graph and none in truecell's."""
     n, k = 60, 20
     snn = _build_snn(_ranked(n, k), n, k, 1 / 15).tocsr()
     assert (snn.diagonal() != 0).sum() == n
@@ -173,15 +173,15 @@ def test_run_umap_zeroes_the_graph_diagonal(monkeypatch):
     carries a diagonal of 1, failing to strip it feeds the layout n self-edges."""
     import umap.umap_ as uu
 
-    from shanuz.neighbors import find_neighbors
-    from shanuz.preprocessing import normalize_data, scale_data
-    from shanuz.reduction import run_pca
-    from shanuz.shanuz import create_shanuz_object
-    from shanuz.umap import run_umap
+    from truecell.neighbors import find_neighbors
+    from truecell.preprocessing import normalize_data, scale_data
+    from truecell.reduction import run_pca
+    from truecell.truecell import create_truecell_object
+    from truecell.umap import run_umap
 
     rng = np.random.default_rng(0)
     genes = [f"g{i}" for i in range(40)]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=rng.poisson(4.0, size=(40, 80)).astype(float), assay="RNA",
         feature_names=genes, cell_names=[f"c{i}" for i in range(80)])
     normalize_data(obj)

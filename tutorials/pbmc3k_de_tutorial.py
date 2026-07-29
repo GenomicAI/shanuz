@@ -1,4 +1,4 @@
-"""The differential-expression test suite — shanuz against Seurat 5.5.1.
+"""The differential-expression test suite — truecell against Seurat 5.5.1.
 
 Wave 3's first tutorial, and the last big untested surface in the library:
 ``find_markers`` offers eight statistical tests and **none of them had ever been
@@ -17,14 +17,14 @@ Two defects, both fixed here.
 
 1. **``avg_log2FC`` put the pseudocount in the wrong place.** Seurat 5's
    ``log1pdata.mean.fxn`` is ``log2((sum(expm1(x)) + 1) / n)`` — one pseudocount
-   added to the group's *total*, worth ``1/n`` on the mean scale. shanuz computed
+   added to the group's *total*, worth ``1/n`` on the mean scale. truecell computed
    ``log2(mean(expm1(x)) + 1)``, adding a whole count to the *mean*. That floors
    every fold change near zero: a gene detected in 0 % of one cluster and 24 % of
    the other read **-1.26** where Seurat reads **-9.92**.
 
    This is the most-read column in any DE table, and it is worse than a display
    problem: ``logfc_threshold`` **filters on it**, so the error changed which
-   genes came back at all. At Seurat's own default of 0.1, shanuz returned 4,903
+   genes came back at all. At Seurat's own default of 0.1, truecell returned 4,903
    genes where Seurat returned 13,009 (Jaccard 0.377); at 0.25, 2,298 against
    11,931 (Jaccard **0.193**). Fewer than one gene in five agreed.
 
@@ -35,7 +35,7 @@ Two defects, both fixed here.
 
 2. **``negbinom`` was a different test.** Seurat's ``GLMDETest`` fits
    ``MASS::glm.nb`` — dispersion estimated by **maximum likelihood** — and reads
-   the **Wald** p-value off the group coefficient. shanuz used a fixed
+   the **Wald** p-value off the group coefficient. truecell used a fixed
    method-of-moments dispersion and a **likelihood-ratio** test: a different
    estimator *and* a different statistic. It read HLA-DRA at 5.5e-128 against
    R's 1.1e-321. After the fix the p-values agree **exactly** (median |log10
@@ -47,7 +47,7 @@ Differences left standing, and why
 ----------------------------------
 * **``deseq2`` is not Seurat's DESeq2.** Seurat's ``DESeq2DETest`` builds a
   ``DESeqDataSet`` with **one column per cell** and tests cells as replicates.
-  shanuz sums counts per sample and tests at the sample level. Treating cells as
+  truecell sums counts per sample and tests at the sample level. Treating cells as
   replicates is the practice Squair et al. (2021) showed inflates false
   positives, so the pseudobulk route is the better statistics — and because it
   **requires ``sample_col``**, it cannot silently be mistaken for the per-cell
@@ -59,9 +59,9 @@ Differences left standing, and why
   the ROC comparison is exact only to 5e-4. That is R's rounding, not a
   divergence — worth stating, because it looks like one.
 * **R's ``wilcox`` returns ``NaN``** for genes with no expression in either
-  group; shanuz returns ``p = 1``. A test that cannot be run has no evidence
+  group; truecell returns ``p = 1``. A test that cannot be run has no evidence
   against the null, so 1 is the more useful answer, and R's NaN set is a subset
-  of shanuz's p=1 set.
+  of truecell's p=1 set.
 
 Usage
 -----
@@ -78,13 +78,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shanuz import create_shanuz_object, percentage_feature_set
-from shanuz.clustering import find_clusters
-from shanuz.datasets import pbmc3k
-from shanuz.markers import find_markers
-from shanuz.neighbors import find_neighbors
-from shanuz.preprocessing import find_variable_features, normalize_data, scale_data
-from shanuz.reduction import run_pca
+from truecell import create_truecell_object, percentage_feature_set
+from truecell.clustering import find_clusters
+from truecell.datasets import pbmc3k
+from truecell.markers import find_markers
+from truecell.neighbors import find_neighbors
+from truecell.preprocessing import find_variable_features, normalize_data, scale_data
+from truecell.reduction import run_pca
 from tutorials.bands import (
     Band, check_bands, check_shared_groups, render_verdicts,
 )
@@ -93,7 +93,7 @@ FIGURES = Path(__file__).parent / "figures_de"
 IDENT_1, IDENT_2 = "0", "1"
 TOP_N = 50
 
-# shanuz test -> Seurat's spelling of the same test.
+# truecell test -> Seurat's spelling of the same test.
 TEST_MAP = {
     "wilcox": "wilcox",
     "t": "t",
@@ -120,7 +120,7 @@ LOG2FC_TOLERANCE = 1e-12
 #
 # Seven of the eight tests are ports of the same statistic over the same cells,
 # so their bands are exact. `deseq2` is the one measurement of a *deliberate*
-# divergence — shanuz aggregates counts per sample and tests samples, Seurat's
+# divergence — truecell aggregates counts per sample and tests samples, Seurat's
 # `DESeq2DETest` tests cells as replicates — so its band comes from measurement:
 # resampling the pseudo-replicate split 20 times moves the overlap over 20-26
 # (median 22), and the previous cluster assignment gave 25.
@@ -136,7 +136,7 @@ BANDS: dict[str, Band] = {
        for t in RANKED_TESTS},
     "deseq2 top50": Band(
         15, 32,
-        "A divergence measurement, not a parity target: shanuz tests pseudobulk "
+        "A divergence measurement, not a parity target: truecell tests pseudobulk "
         "samples, Seurat's DESeq2DETest tests cells. 20-26 over 20 resampled "
         "replicate splits and 25 on the previous cluster assignment. Bounded "
         "well below 50 on purpose — reaching parity would mean the pseudobulk "
@@ -152,7 +152,7 @@ BANDS: dict[str, Band] = {
          "Both fit a negative-binomial GLM but not with the same optimiser, so "
          "the agreement is high rather than exact: 0.9165 here, 0.9194 before."),
         ("mast", 0.99,
-         "shanuz's hurdle model is hand-rolled rather than a call to the MAST "
+         "truecell's hurdle model is hand-rolled rather than a call to the MAST "
          "package, so this is the closest a reimplementation gets: 0.9979."),
     )},
     "deseq2 rho>5%": Band(
@@ -176,7 +176,7 @@ BANDS: dict[str, Band] = {
 def build(data_dir=None):
     """pbmc3k through the standard pipeline, clustered."""
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    obj = create_shanuz_object(counts=counts, assay="RNA", min_cells=3,
+    obj = create_truecell_object(counts=counts, assay="RNA", min_cells=3,
                                min_features=200, project="pbmc3k_de",
                                feature_names=genes, cell_names=cells)
     percentage_feature_set(obj, pattern=r"^MT-", col_name="percent.mt")

@@ -4,9 +4,9 @@ import pytest
 import scipy.sparse as sp
 from scipy.stats import norm
 
-from shanuz import create_shanuz_object, find_markers
-from shanuz.markers import _bimod_likelihood, _bimod_pvalue
-from shanuz.preprocessing import normalize_data
+from truecell import create_truecell_object, find_markers
+from truecell.markers import _bimod_likelihood, _bimod_pvalue
+from truecell.preprocessing import normalize_data
 
 
 def test_bimod_likelihood_matches_mcdavid_formula():
@@ -52,7 +52,7 @@ def bimod_obj():
     A[0] += 8
     B[1] += 8
     A[2], B[2] = rng.poisson(3.0, n), rng.poisson(0.1, n)  # detection ↑ in A
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(np.hstack([A, B])),
         feature_names=[f"g{i}" for i in range(G)],
         cell_names=[f"c{i}" for i in range(2 * n)],

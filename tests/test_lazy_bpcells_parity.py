@@ -1,15 +1,15 @@
 """What the BPCells side-by-side established, pinned so it cannot quietly rot.
 
 Constants marked "R:" were read off a live Seurat 5.5.1 / BPCells 0.3.1 session
-on pbmc3k (13,714 x 2,638), not derived from shanuz's own output. The tests
+on pbmc3k (13,714 x 2,638), not derived from truecell's own output. The tests
 themselves need neither R nor BPCells — CI has no R — so the R side is
 transcribed rather than invoked, the same way `test_de_parity.py` does it.
 
-The finding worth protecting: **shanuz's on-disk and in-memory paths are
+The finding worth protecting: **truecell's on-disk and in-memory paths are
 bit-identical, and Seurat's are not.** BPCells computes in single precision, so
 Seurat's out-of-core run returns different numbers from its own in-memory run
 and selects a different variable feature. That is the property a user actually
-leans on when they move a matrix to disk, and it is the one shanuz should not
+leans on when they move a matrix to disk, and it is the one truecell should not
 lose.
 """
 import json
@@ -19,13 +19,13 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import (
-    create_shanuz_object,
+from truecell import (
+    create_truecell_object,
     find_variable_features,
     normalize_data,
     scale_data,
 )
-from shanuz.lazy import write_lazy_matrix
+from truecell.lazy import write_lazy_matrix
 
 TUTORIALS = Path(__file__).resolve().parent.parent / "tutorials"
 
@@ -52,7 +52,7 @@ def _counts(n_genes=90, n_cells=60, seed=0):
 
 
 def _pipeline(counts, genes, cells):
-    obj = create_shanuz_object(counts=counts, assay="RNA", feature_names=genes,
+    obj = create_truecell_object(counts=counts, assay="RNA", feature_names=genes,
                                cell_names=cells, min_cells=0, min_features=0,
                                project="p")
     normalize_data(obj)
@@ -66,9 +66,9 @@ def _pipeline(counts, genes, cells):
 # ---------------------------------------------------------------------------
 
 
-def test_shanuz_on_disk_and_in_memory_paths_are_bit_identical(tmp_path):
+def test_truecell_on_disk_and_in_memory_paths_are_bit_identical(tmp_path):
     """Seurat's differ by 1.0e-06 on normalise and 2.1e-02 on
-    variance.standardized; shanuz's must differ by nothing at all."""
+    variance.standardized; truecell's must differ by nothing at all."""
     counts = _counts()
     genes = [f"g{i}" for i in range(counts.shape[0])]
     cells = [f"c{i}" for i in range(counts.shape[1])]
@@ -110,11 +110,11 @@ def test_seurats_two_paths_are_known_to_disagree():
     )
 
 
-def test_shanuz_supports_more_de_tests_out_of_core_than_seurat():
+def test_truecell_supports_more_de_tests_out_of_core_than_seurat():
     """Seurat's IterableMatrix path takes wilcox alone — `FindMarkers.default`
     raises for anything else, and warns that column-major storage is the wrong
     orientation for DE at that."""
-    from shanuz.markers import find_markers  # noqa: F401
+    from truecell.markers import find_markers  # noqa: F401
 
     assert SEURAT_OUT_OF_CORE_TESTS == ("wilcox",)
 
@@ -124,8 +124,8 @@ def test_shanuz_supports_more_de_tests_out_of_core_than_seurat():
 # ---------------------------------------------------------------------------
 
 
-def test_shanuz_store_is_uncompressed_and_that_costs_what_it_costs(tmp_path):
-    """shanuz writes the three CSC arrays verbatim, so the store is the size of
+def test_truecell_store_is_uncompressed_and_that_costs_what_it_costs(tmp_path):
+    """truecell writes the three CSC arrays verbatim, so the store is the size of
     the matrix. BPCells bitpacks: 4.50 MB against 26.88 MB of dgCMatrix arrays
     on pbmc3k. Closing that means implementing BP128 delta encoding, which is
     not a tolerance to loosen — it is a format."""

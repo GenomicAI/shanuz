@@ -3,7 +3,7 @@
 #
 # Mirrors pbmc_hashing_tutorial.py: attaches the hashtag counts as an "HTO"
 # assay, CLR-normalises them (margin 1), and runs HTODemux + MULTIseqDemux —
-# the references for shanuz.hto_demux and shanuz.multiseq_demux. Writes the
+# the references for truecell.hto_demux and truecell.multiseq_demux. Writes the
 # per-cell calls (r_calls.csv) that the Python tutorial's report_concordance()
 # reads, plus the R-side figures for the side-by-side tables into
 # tutorials/figures_hashing/:
@@ -23,7 +23,7 @@ set.seed(42)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_hashing")
-DATA <- Sys.getenv("HASHING_DATA", path.expand("~/.shanuz_data/pbmc_hashing"))
+DATA <- Sys.getenv("HASHING_DATA", path.expand("~/.truecell_data/pbmc_hashing"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 RNA_TSV <- file.path(DATA, "GSM2895282_Hashtag-RNA.umi.txt.gz")
 HTO_CSV <- file.path(DATA, "GSM2895283_Hashtag-HTO-count.csv.gz")

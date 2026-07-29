@@ -12,8 +12,8 @@ matplotlib.use("Agg")
 
 from matplotlib.collections import EllipseCollection  # noqa: E402
 
-from shanuz import load_visium, spatial_dim_plot, spatial_feature_plot  # noqa: E402
-from shanuz.preprocessing import normalize_data  # noqa: E402
+from truecell import load_visium, spatial_dim_plot, spatial_feature_plot  # noqa: E402
+from truecell.preprocessing import normalize_data  # noqa: E402
 
 SPOT_DIAMETER = 20.0
 HIRES_SCALEF = 0.1

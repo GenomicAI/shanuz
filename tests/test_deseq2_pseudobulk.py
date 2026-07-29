@@ -7,8 +7,8 @@ import scipy.sparse as sp
 
 pytest.importorskip("pydeseq2")
 
-from shanuz import create_shanuz_object, find_markers  # noqa: E402
-from shanuz.preprocessing import normalize_data  # noqa: E402
+from truecell import create_truecell_object, find_markers  # noqa: E402
+from truecell.preprocessing import normalize_data  # noqa: E402
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def pseudobulk_obj():
         cells += [f"{d}_c{j}" for j in range(per)]
         donor_col += [d] * per
         cond_col += [cond] * per
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(np.hstack(blocks)),
         feature_names=[f"gene_{i}" for i in range(n_genes)],
         cell_names=cells,

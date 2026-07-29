@@ -1,21 +1,21 @@
 """Regression guards for the spatial defects T-sp found against Seurat 5.5.1.
 
-Each test here pins a number or a shape that shanuz got wrong and that the suite
+Each test here pins a number or a shape that truecell got wrong and that the suite
 did not notice: the whole 659-test run passed both before and after all three
 fixes, because nothing asserted a spot radius, a ring's vertex count, or which
 weight matrix Moran's I was built on.
 
 Where a constant appears below with an "R:" comment, it was read off a live
 Seurat 5.5.1 / SeuratObject 5.4.0 session on the same input, not derived from
-shanuz's own output.
+truecell's own output.
 """
 import numpy as np
 import pandas as pd
 import pytest
 
-from shanuz.plotting import _boundary_radius
-from shanuz.spatial import create_centroids, create_fov, create_segmentation
-from shanuz.spatial.variable_features import (
+from truecell.plotting import _boundary_radius
+from truecell.spatial import create_centroids, create_fov, create_segmentation
+from truecell.spatial.variable_features import (
     _inverse_square_lag,
     _morans_i_from_lag,
     _moransi_table,
@@ -71,7 +71,7 @@ def test_inverse_square_reproduces_the_dense_reference(toy_field):
 
 def test_blocking_does_not_change_the_answer(toy_field, monkeypatch):
     """The blocked loop must be an optimisation, not an approximation."""
-    import shanuz.spatial.variable_features as vf
+    import truecell.spatial.variable_features as vf
 
     Z, xy = toy_field
     unblocked = _morans_i_from_lag(Z, _inverse_square_lag(Z, xy)[0])
@@ -120,8 +120,8 @@ def test_public_default_is_r_weights_not_knn():
     """
     import scipy.sparse as sp_
 
-    from shanuz import create_shanuz_object
-    from shanuz.spatial import create_fovs, find_spatially_variable_features
+    from truecell import create_truecell_object
+    from truecell.spatial import create_fovs, find_spatially_variable_features
 
     rng = np.random.default_rng(3)
     gx, gy = np.meshgrid(np.arange(10.0), np.arange(10.0))
@@ -131,7 +131,7 @@ def test_public_default_is_r_weights_not_knn():
     counts = np.vstack([gradient, rng.poisson(2.0, size=n), rng.poisson(2.0, size=n)])
     cells = [f"cell_{i}" for i in range(n)]
     feats = ["gradient", "noise1", "noise2"]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp_.csc_matrix(counts.astype(float)),
         assay="Xenium", feature_names=feats, cell_names=cells,
     )
@@ -188,7 +188,7 @@ def test_the_plot_path_actually_reads_the_boundary_radius():
     ``fov.radius()`` — which is always None — with every test still passing. The
     spot renderer is the thing that was broken, so it is the thing to pin.
     """
-    from shanuz.plotting import _spatial_panel, _spot_collection
+    from truecell.plotting import _spatial_panel, _spot_collection
 
     import matplotlib
 

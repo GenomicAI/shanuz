@@ -13,10 +13,10 @@ docstrings because each one changes cluster assignments, not just internals.
 
 ## Neighbour graphs
 
-::: shanuz.neighbors.find_neighbors
+::: truecell.neighbors.find_neighbors
 
-::: shanuz.multimodal.find_multi_modal_neighbors
+::: truecell.multimodal.find_multi_modal_neighbors
 
 ## Community detection
 
-::: shanuz.clustering.find_clusters
+::: truecell.clustering.find_clusters

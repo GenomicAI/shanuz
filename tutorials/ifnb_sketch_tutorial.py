@@ -1,15 +1,15 @@
-"""Leverage-score sketching — Shanuz vs R Seurat on ifnb.
+"""Leverage-score sketching — Truecell vs R Seurat on ifnb.
 
 The Seurat v5 answer to "this atlas has two million cells and I have a laptop":
 don't subsample uniformly, subsample by **statistical leverage**, analyse the
 small subset, then push the answers back onto every cell.
 
-  * :func:`shanuz.leverage_score` ↔ ``LeverageScore`` — per-cell influence on the
+  * :func:`truecell.leverage_score` ↔ ``LeverageScore`` — per-cell influence on the
     column space of the data. High for a cell in a sparse, distinctive corner;
     low for one of ten thousand near-identical cells in a common state.
-  * :func:`shanuz.sketch_data` ↔ ``SketchData`` — draws the leverage-weighted
+  * :func:`truecell.sketch_data` ↔ ``SketchData`` — draws the leverage-weighted
     subset (or a uniform one, as the control).
-  * :func:`shanuz.project_data` ↔ ``ProjectData`` — the inverse map: every
+  * :func:`truecell.project_data` ↔ ``ProjectData`` — the inverse map: every
     full-dataset cell through the sketch's PCA, its fitted UMAP, and its labels.
 
 Why this tutorial exists — and what it found
@@ -20,7 +20,7 @@ the same pull request as this tutorial.
 
 **Defect 2, in one paragraph, because it is the more instructive one.**
 ``project_data`` transferred the sketch's labels through the
-:mod:`shanuz.transfer` integration anchors. Seurat's ``ProjectData`` does not:
+:mod:`truecell.transfer` integration anchors. Seurat's ``ProjectData`` does not:
 it calls ``TransferSketchLabels``, a weighted k-nearest-neighbour vote *inside
 the projected reduction*, with the sketch's own rows as the reference. The
 anchor route scored **better** on ifnb — 0.936 against Seurat's 0.905 — which is
@@ -44,10 +44,10 @@ checks the mechanism rather than the score.
 Defect 1 is ``leverage_score`` itself.
 
 Seurat computes leverage from a **rank-50 truncated SVD** — ``ℓ = rowSums(V²)``
-over the leading 50 right singular vectors — so the scores sum to 50. Shanuz
+over the leading 50 right singular vectors — so the scores sum to 50. Truecell
 whitened against the **full rank** instead. Both are defensible as "leverage" in
 the textbook sense, and that is exactly what made it hard to see: the full-rank
-version is the classical hat-matrix definition, and shanuz's own test asserted it
+version is the classical hat-matrix definition, and truecell's own test asserted it
 to six decimals.
 
 But full-rank leverage is useless on data shaped like this. Scores sum to the
@@ -55,7 +55,7 @@ rank and are capped at 1, so with 2000 variable features over a few thousand
 cells every score is crushed towards ``d/n``:
 
 ===========================  ==========  ==========
-PBMC 3k, 2000 HVGs           shanuz      R Seurat
+PBMC 3k, 2000 HVGs           truecell      R Seurat
 ===========================  ==========  ==========
 sum of scores                2000.0      50.0
 coefficient of variation     0.085       0.384
@@ -79,7 +79,7 @@ Seurat picks between two algorithms on cell count, and the tutorial exercises
 both on the same data by moving the threshold rather than the dataset:
 
   * ``nsketch = 10000`` → **exact**: 13,999 cells < 1.5 × 10000, so R takes the
-    truncated SVD. Deterministic up to ``irlba``, and shanuz matches it exactly.
+    truncated SVD. Deterministic up to ``irlba``, and truecell matches it exactly.
   * ``nsketch = 5000``  → **sketched**: ``CountSketch`` → ``QR`` →
     Johnson–Lindenstrauss. Both tools draw their random matrices from their own
     RNG, so this one is compared statistically, never bit-for-bit.
@@ -95,11 +95,11 @@ Three differences survive, and all three were checked distribution-against-
 distribution over matched seeds rather than argued from a single pair of runs:
 
 * **The sketched regime** differs from R at Spearman 0.946. Over seeds
-  123/1/7/42/2024 shanuz's score sums span 69,611-70,968 and R's 70,278-70,867;
+  123/1/7/42/2024 truecell's score sums span 69,611-70,968 and R's 70,278-70,867;
   the CVs span 0.5600-0.5770 and 0.5657-0.5776. The distributions overlap, so
   the difference is the two RNGs, not the algorithm.
 * **Sketch composition.** Over the same seeds the rarest types land at
-  Eryth 1.44x (1.15-1.91) / pDC 2.26x / Mk 1.58x in shanuz against
+  Eryth 1.44x (1.15-1.91) / pDC 2.26x / Mk 1.58x in truecell against
   1.29x (0.64-2.04) / 2.23x / 1.47x in R — overlapping, and R's Eryth spread is
   the wider of the two. A single-seed comparison made this look like a real
   divergence (0.89x against 1.65x); it was two draws from overlapping
@@ -108,14 +108,14 @@ distribution over matched seeds rather than argued from a single pair of runs:
 * **The two regimes against each other.** Seurat's sketched approximation tracks
   its own exact scores at Spearman only 0.31 — the JL projection is a large
   approximation, and Seurat leaves it unscaled, so the sketched scores are not
-  even on the same scale (they sum to ~70,000, not 50). shanuz reproduces that
-  gap at 0.31 too (R 0.309, shanuz 0.307), which is the useful evidence that the
+  even on the same scale (they sum to ~70,000, not 50). truecell reproduces that
+  gap at 0.31 too (R 0.309, truecell 0.307), which is the useful evidence that the
   sketched path is faithful. **Compare scores within one regime, never across
   the two**, and read the sketched one as "cheap and roughly right".
 
 Lazy matrices have no R side here
 ---------------------------------
-``LazyMatrix`` / ``open_lazy_matrix`` are shanuz's on-disk backing, R's
+``LazyMatrix`` / ``open_lazy_matrix`` are truecell's on-disk backing, R's
 equivalent being BPCells, which is not installed. So that section is **not** a
 side-by-side: it checks the one property that matters, that going through disk
 does not change the answer, and is reported separately so it is not mistaken for
@@ -171,14 +171,14 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import ifnb
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.sketch import leverage_score, sketch_data, project_data
+from truecell.datasets import ifnb
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.sketch import leverage_score, sketch_data, project_data
 
 FIGURES = Path(__file__).parent / "figures_sketch"
 
@@ -343,7 +343,7 @@ def _read_r_scores(path, column, cells):
 def load_ifnb_sketch_object(data_dir=None, min_cells=3):
     """The ifnb object carrying the cell-type annotations the metrics need."""
     counts, genes, cells, meta = ifnb(data_dir=data_dir)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA", min_cells=min_cells,
         project="ifnb_sketch", feature_names=list(genes), cell_names=list(cells),
         meta_data=meta,
@@ -360,7 +360,7 @@ def prep(obj, n_hvg=N_HVG):
     """Normalize → HVG, and write the shared cell + feature lists for R.
 
     Deliberately no ``scale_data`` before scoring: Seurat's ``LeverageScore``
-    reads the **data** layer, not ``scale.data``, and shanuz now defaults the
+    reads the **data** layer, not ``scale.data``, and truecell now defaults the
     same way. Scaling happens later, for the sketch's PCA.
     """
     normalize_data(obj, normalization_method="LogNormalize", scale_factor=10000)
@@ -436,11 +436,11 @@ def run_projection(obj, sketch, hvg):
 def lazy_roundtrip(obj, hvg, tmpdir=None, seed=SEED):
     """Does backing the matrix with an on-disk ``LazyMatrix`` change the answer?
 
-    No R counterpart — BPCells is not installed — so this is a shanuz-internal
+    No R counterpart — BPCells is not installed — so this is a truecell-internal
     invariant, reported separately from every R comparison. The only acceptable
     answer is "not at all".
     """
-    from shanuz.lazy import write_lazy_matrix, open_lazy_matrix, is_lazy
+    from truecell.lazy import write_lazy_matrix, open_lazy_matrix, is_lazy
 
     assay = obj.assays[obj.active_assay]
     target = Path(tmpdir or FIGURES) / "ifnb_data.lazy"
@@ -490,7 +490,7 @@ def summarize(obj, scores, sketches, hvg):
         regime: rarity_correlation(scores[regime], groups)
         for regime in ("exact", "sketched")
     }
-    # The two regimes against each other, within shanuz. R's own gap here is the
+    # The two regimes against each other, within truecell. R's own gap here is the
     # yardstick this is read against — see the module docstring.
     summary["exact_vs_sketched"] = agreement(scores["exact"], scores["sketched"])
 
@@ -593,7 +593,7 @@ def _print_report(summary, concordance):
 
     if concordance is None:
         return
-    section("Shanuz vs R Seurat")
+    section("Truecell vs R Seurat")
     for regime in ("exact", "sketched"):
         c = concordance["leverage"][regime]
         print(f"  {regime:9s} spearman={c['spearman']:.6f}  pearson={c['pearson']:.6f}  "

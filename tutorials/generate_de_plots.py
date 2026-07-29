@@ -89,7 +89,7 @@ def log2fc_vs_r(before, after, r):
     ax.scatter(r[shared], after[shared], s=8, color=_AFTER, alpha=0.8, zorder=3,
                label="after — pseudocount on the sum (R's)")
     ax.set_xlabel("Seurat 5.5.1  ·  avg_log2FC")
-    ax.set_ylabel("shanuz  ·  avg_log2FC")
+    ax.set_ylabel("truecell  ·  avg_log2FC")
     ax.set_xlim(lim)
     ax.set_ylim(lim)
     ax.set_aspect("equal")
@@ -115,8 +115,8 @@ def threshold_impact(before, r):
         jaccard.append(len(a & b) / len(a | b) if (a | b) else 1.0)
 
     fig, (ax, ax2) = plt.subplots(1, 2, figsize=(11, 4.2))
-    ax.plot(thresholds, n_r, color=_R, lw=2, label="Seurat (and shanuz, after)")
-    ax.plot(thresholds, n_before, color=_BEFORE, lw=2, label="shanuz, before")
+    ax.plot(thresholds, n_r, color=_R, lw=2, label="Seurat (and truecell, after)")
+    ax.plot(thresholds, n_before, color=_BEFORE, lw=2, label="truecell, before")
     for t in (0.1, 0.25):
         ax.axvline(t, color="0.8", lw=0.8, ls=":", zorder=0)
     ax.set_xlabel("logfc_threshold")

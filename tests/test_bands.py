@@ -211,7 +211,7 @@ def test_same_features_without_a_key_treats_the_renaming_as_drift():
 # ---------------------------------------------------------------------------
 
 def test_summarise_spread_reports_the_gap_to_the_reference():
-    """The JackStraw band is |shanuz - R|, so the gap is the number that matters."""
+    """The JackStraw band is |truecell - R|, so the gap is the number that matters."""
     got = summarise_spread([12, 13, 13, 14, 15], reference=13)
     assert got["n"] == 5 and got["min"] == 12 and got["max"] == 15
     assert got["median"] == 13

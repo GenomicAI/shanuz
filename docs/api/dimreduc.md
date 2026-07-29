@@ -1,7 +1,7 @@
 # Dimensional reduction
 
 Linear first, then the embeddings you look at. Every one of these writes a
-[`DimReduc`](objects.md#shanuz.dimreduc.DimReduc) into `obj.reductions` under a
+[`DimReduc`](objects.md#truecell.dimreduc.DimReduc) into `obj.reductions` under a
 key, and records the features it actually used — not the features it was asked
 for, which are not always the same set.
 
@@ -14,22 +14,22 @@ described in prose — see [Fidelity](../fidelity.md#bands).
 
 ## Linear
 
-::: shanuz.reduction.run_pca
+::: truecell.reduction.run_pca
 
-::: shanuz.reduction.run_spca
+::: truecell.reduction.run_spca
 
-::: shanuz.reduction.run_ica
+::: truecell.reduction.run_ica
 
-::: shanuz.glmpca.glm_pca
+::: truecell.glmpca.glm_pca
 
 ## Non-linear embeddings
 
-::: shanuz.umap.run_umap
+::: truecell.umap.run_umap
 
-::: shanuz.reduction.run_tsne
+::: truecell.reduction.run_tsne
 
 ## How many components to keep
 
-::: shanuz.jackstraw.jack_straw
+::: truecell.jackstraw.jack_straw
 
-::: shanuz.jackstraw.score_jackstraw
+::: truecell.jackstraw.score_jackstraw

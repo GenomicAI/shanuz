@@ -14,14 +14,14 @@ regularized-NB route, per fitted gene in
 
 ## Log-normalize workflow
 
-::: shanuz.preprocessing.normalize_data
+::: truecell.preprocessing.normalize_data
 
-::: shanuz.preprocessing.find_variable_features
+::: truecell.preprocessing.find_variable_features
 
-::: shanuz.preprocessing.scale_data
+::: truecell.preprocessing.scale_data
 
-::: shanuz.preprocessing.percentage_feature_set
+::: truecell.preprocessing.percentage_feature_set
 
 ## Regularized negative binomial
 
-::: shanuz.sctransform.sctransform
+::: truecell.sctransform.sctransform

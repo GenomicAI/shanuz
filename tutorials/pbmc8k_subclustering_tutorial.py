@@ -1,4 +1,4 @@
-"""Advanced PBMC 8k Tutorial — Clustering + Subclustering with Shanuz.
+"""Advanced PBMC 8k Tutorial — Clustering + Subclustering with Truecell.
 
 A more complex companion to the PBMC 3k tutorial. It reproduces the standard
 Seurat guided-clustering workflow (Satija et al. 2015; Butler et al. 2018) on a
@@ -13,7 +13,7 @@ Usage
 -----
     python tutorials/pbmc8k_subclustering_tutorial.py [--data-dir PATH]
 
-The PBMC 8k dataset (~38 MB) downloads automatically to ~/.shanuz_data/pbmc8k.
+The PBMC 8k dataset (~38 MB) downloads automatically to ~/.truecell_data/pbmc8k.
 
 References
 ----------
@@ -35,17 +35,17 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import pbmc8k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import pbmc8k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data, percentage_feature_set,
 )
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.markers import find_all_markers
-from shanuz.plotting import _get_expression
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.markers import find_all_markers
+from truecell.plotting import _get_expression
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ TNK_PANEL = ["CD3D", "CD3E", "CD8A", "CD8B", "GNLY", "NKG7", "KLRD1",
 
 def run_pipeline(pbmc, dims=range(10), resolution=0.5, n_pcs=50, k_param=20,
                  nfeatures=2000, normalize=True):
-    """Run the standard workflow on a (possibly already-subset) Shanuz object."""
+    """Run the standard workflow on a (possibly already-subset) Truecell object."""
     if normalize:
         normalize_data(pbmc, normalization_method="LogNormalize", scale_factor=10000)
     find_variable_features(pbmc, selection_method="vst", nfeatures=nfeatures)
@@ -94,7 +94,7 @@ def run_pipeline(pbmc, dims=range(10), resolution=0.5, n_pcs=50, k_param=20,
 
 def load_object(data_dir=None):
     counts, genes, cells = pbmc8k(data_dir=data_dir)
-    pbmc = create_shanuz_object(
+    pbmc = create_truecell_object(
         counts=counts, assay="RNA", min_cells=3, min_features=200,
         project="pbmc8k", feature_names=genes, cell_names=cells,
     )
@@ -386,7 +386,7 @@ def report() -> None:
         return
 
     print("=" * 78)
-    print("shanuz vs Seurat 5.5.1 — PBMC 8k, global clustering then T/NK subclustering")
+    print("truecell vs Seurat 5.5.1 — PBMC 8k, global clustering then T/NK subclustering")
     print("=" * 78)
 
     pc = pd.read_csv(FIGURES / "py_cell_meta.csv").set_index("cell")
@@ -395,8 +395,8 @@ def report() -> None:
     # ---- 1. did QC keep the same cells? ------------------------------------
     only_py, only_r = pc.index.difference(rc.index), rc.index.difference(pc.index)
     cells = pc.index.intersection(rc.index)
-    print(f"\n  QC — cells retained: shanuz {len(pc)}, R {len(rc)}, shared {len(cells)}")
-    print(f"       only shanuz {len(only_py)}   only R {len(only_r)}   "
+    print(f"\n  QC — cells retained: truecell {len(pc)}, R {len(rc)}, shared {len(cells)}")
+    print(f"       only truecell {len(only_py)}   only R {len(only_r)}   "
           f"{'IDENTICAL CELL SET' if not len(only_py) and not len(only_r) else 'SETS DIFFER'}")
     p, r = pc.loc[cells], rc.loc[cells]
     print(f"\n  {'per-cell metric':<18}{'max|diff|':>14}")
@@ -407,11 +407,11 @@ def report() -> None:
 
     # ---- 2. stage one: the global clusters ---------------------------------
     m = match_partitions(p["global_cluster"], r["global_cluster"])
-    print(f"\n  Stage 1 — global clusters: shanuz {m['n_a']}, R {m['n_b']}")
+    print(f"\n  Stage 1 — global clusters: truecell {m['n_a']}, R {m['n_b']}")
     print(f"    adjusted Rand index {m['ari']:.4f}   "
           f"best-match concordance {m['concordance']:.4f} "
           f"({int(round(m['concordance'] * len(cells)))}/{len(cells)} cells)")
-    print(f"\n    {'shanuz':>8}{'R':>6}{'n py':>8}{'n R':>8}{'shared':>9}"
+    print(f"\n    {'truecell':>8}{'R':>6}{'n py':>8}{'n R':>8}{'shared':>9}"
           f"   lineage py / R")
     print(f"    {'-' * 62}")
     for a, b in m["mapping"].items():
@@ -424,8 +424,8 @@ def report() -> None:
     # Whichever side has more clusters leaves some unpaired. Those unpaired
     # clusters *are* the difference between the two runs, so print them rather
     # than letting the matching quietly drop them off the table.
-    for label, side, other in (("shanuz", p, r), ("R", r, p)):
-        paired = set(m["mapping"]) if label == "shanuz" else set(m["mapping"].values())
+    for label, side, other in (("truecell", p, r), ("R", r, p)):
+        paired = set(m["mapping"]) if label == "truecell" else set(m["mapping"].values())
         for c in sorted(set(side["global_cluster"].astype(str)) - paired, key=int):
             mask = side["global_cluster"].astype(str) == c
             lands = other.loc[mask, "global_cluster"].astype(str).value_counts()
@@ -447,8 +447,8 @@ def report() -> None:
     rt = pd.read_csv(FIGURES / "r_tnk_cells.csv").set_index("cell")
     sp_, sr = set(pt.index), set(rt.index)
     inter, union = sp_ & sr, sp_ | sr
-    print(f"\n  The T/NK compartment — shanuz {len(sp_)} cells, R {len(sr)}")
-    print(f"    shared {len(inter)}   only shanuz {len(sp_ - sr)}   "
+    print(f"\n  The T/NK compartment — truecell {len(sp_)} cells, R {len(sr)}")
+    print(f"    shared {len(inter)}   only truecell {len(sp_ - sr)}   "
           f"only R {len(sr - sp_)}   Jaccard {len(inter) / max(len(union), 1):.4f}")
 
     # ---- 4. stage two: the subclusters, on the shared cells ----------------
@@ -456,7 +456,7 @@ def report() -> None:
     if len(shared) >= 2:
         ms = match_partitions(pt.loc[shared, "sub_cluster"], rt.loc[shared, "sub_cluster"])
         print(f"\n  Stage 2 — T/NK subclusters on the {len(shared)} shared cells: "
-              f"shanuz {ms['n_a']}, R {ms['n_b']}")
+              f"truecell {ms['n_a']}, R {ms['n_b']}")
         print(f"    adjusted Rand index {ms['ari']:.4f}   "
               f"best-match concordance {ms['concordance']:.4f}")
         sub_same = (pt.loc[shared, "tnk_subset"].astype(str).to_numpy()
@@ -465,7 +465,7 @@ def report() -> None:
               f"({sub_same.sum()}/{len(shared)})")
         py_n = pt.loc[shared, "tnk_subset"].value_counts()
         r_n = rt.loc[shared, "tnk_subset"].value_counts()
-        print(f"\n    {'subset':<14}{'shanuz':>9}{'R':>9}")
+        print(f"\n    {'subset':<14}{'truecell':>9}{'R':>9}")
         print(f"    {'-' * 32}")
         for s in sorted(set(py_n.index) | set(r_n.index)):
             print(f"    {s:<14}{py_n.get(s, 0):>9}{r_n.get(s, 0):>9}")
@@ -473,7 +473,7 @@ def report() -> None:
     # ---- 5. scalars ---------------------------------------------------------
     pa, ra = (json.loads((FIGURES / f"{s}_anchors.json").read_text())
               for s in ("py", "r"))
-    print(f"\n  {'anchor':<22}{'shanuz':>20}{'R Seurat':>20}   verdict")
+    print(f"\n  {'anchor':<22}{'truecell':>20}{'R Seurat':>20}   verdict")
     print(f"  {'-' * 68}")
     for k in ("n_cells_raw", "n_cells_qc", "n_genes", "n_hvg", "n_global_clusters",
               "n_markers", "knn_nnz", "snn_nnz", "snn_weight_sum", "data_sum",

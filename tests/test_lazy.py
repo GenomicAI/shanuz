@@ -19,14 +19,14 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz._sparse import as_dense  # noqa: E402
-from shanuz.lazy import (  # noqa: E402
+from truecell._sparse import as_dense  # noqa: E402
+from truecell.lazy import (  # noqa: E402
     LazyMatrix,
     is_lazy,
     open_lazy_matrix,
     write_lazy_matrix,
 )
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 
 def _rand_sparse(nrow=40, ncol=30, density=0.2, seed=0):
@@ -216,7 +216,7 @@ def test_lazy_layer_roundtrips_through_assay5(tmp_path):
     counts = sp.csc_matrix(rng.poisson(0.5, size=(G, N)).astype(float))
     features = [f"g{i}" for i in range(G)]
     cells = [f"c{i}" for i in range(N)]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA",
         feature_names=features, cell_names=cells,
         meta_data=pd.DataFrame(index=cells),

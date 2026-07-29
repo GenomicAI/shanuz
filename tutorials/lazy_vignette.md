@@ -16,7 +16,7 @@ materialised until a reduction asks for a number. Seurat ships dedicated
 fourteen of them, including `.CalcN`, `LogNormalize`, `VST`, `ScaleData`,
 `RunPCA`, `FindMarkers` and `LeverageScore`.
 
-shanuz's `LazyMatrix` is a different design aimed at the same problem: three
+truecell's `LazyMatrix` is a different design aimed at the same problem: three
 memory-mapped `.npy` arrays in CSC layout, with the analysis functions streaming
 over them a block of cells at a time. It is lazy in **storage**, not in
 operations.
@@ -36,7 +36,7 @@ The second question turned out to be the interesting one.
 
 ## Result
 
-**14 of 14 compared anchors match**, 7 of them exactly. shanuz's out-of-core
+**14 of 14 compared anchors match**, 7 of them exactly. truecell's out-of-core
 pipeline reproduces Seurat's *in-memory* pipeline to ~1e-15 on normalisation,
 mean, variance and scaled data, and selects **1998 of Seurat's 2000** variable
 features.
@@ -45,7 +45,7 @@ But the headline is the control, which is Seurat run against itself:
 
 ![a tool against itself](figures_lazy/py_01_self_consistency.png)
 
-| on-disk vs in-memory, same input | shanuz | Seurat 5.5.1 + BPCells |
+| on-disk vs in-memory, same input | truecell | Seurat 5.5.1 + BPCells |
 |---|---|---|
 | normalised values | **0 — bit-identical** | 1.02e-06 |
 | `scale.data` | **0** | 1.72e-06 |
@@ -59,7 +59,7 @@ variable. That is not a bug — it is the price of a format built for matrices
 where single precision is the right trade — but it is worth knowing before
 assuming an on-disk run reproduces an in-memory one.
 
-shanuz's two paths are bit-identical. That is not luck: it is the direct result
+truecell's two paths are bit-identical. That is not luck: it is the direct result
 of a decision made while building this, described under *One implementation, not
 two* below.
 
@@ -71,7 +71,7 @@ two* below.
 
 - `variance.standardized` is proportional to `1 / variance.expected`
 - `variance.expected` is `10^loess_fitted`
-- shanuz's `_loess2` is a NumPy local-quadratic fit; R's `loess` is the cloess
+- truecell's `_loess2` is a NumPy local-quadratic fit; R's `loess` is the cloess
   Fortran with kd-tree interpolation
 - the two differ by up to **2.5e-2** on the expected variance
 
@@ -137,8 +137,8 @@ spread of fitted values within a single tied `x`:
 | | within-tie spread |
 |---|---|
 | R `loess` | 1.8e-15 (interpolation noise) |
-| shanuz, before | **1.3e-3** |
-| shanuz, after | **0** |
+| truecell, before | **1.3e-3** |
+| truecell, after | **0** |
 
 And the sensitivity that followed from it: perturbing `x` by **1e-15** moved
 fitted values by up to **28.8 %**, affecting 10,615 of 13,714 genes. Any
@@ -187,24 +187,24 @@ wrong fold change changed which genes `logfc_threshold` returned.
 
 ---
 
-## Where shanuz loses
+## Where truecell loses
 
 ![storage](figures_lazy/py_03_storage.png)
 
-shanuz writes the three CSC arrays verbatim, so the store is the size of the
+truecell writes the three CSC arrays verbatim, so the store is the size of the
 matrix — **1.00×**, mmap laziness with no size reduction. BPCells bitpacks.
 
 | store | pbmc3k counts |
 |---|---|
 | dgCMatrix arrays (float64) | 26.88 MB |
-| **shanuz `LazyMatrix`** | **26.88 MB** |
+| **truecell `LazyMatrix`** | **26.88 MB** |
 | BPCells, bitpacked float64 | 20.71 MB |
 | BPCells, bitpacked uint32 | **4.50 MB** |
 
 **6.0× more disk.** Two honest qualifications. First, BPCells' headline
 compression *needs the integer conversion* — on the doubles Seurat hands it, it
 manages 1.30×, not 5.97×. Second, the cheap half of the gap is available to
-shanuz: storing counts as `uint32` rather than `float64` takes 26.88 MB to
+truecell: storing counts as `uint32` rather than `float64` takes 26.88 MB to
 **17.92 MB**. The remaining 4× is BP128 SIMD delta encoding, which is a format,
 not a tolerance — implementing it is a project of its own and is **not** done
 here.
@@ -212,9 +212,9 @@ here.
 Two other design differences the R side names:
 
 - **`FindMarkers` on an IterableMatrix supports `wilcox` alone.** Everything
-  else raises. shanuz runs all eight tests on a lazy layer.
+  else raises. truecell runs all eight tests on a lazy layer.
 - Seurat **warns** that column-major storage is the wrong orientation for DE and
-  recommends `transpose_storage_order()`. shanuz's `LazyMatrix` is CSC —
+  recommends `transpose_storage_order()`. truecell's `LazyMatrix` is CSC —
   cell-major — with no row-major option. Its own docstring already flagged this
   as "a natural future extension"; the R side confirms it matters.
 

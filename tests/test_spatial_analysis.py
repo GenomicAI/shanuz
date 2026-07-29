@@ -7,16 +7,16 @@ import pytest
 import scipy.io
 import scipy.sparse as sp
 
-from shanuz import (
+from truecell import (
     build_niche_assay,
     composition_test,
-    create_shanuz_object,
+    create_truecell_object,
     get_tissue_coordinates,
     local_neighborhood,
     nearest_neighbor_distance,
     spatial_knn,
 )
-from shanuz.spatial import create_fovs, load_xenium
+from truecell.spatial import create_fovs, load_xenium
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ def spatial_seurat():
     counts = sp.csc_matrix(rng.poisson(1.0, size=(g, n)).astype(float))
     feats = [f"gene_{i}" for i in range(g)]
     cells = [f"cell_{i}" for i in range(n)]
-    obj = create_shanuz_object(counts, assay="Xenium", feature_names=feats,
+    obj = create_truecell_object(counts, assay="Xenium", feature_names=feats,
                                cell_names=cells)
     # Two 20-cell FOVs laid on a jittered grid.
     xs, ys, fov = [], [], []
@@ -149,7 +149,7 @@ def test_composition_test_requires_two_levels(small_seurat):
 # ---------------------------------------------------------------------------
 
 def test_resolve_symbols_matching():
-    from shanuz.module_score import _resolve_symbols
+    from truecell.module_score import _resolve_symbols
     feats = ["HLA-A", "cd8a", "MS4A1", "CD3D"]     # mixed case / punctuation
     # search resolves case + punctuation differences
     assert _resolve_symbols(["HLA.A", "CD8A"], feats, search=True) == ["HLA-A", "cd8a"]
@@ -160,12 +160,12 @@ def test_resolve_symbols_matching():
 
 
 def test_add_module_score_search_writes_column():
-    from shanuz import add_module_score
-    from shanuz.preprocessing import normalize_data
+    from truecell import add_module_score
+    from truecell.preprocessing import normalize_data
     rng = np.random.default_rng(3)
     counts = sp.csc_matrix(rng.poisson(1.0, size=(6, 40)).astype(float))
     feats = ["HLA-A", "cd8a", "MS4A1", "CD3D", "GENE5", "GENE6"]
-    obj = create_shanuz_object(counts, feature_names=feats,
+    obj = create_truecell_object(counts, feature_names=feats,
                                cell_names=[f"c{i}" for i in range(40)])
     normalize_data(obj)
     # aliases resolve only when search=True; missing → all-zero column
@@ -182,8 +182,8 @@ def test_add_module_score_search_writes_column():
 def test_image_plots_return_figures(spatial_seurat):
     import matplotlib
     matplotlib.use("Agg")
-    from shanuz import image_dim_plot, image_feature_plot
-    from shanuz.preprocessing import normalize_data
+    from truecell import image_dim_plot, image_feature_plot
+    from truecell.preprocessing import normalize_data
     normalize_data(spatial_seurat, assay="Xenium")
     fig1 = image_dim_plot(spatial_seurat, group_by="cell_type")
     fig2 = image_feature_plot(spatial_seurat, "gene_0")
@@ -206,7 +206,7 @@ def test_from_anndata_builds_images_not_reduction():
     xy = rng.uniform(0, 50, size=(n, 2))
     adata = anndata.AnnData(X=X, obs=obs, var=var, obsm={"spatial": xy})
 
-    from shanuz.compat.anndata import from_anndata
+    from truecell.compat.anndata import from_anndata
     obj = from_anndata(adata, assay="Xenium")
     # spatial must become images, NOT a reduction
     assert "spatial" not in obj.reductions

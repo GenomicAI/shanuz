@@ -35,8 +35,8 @@ site/
 *.swo
 
 # Data cache
-shanuz_data/
-~/.shanuz_data/
+truecell_data/
+~/.truecell_data/
 
 # Regenerable tutorial intermediates (kept out of the repo; figures are committed)
 tutorials/figures_hashing/r_calls.csv
@@ -88,7 +88,7 @@ tutorials/figures_lazy/r_variable_features.txt
 tutorials/figures_lazy/r_features.txt
 tutorials/figures_lazy/r_hvf*.csv
 tutorials/figures_lazy/*_markers_wilcox.csv
-tutorials/figures_lazy/shanuz_store/
+tutorials/figures_lazy/truecell_store/
 tutorials/figures_lazy/bpcells_store/
 tutorials/figures_lazy/bpcells_store_int/
 

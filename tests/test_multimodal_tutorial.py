@@ -18,13 +18,13 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.assay5 import create_assay5_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.assay5 import create_assay5_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data, find_variable_features, scale_data,
 )
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.plotting import dim_plot, vln_plot  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.plotting import dim_plot, vln_plot  # noqa: E402
 from tutorials.cbmc_citeseq_tutorial import annotate_cells, run_wnn  # noqa: E402
 from tutorials.generate_multimodal_plots import _group_panel  # noqa: E402
 
@@ -51,7 +51,7 @@ def _two_assay_object(rna_levels, adt_levels, n=6):
             idents.append(cl)
             col += 1
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rmat), assay="RNA",
         feature_names=rna_genes, cell_names=cells,
     )
@@ -123,7 +123,7 @@ def _wnn_ready_object(seed=0, per=30):
             adt[0:10, ci] += 6.0      # ADT separates C from {A,B}
         cells.append(f"cell{ci}")
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rng.poisson(rna).astype(float)), assay="RNA",
         feature_names=[f"g{i}" for i in range(Grna)], cell_names=cells,
     )
@@ -172,7 +172,7 @@ def test_wnn_umap_plots_on_the_joint_embedding():
 def test_modality_weight_plots_as_a_metadata_feature():
     """Figure 10 — ADT.weight is a metadata column, not a gene.
 
-    Seurat's VlnPlot resolves features against metadata; shanuz's vln_plot does
+    Seurat's VlnPlot resolves features against metadata; truecell's vln_plot does
     the same via _get_expression, and that fallback is what the figure rides on.
     """
     obj, n = _wnn_ready_object()

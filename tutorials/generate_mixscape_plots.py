@@ -1,6 +1,6 @@
 """Generate all figures for the Mixscape tutorial.
 
-Runs thp1_mixscape_tutorial.run_full() and renders the shanuz-side figures to
+Runs thp1_mixscape_tutorial.run_full() and renders the truecell-side figures to
 tutorials/figures_mixscape/, alongside the r_*.png the R verify script writes:
   * py_01_perturb_score.png  IFNGR2 perturbation-score density (KO vs NP vs NT)
   * py_02_lda.png            MixscapeLDA map, coloured by global class
@@ -25,7 +25,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.thp1_mixscape_tutorial import run_full, perturbation_table
-from shanuz.plotting import plot_perturb_score, dim_plot, mixscape_heatmap, _palette
+from truecell.plotting import plot_perturb_score, dim_plot, mixscape_heatmap, _palette
 
 FIGURES = Path(__file__).parent / "figures_mixscape"
 FIGURES.mkdir(exist_ok=True)

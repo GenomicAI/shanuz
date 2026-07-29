@@ -1,4 +1,4 @@
-"""Shared fixtures for shanuz tests."""
+"""Shared fixtures for truecell tests."""
 import numpy as np
 import pytest
 import scipy.sparse as sp
@@ -24,7 +24,7 @@ def cell_names():
 
 @pytest.fixture
 def small_assay(small_counts, feature_names, cell_names):
-    from shanuz import create_assay_object
+    from truecell import create_assay_object
     return create_assay_object(
         counts=small_counts,
         feature_names=feature_names,
@@ -35,7 +35,7 @@ def small_assay(small_counts, feature_names, cell_names):
 
 @pytest.fixture
 def small_assay5(small_counts, feature_names, cell_names):
-    from shanuz import create_assay5_object
+    from truecell import create_assay5_object
     return create_assay5_object(
         counts=small_counts,
         feature_names=feature_names,
@@ -46,8 +46,8 @@ def small_assay5(small_counts, feature_names, cell_names):
 
 @pytest.fixture
 def small_seurat(small_counts, feature_names, cell_names):
-    from shanuz import create_shanuz_object
-    return create_shanuz_object(
+    from truecell import create_truecell_object
+    return create_truecell_object(
         counts=small_counts,
         assay="RNA",
         feature_names=feature_names,

@@ -1,4 +1,4 @@
-# The Differential-Expression Test Suite — R Seurat vs Shanuz (Python)
+# The Differential-Expression Test Suite — R Seurat vs Truecell (Python)
 
 Wave 3's first side-by-side, and the last large untested surface in the library:
 `find_markers` offers **eight statistical tests and none of them had ever been
@@ -7,9 +7,9 @@ the same shape of coverage that let the CLR and SCTransform defects survive.
 
 > **Dataset:** pbmc3k — 2,700 PBMCs, 10x Genomics (2016). The comparison runs on
 > **clusters 0 and 1** (692 and 515 cells, 13,714 genes).
-> **R reference:** Seurat 5.5.1 · MAST 1.38.0 · DESeq2 1.52.0 · **Python:** Shanuz
+> **R reference:** Seurat 5.5.1 · MAST 1.38.0 · DESeq2 1.52.0 · **Python:** Truecell
 
-| Seurat | Shanuz |
+| Seurat | Truecell |
 |---|---|
 | `FindMarkers(obj, test.use = "wilcox")` | `find_markers(obj, test_use="wilcox")` |
 | `test.use = "t"` · `"bimod"` · `"LR"` | `test_use="t"` · `"bimod"` · `"LR"` |
@@ -42,14 +42,14 @@ would look exactly like a DE difference.
 | `mast` — Spearman (all genes / detected >5%) | 0.9471 / **0.9979** |
 | `negbinom` — Spearman (all genes / detected >5%) | 0.6943 / **0.9165** |
 | `roc` — max abs AUC difference | 5.0e-04, which is Seurat's own 3-dp rounding |
-| *Before the fix* — genes returned at `logfc_threshold=0.25` | shanuz **2,298** vs Seurat **11,931** (Jaccard 0.193) |
+| *Before the fix* — genes returned at `logfc_threshold=0.25` | truecell **2,298** vs Seurat **11,931** (Jaccard 0.193) |
 
 ---
 
 ## Setup
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -76,10 +76,10 @@ Idents(obj) <- factor(g[colnames(obj), "group"])
 <td>
 
 ```python
-from shanuz.datasets import pbmc3k
-from shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data
-from shanuz.markers import find_markers
+from truecell.datasets import pbmc3k
+from truecell import create_truecell_object
+from truecell.preprocessing import normalize_data
+from truecell.markers import find_markers
 
 obj = build()          # same QC, then cluster
 groups = shared_groups(obj)
@@ -103,7 +103,7 @@ exactly the disagreement worth seeing.
 ## Running the tests
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -155,7 +155,7 @@ log(x = (rowSums(x = expm1(x = x)) + pseudocount.use) / NCOL(x), base = base)
 ```
 
 One pseudocount added to the group's **sum**, then divided by n — so on the mean
-scale it is worth `1/n`, not 1. shanuz computed `log2(mean(expm1(x)) + 1)`,
+scale it is worth `1/n`, not 1. truecell computed `log2(mean(expm1(x)) + 1)`,
 adding a whole count to the **mean**. That is Seurat *4*'s formula; the repo
 targets Seurat 5.
 
@@ -168,7 +168,7 @@ cluster 0 and 24 % of cluster 1 read **−1.26** where Seurat reads **−9.92**.
 filters on this value, so the error did not merely misreport fold changes — it
 changed which genes came back:
 
-| `logfc_threshold` | shanuz (before) | Seurat | Jaccard |
+| `logfc_threshold` | truecell (before) | Seurat | Jaccard |
 |---|---|---|---|
 | 0.1 *(Seurat's default)* | 4,903 | 13,009 | 0.377 |
 | 0.25 | **2,298** | **11,931** | **0.193** |
@@ -186,7 +186,7 @@ differential expression exists to find. After the fix, **6.44e-15 across all
 13,712 genes**.
 
 **There was already a test for this.** `test_avg_log2fc_matches_seurat_formula`
-re-implemented the same wrong formula and checked that shanuz agreed with
+re-implemented the same wrong formula and checked that truecell agreed with
 itself. It was green throughout while carrying a name that claimed Seurat
 parity — the same shape as #48's `test_fetch_data`. It is corrected here.
 
@@ -194,7 +194,7 @@ parity — the same shape as #48's `test_fetch_data`. It is corrected here.
 
 Seurat's `GLMDETest` fits `MASS::glm.nb` — which estimates the dispersion by
 **maximum likelihood** — and reads the **Wald** p-value off the group
-coefficient (`summary(...)$coef[2, 4]`). shanuz used a fixed method-of-moments
+coefficient (`summary(...)$coef[2, 4]`). truecell used a fixed method-of-moments
 dispersion and a **likelihood-ratio** test: a different estimator *and* a
 different statistic. HLA-DRA read **5.5e-128** against R's **1.1e-321**.
 
@@ -211,7 +211,7 @@ After the fix the p-values agree **exactly** for every gene anyone would look at
 What disagreement remains sits below 5 % detection, where the negative-binomial
 GLM is fitting almost-empty rows and neither tool is estimating anything
 meaningful. Seurat agrees: its `min.cells.feature` default drops those genes, and
-in this run R returned 11,466 genes against shanuz's 13,714 — **every one of the
+in this run R returned 11,466 genes against truecell's 13,714 — **every one of the
 2,248 it dropped was below 1 % detection in both groups** (the highest reached
 0.4 %). The headline Spearman of 0.69 is that tail; on genes Seurat would
 actually have tested, it is 0.92.
@@ -219,7 +219,7 @@ actually have tested, it is 0.92.
 ### Differences left standing, and why
 
 **`deseq2` is not Seurat's DESeq2.** `DESeq2DETest` builds a `DESeqDataSet` with
-**one column per cell** and tests cells as replicates. shanuz sums counts per
+**one column per cell** and tests cells as replicates. truecell sums counts per
 sample and tests at the sample level. Treating cells as replicates is the
 practice [Squair et al. (2021)](https://doi.org/10.1038/s41467-021-25960-2)
 showed inflates false positives, so pseudobulk is the better statistics — and
@@ -230,7 +230,7 @@ per-cell test: it raises. Reported rather than changed in either direction.
 has no Python equivalent to depend on. Spearman 0.947 across all genes, **0.9979
 on genes detected above 5 %**, and the same top 50. Worth knowing: Seurat's
 `MASTDETest` fits `~ condition` alone — it adds **no** cellular detection rate
-term unless you pass one. shanuz's docstring previously advised passing CDR "to
+term unless you pass one. truecell's docstring previously advised passing CDR "to
 match Seurat's default CDR covariate", which had it backwards; that is corrected.
 
 **Seurat rounds `myAUC` to three decimals** inside `DifferentialAUC`, so the ROC
@@ -238,12 +238,12 @@ comparison cannot be tighter than 5e-4 however correct both sides are. That is
 R's rounding, not a divergence — stated because it looks like one.
 
 **R's `wilcox` returns `NaN`** for the 365 genes with no expression in either
-group; shanuz returns `p = 1`. A test that cannot be run has no evidence against
+group; truecell returns `p = 1`. A test that cannot be run has no evidence against
 the null, so 1 is the more useful answer, and R's NaN set is a subset of
-shanuz's.
+truecell's.
 
 **R also returns exactly 0** for 172 genes, and that is *not* double underflow:
-shanuz scores 92 of them above 1e-50, the largest — `SEPT1` — at 9.3e-17. It is
+truecell scores 92 of them above 1e-50, the largest — `SEPT1` — at 9.3e-17. It is
 not Seurat's wrapper either. Calling base R's `wilcox.test` on that gene's
 normalised row directly, outside Seurat, returns 0 as well (W = 212196.5 on
 692 vs 515 cells). Both R's `NaN` rows and its zero rows are excluded from every
@@ -308,7 +308,7 @@ Seurat's three-decimal rounding and no worse. They differed for **12,491 of
 13,712 genes**.
 
 Runtime, for scale: Seurat's slowest test here is `negbinom` at 91.8 s
-(`MAST` 60.5 s, `DESeq2` 60.3 s); shanuz's are 36.0 s, 28.5 s and 3.4 s.
+(`MAST` 60.5 s, `DESeq2` 60.3 s); truecell's are 36.0 s, 28.5 s and 3.4 s.
 
 ---
 

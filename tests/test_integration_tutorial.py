@@ -111,7 +111,7 @@ def _synthetic_ifnb(seed=0):
     """A tiny ifnb stand-in: 3 cell types x 2 UNEQUAL conditions + a batch block.
 
     Returns the loader's 4-tuple (counts, genes, cells, meta) so it can be
-    substituted for shanuz.datasets.ifnb. CTRL has 120 cells, STIM 150 — unequal
+    substituted for truecell.datasets.ifnb. CTRL has 120 cells, STIM 150 — unequal
     on purpose, to drive the RPCA reciprocal-anchor path.
     """
     rng = np.random.default_rng(seed)

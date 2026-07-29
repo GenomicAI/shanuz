@@ -1,16 +1,16 @@
-# Dimensional-Reduction Extras — R Seurat vs Shanuz (Python)
+# Dimensional-Reduction Extras — R Seurat vs Truecell (Python)
 
 The three reductions that sit *beside* the standard PCA → UMAP path, and the one
 question every guided-clustering run has to answer first: **how many PCs are
-real?** Every R Seurat call is paired with the Shanuz equivalent and both outputs
+real?** Every R Seurat call is paired with the Truecell equivalent and both outputs
 are shown side by side.
 
 > **Dataset:** PBMC 3k — 2,700 peripheral blood mononuclear cells, 10x Genomics
 > (2016), the same section used in [Tutorial 1](pbmc3k_tutorial.md).
 > Auto-downloads (~8 MB).
-> **R reference:** Seurat 5.5.1 · **Python:** Shanuz
+> **R reference:** Seurat 5.5.1 · **Python:** Truecell
 
-| Seurat | Shanuz |
+| Seurat | Truecell |
 |---|---|
 | `JackStraw(obj, dims = 20)` | `jack_straw(obj, dims=20)` |
 | `ScoreJackStraw(obj, dims = 1:20)` | `score_jackstraw(obj, dims=20)` |
@@ -19,7 +19,7 @@ are shown side by side.
 
 > **This tutorial found and fixed two defects.** `jack_straw` built its
 > permutation null the wrong way, and `score_jackstraw` aggregated it with the
-> wrong statistic. Together they made shanuz keep **all 20** PCs where Seurat
+> wrong statistic. Together they made truecell keep **all 20** PCs where Seurat
 > keeps 13 — the function could not do the one thing it exists for. Both are
 > fixed in the same pull request; the [findings](#what-this-tutorial-found) are
 > written up below with before-and-after numbers.
@@ -30,11 +30,11 @@ are shown side by side.
 
 | Metric | Result | Band |
 |---|---|---|
-| **PCs kept** (run before the drop-off) | **shanuz 14 · R 13** | \|Δ\| ≤ **2** |
-| PCs significant at α = 0.05 | shanuz 1-14 · R 1-13 + 15, 19 (Jaccard **0.81**) | ≥ **0.75** |
+| **PCs kept** (run before the drop-off) | **truecell 14 · R 13** | \|Δ\| ≤ **2** |
+| PCs significant at α = 0.05 | truecell 1-14 · R 1-13 + 15, 19 (Jaccard **0.81**) | ≥ **0.75** |
 | PCA bases matched one-to-one and in order | through PC **20** of 20, min \|r\| **1.0000** | ≥ PC 13 |
 | ICA, matched \|Pearson r\| over 20 components | **0.9991** (worst pair 0.9960) | — |
-| t-SNE, 30-NN retained from PCA | shanuz **0.474** · R **0.477** | — |
+| t-SNE, 30-NN retained from PCA | truecell **0.474** · R **0.477** | — |
 | t-SNE, 30-NN shared between the two tools | 0.862 | — |
 
 The **Band** column is the point of this revision: those three numbers are
@@ -48,7 +48,7 @@ sweep for the cutoff — and carries its reason in
 ## Setup
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -67,14 +67,14 @@ pbmc <- RunPCA(pbmc, features = hvg, npcs = 50)
 <td>
 
 ```python
-from shanuz.datasets import pbmc3k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data)
-from shanuz.reduction import run_pca
+from truecell.reduction import run_pca
 
 counts, genes, cells = pbmc3k()
-obj = create_shanuz_object(
+obj = create_truecell_object(
     counts=counts, assay="RNA", min_cells=3, min_features=200,
     feature_names=genes, cell_names=cells)
 normalize_data(obj)
@@ -130,7 +130,7 @@ differently is not comparing like with like.
 ## JackStraw — how many PCs are significant?
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -147,8 +147,8 @@ which(score <= 0.05)
 <td>
 
 ```python
-from shanuz.jackstraw import jack_straw, score_jackstraw
-# significant_dims is this tutorial's helper, not a shanuz export
+from truecell.jackstraw import jack_straw, score_jackstraw
+# significant_dims is this tutorial's helper, not a truecell export
 from tutorials.pbmc3k_dimreduc_tutorial import significant_dims
 
 js = jack_straw(obj, dims=20, num_replicate=100)
@@ -162,7 +162,7 @@ significant_dims(scores, alpha=0.05)
 </tr>
 </table>
 
-| PC | shanuz score | R score | shanuz features ≤ 1e-5 | R features ≤ 1e-5 |
+| PC | truecell score | R score | truecell features ≤ 1e-5 | R features ≤ 1e-5 |
 |---:|---:|---:|---:|---:|
 | 1 | 2.0e-157 | 5.1e-155 | 608 | 600 |
 | 5 | 2.7e-106 | 3.1e-111 | 430 | 448 |
@@ -173,12 +173,12 @@ significant_dims(scores, alpha=0.05)
 | 20 | 1.000 | 1.000 | 1 | 1 |
 
 Both tools fall off the same cliff after PC 13. At the tutorial's own seed (42)
-shanuz's PC 14 lands at 0.041 — just inside alpha — so it keeps **14** where R
+truecell's PC 14 lands at 0.041 — just inside alpha — so it keeps **14** where R
 keeps 13. That single-PC gap is the seed scatter measured below, and it is now
 asserted rather than described.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td><img src="figures_dimreduc/r_01_jackstraw_scores.png" width="100%"></td>
 <td><img src="figures_dimreduc/py_01_jackstraw_scores.png" width="100%"></td>
@@ -196,7 +196,7 @@ the scores move). That distinction is what located both defects.
 
 R's `JackRandom` seeds each replicate from its loop index, so `JackStraw` in R is
 **deterministic** — verified here: `set.seed(1)` and `set.seed(999)` give
-byte-identical scores. Shanuz seeds from its `seed` argument instead, so its
+byte-identical scores. Truecell seeds from its `seed` argument instead, so its
 answer moves a little from run to run:
 
 A five-seed table used to stand here, and it was the wrong instrument: it
@@ -208,17 +208,17 @@ instead:
 |---|---|---|---|---|
 | seeds (of 60) | 2 | **28** | 11 | 19 |
 
-R's deterministic **13 is also shanuz's modal answer**, and the worst case is two
-PCs either side. That is what `BANDS["jackstraw_keep_gap"]` asserts — `|shanuz −
+R's deterministic **13 is also truecell's modal answer**, and the worst case is two
+PCs either side. That is what `BANDS["jackstraw_keep_gap"]` asserts — `|truecell −
 R| ≤ 2` — and `--report` exits non-zero if it is exceeded. A prose sentence
-saying "R sits at the bottom of shanuz's spread" could not have failed, so a
+saying "R sits at the bottom of truecell's spread" could not have failed, so a
 regression landing on 15 would have read exactly like a good run landing on 15.
 
 The PCs where the significance *calls* differ are all after the drop-off. R's own
 significant set on the current reference is 1–13 plus stray 15 and 19, which is
 why the Jaccard band (`≥ 0.75`, measured 0.8125 worst and 0.8750 median) sits
 lower than the cutoff band is tight: that number moves with R's noise tail as
-well as shanuz's, and the cutoff is the thing an analyst acts on.
+well as truecell's, and the cutoff is the thing an analyst acts on.
 
 ---
 
@@ -231,7 +231,7 @@ defects this initiative has surfaced, after the two RPCA bugs.
 ### 1. The permutation null was too tight
 
 R's `JackRandom` permutes the selected rows and then **re-runs a full PCA** on the
-modified matrix, taking the null loadings from that refit basis. Shanuz projected
+modified matrix, taking the null loadings from that refit basis. Truecell projected
 the permuted rows onto the **fixed** original embedding — much cheaper, but a
 fixed basis cannot rotate to absorb the scrambled signal, so the permuted
 loadings come out too small. Against a null that tight, ordinary noise features
@@ -239,19 +239,19 @@ look extreme.
 
 | features ≤ 1e-5, PCs 14-20 (pure noise) | |
 |---|---|
-| shanuz, before | 167, 203, 112, 109, 182, 155, 120 |
-| shanuz, after | 4, 3, 1, 3, 7, 1, 2 |
+| truecell, before | 167, 203, 112, 109, 182, 155, 120 |
+| truecell, after | 4, 3, 1, 3, 7, 1, 2 |
 | **R Seurat** | **3, 5, 0, 1, 4, 5, 4** |
 
 ### 2. The aggregation was the wrong test
 
 `ScoreJackStraw` in R runs `prop.test` on the count of features below
 `score.thresh` against the count expected under a uniform null,
-`floor(n × thresh)`. Shanuz ran a one-sided KS test against Uniform(0, 1) —
+`floor(n × thresh)`. Truecell ran a one-sided KS test against Uniform(0, 1) —
 a far more sensitive statistic on thousands of features. Its **largest** score
 across all 20 PCs was `8.1e-112`, so nothing ever failed the threshold:
 
-| | shanuz, before | shanuz, after | R Seurat |
+| | truecell, before | truecell, after | R Seurat |
 |---|---|---|---|
 | PC 1 (real signal) | 0 | 2.0e-157 | 5.1e-155 |
 | PC 16 (pure noise) | 1.1e-168 | **1.000** | **1.000** |
@@ -274,7 +274,7 @@ Python. The components are matched one-to-one by \|Pearson r\| with the Hungaria
 algorithm, which asks the question that *is* well posed.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -287,7 +287,7 @@ ica <- Embeddings(pbmc, "ica")
 <td>
 
 ```python
-from shanuz.reduction import run_ica
+from truecell.reduction import run_ica
 
 run_ica(obj, nics=20)
 ica = obj.reductions["ica"].cell_embeddings
@@ -301,7 +301,7 @@ ica = obj.reductions["ica"].cell_embeddings
 same subspace.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td><img src="figures_dimreduc/r_04_ica.png" width="100%"></td>
 <td><img src="figures_dimreduc/py_05_ica.png" width="100%"></td>
@@ -312,14 +312,14 @@ same subspace.
 
 ## t-SNE — structure, not coordinates
 
-R's `Rtsne` is Barnes-Hut; shanuz calls scikit-learn. The coordinates are not
+R's `Rtsne` is Barnes-Hut; truecell calls scikit-learn. The coordinates are not
 comparable across implementations and never will be, so the comparison is on
 neighbourhood structure: what fraction of each cell's 30 nearest neighbours the
 embedding preserves from the PCA space it was built from. That number is each
 tool judged against its own input, so the two are directly comparable.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -331,7 +331,7 @@ pbmc <- RunTSNE(pbmc, dims = 1:10)
 <td>
 
 ```python
-from shanuz.reduction import run_tsne
+from truecell.reduction import run_tsne
 
 run_tsne(obj, dims=range(10), reduction="pca")
 ```
@@ -340,7 +340,7 @@ run_tsne(obj, dims=range(10), reduction="pca")
 </tr>
 </table>
 
-| | shanuz | R Seurat |
+| | truecell | R Seurat |
 |---|---|---|
 | 30-NN retained from PCA | **0.474** | **0.477** |
 | 30-NN shared between the tools | 0.862 | |
@@ -350,7 +350,7 @@ arbitrary integers that would not correspond between tools, whereas this gene's
 value on this cell is the same number on both sides.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td><img src="figures_dimreduc/r_03_tsne.png" width="100%"></td>
 <td><img src="figures_dimreduc/py_04_tsne.png" width="100%"></td>
@@ -380,7 +380,7 @@ it also sets the p-value resolution: the smallest non-zero empirical p is
   and `r_02_elbow.png` show it; JackStraw is what you reach for when the elbow is
   ambiguous, which on pbmc3k it somewhat is.
 - **`prop_freq` has a floor.** R falls back to 3 features when
-  `nrow × prop.use < 3`; shanuz matches that, and also truncates rather than
+  `nrow × prop.use < 3`; truecell matches that, and also truncates rather than
   rounds up, as R's `sample(size = nrow * prop.use)` does.
 - **`jack_straw` needs stored feature loadings** — it uses them as the observed
   statistic, exactly as R takes `Loadings(object[[reduction]], projected = FALSE)`.

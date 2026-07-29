@@ -36,7 +36,7 @@ TUT <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG <- file.path(TUT, "figures_svf")
 dir.create(FIG, showWarnings = FALSE)
 
-DATA <- path.expand("~/.shanuz_data/xenium_mouse_brain")
+DATA <- path.expand("~/.truecell_data/xenium_mouse_brain")
 ASSAY <- "Xenium"
 TOP_N <- 10
 

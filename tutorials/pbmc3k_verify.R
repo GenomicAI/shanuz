@@ -35,7 +35,7 @@ set.seed(0)
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures")
 DATA <- Sys.getenv("PBMC3K_DATA",
-                   path.expand("~/.shanuz_data/pbmc3k/filtered_gene_bc_matrices/hg19"))
+                   path.expand("~/.truecell_data/pbmc3k/filtered_gene_bc_matrices/hg19"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 if (!file.exists(file.path(DATA, "matrix.mtx")))
   stop("PBMC 3k data not found at ", DATA,
@@ -53,7 +53,7 @@ pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000, v
 pbmc <- ScaleData(pbmc, features = rownames(pbmc), verbose = FALSE)
 pbmc <- RunPCA(pbmc, npcs = 50, verbose = FALSE)
 # nn.method = "rann" gives exact neighbours. Seurat's default is "annoy", which
-# is approximate, while shanuz's neighbour search is exact — leaving the default
+# is approximate, while truecell's neighbour search is exact — leaving the default
 # in place would compare two different neighbour tables and report a difference
 # that belongs to annoy rather than to either implementation. The same trap cost
 # `pbmc3k_objects_verify.R` a false negative of 182 SNN edges.

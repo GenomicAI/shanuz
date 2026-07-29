@@ -37,7 +37,7 @@ from tutorials.xenium_svf_tutorial import (  # noqa: E402
     load_slide,
     subset_cells,
 )
-from shanuz.spatial import find_spatially_variable_features  # noqa: E402
+from truecell.spatial import find_spatially_variable_features  # noqa: E402
 
 FIGURES.mkdir(exist_ok=True)
 
@@ -78,7 +78,7 @@ def moransi_vs_r(exact, knn, r):
     ax.scatter(r[shared], exact[shared], s=14, color=_EXACT, alpha=0.9, zorder=3,
                label="after — R's 1/d², row-standardised")
     ax.set_xlabel("Seurat 5.5.1  ·  FindSpatiallyVariableFeatures(moransi)")
-    ax.set_ylabel("shanuz  ·  find_spatially_variable_features")
+    ax.set_ylabel("truecell  ·  find_spatially_variable_features")
     ax.set_xlim(lim)
     ax.set_ylim(lim)
     ax.set_aspect("equal")
@@ -134,7 +134,7 @@ def spot_radius(obj):
     solid block — which is not a drawing mistake to hide but the honest result:
     ``.AutoRadius`` is 1% of the *bounding box*, so on a densely packed section it
     lands well above the cell spacing. Seurat draws this slide the same way. The
-    defect being fixed is that shanuz had no radius at all, not that R's heuristic
+    defect being fixed is that truecell had no radius at all, not that R's heuristic
     is the right size for every slide.
     """
     import matplotlib.pyplot as plt
@@ -152,7 +152,7 @@ def spot_radius(obj):
     # Half the median nearest-neighbour spacing: what a reader would actually
     # pass for a section this dense, and only expressible now that the slot is
     # populated at all.
-    from shanuz.spatial import spatial_knn
+    from truecell.spatial import spatial_knn
 
     tuned = 0.5 * float(np.median(spatial_knn(np.column_stack([x, y]), k=1)[0][:, 0]))
 

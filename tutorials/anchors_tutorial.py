@@ -38,17 +38,17 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.anchors import find_integration_anchors, integrate_data  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.anchors import find_integration_anchors, integrate_data  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     find_variable_features,
     normalize_data,
     scale_data,
 )
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 FIG = HERE / "figures_anchors"
-DATA = Path.home() / ".shanuz_data" / "ifnb"
+DATA = Path.home() / ".truecell_data" / "ifnb"
 
 N_PER_GROUP = 1200
 N_FEATURES = 2000
@@ -99,7 +99,7 @@ def build_pair():
     objects = {}
     for group, ids in cells.items():
         idx = [barcodes.index(c) for c in ids]
-        obj = create_shanuz_object(
+        obj = create_truecell_object(
             counts=sub[:, idx], assay="RNA", feature_names=kept_features,
             cell_names=ids, meta_data=meta.loc[ids],
         )
@@ -168,7 +168,7 @@ def summarise(reduction, anchors, merged, objects, feats):
 
 # ---------------------------------------------------------------- comparison
 def compare(reduction):
-    """shanuz's anchors against Seurat's, for one reduction."""
+    """truecell's anchors against Seurat's, for one reduction."""
     r_path = FIG / f"r_anchors_{reduction}.csv"
     if not r_path.exists():
         return None
@@ -187,14 +187,14 @@ def compare(reduction):
     out = {
         "reduction": reduction,
         "n_seurat": len(r_pairs),
-        "n_shanuz": len(p_pairs),
+        "n_truecell": len(p_pairs),
         "n_shared": len(shared),
         "recall": len(shared) / max(len(r_pairs), 1),
         "precision": len(shared) / max(len(p_pairs), 1),
         "score_corr": float(np.corrcoef(x, y)[0, 1]) if len(order) > 1 else float("nan"),
         "score_max_abs_diff": float(np.abs(x - y).max()) if len(order) else float("nan"),
         "score_identical": float(np.mean(np.isclose(x, y, atol=1e-9))) if len(order) else 0.0,
-        "score_mean_shanuz": float(x.mean()) if len(order) else float("nan"),
+        "score_mean_truecell": float(x.mean()) if len(order) else float("nan"),
         "score_mean_seurat": float(y.mean()) if len(order) else float("nan"),
     }
     r_sum = FIG / f"r_summary_{reduction}.json"
@@ -212,13 +212,13 @@ def report():
         print("No Seurat anchors found. Run `Rscript tutorials/anchors_verify.R` first.")
         return 1
     print("=" * 78)
-    print("Anchor agreement — shanuz vs Seurat 5.5.1")
+    print("Anchor agreement — truecell vs Seurat 5.5.1")
     print("=" * 78)
-    print(f"{'reduction':<10}{'Seurat':>9}{'shanuz':>9}{'shared':>9}"
+    print(f"{'reduction':<10}{'Seurat':>9}{'truecell':>9}{'shared':>9}"
           f"{'recall':>9}{'prec':>8}{'score r':>10}{'same':>8}")
     ok = True
     for c in rows:
-        print(f"{c['reduction']:<10}{c['n_seurat']:>9}{c['n_shanuz']:>9}{c['n_shared']:>9}"
+        print(f"{c['reduction']:<10}{c['n_seurat']:>9}{c['n_truecell']:>9}{c['n_shared']:>9}"
               f"{100*c['recall']:>8.1f}%{100*c['precision']:>7.1f}%"
               f"{c['score_corr']:>10.5f}{100*c['score_identical']:>7.1f}%")
         ok &= c["recall"] >= MIN_RECALL[c["reduction"]]
@@ -230,8 +230,8 @@ def report():
             print(f"  {c['reduction']}: correction over the query half — "
                   f"mean|d| {py:.6f} vs Seurat {rr:.6f}, "
                   f"frac nonzero {pyf:.4f} vs {rrf:.4f}")
-    print("\n  recall    = fraction of Seurat's anchors shanuz also found")
-    print("  precision = fraction of shanuz's anchors Seurat also found")
+    print("\n  recall    = fraction of Seurat's anchors truecell also found")
+    print("  precision = fraction of truecell's anchors Seurat also found")
     print("  score r   = correlation of the anchor scores on the shared pairs")
     return 0 if ok else 1
 

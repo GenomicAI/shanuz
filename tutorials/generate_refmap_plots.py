@@ -1,7 +1,7 @@
 """Generate all figures for the reference-mapping tutorial.
 
 Runs panc8_reference_mapping_tutorial.run_full(do_umap=True) and renders the
-shanuz-side figures to tutorials/figures_refmap/, alongside the r_*.png the R
+truecell-side figures to tutorials/figures_refmap/, alongside the r_*.png the R
 verify script writes:
   * py_01_reference_umap_celltype.png    the reference atlas UMAP, by cell type
   * py_02_query_projected_predicted.png  the query projected into the reference
@@ -31,7 +31,7 @@ if str(_ROOT) not in sys.path:
 from tutorials.panc8_reference_mapping_tutorial import (
     run_full, CELLTYPE, REFERENCE_TECH, QUERY_TECH,
 )
-from shanuz.plotting import dim_plot, _palette
+from truecell.plotting import dim_plot, _palette
 
 FIGURES = Path(__file__).parent / "figures_refmap"
 FIGURES.mkdir(exist_ok=True)

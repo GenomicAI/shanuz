@@ -19,9 +19,9 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz.assay5 import Assay5
-from shanuz.plotting import _PALETTE_36, _get_data_matrix, _palette
-from shanuz.preprocessing import _get_layer
+from truecell.assay5 import Assay5
+from truecell.plotting import _PALETTE_36, _get_data_matrix, _palette
+from truecell.preprocessing import _get_layer
 
 _HEX = re.compile(r"^#[0-9a-f]{6}$")
 
@@ -47,8 +47,8 @@ def test_vln_plot_survives_more_groups_than_the_fixed_palette():
     plt = pytest.importorskip("matplotlib.pyplot")
     import pandas as pd
 
-    from shanuz.plotting import vln_plot
-    from shanuz.shanuz import create_shanuz_object
+    from truecell.plotting import vln_plot
+    from truecell.truecell import create_truecell_object
 
     n_groups, per = 40, 3
     n_cells = n_groups * per
@@ -56,7 +56,7 @@ def test_vln_plot_survives_more_groups_than_the_fixed_palette():
     counts = sp.csc_matrix(rng.poisson(5, size=(6, n_cells)).astype(np.float64))
     cells = [f"c{i}" for i in range(n_cells)]
     meta = pd.DataFrame({"grp": [f"g{i // per}" for i in range(n_cells)]}, index=cells)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, feature_names=[f"gene{i}" for i in range(6)],
         cell_names=cells, meta_data=meta, min_cells=0, min_features=0,
     )

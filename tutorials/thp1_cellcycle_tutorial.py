@@ -1,4 +1,4 @@
-"""Cell-cycle & module scoring tutorial — Shanuz vs R Seurat on THP-1.
+"""Cell-cycle & module scoring tutorial — Truecell vs R Seurat on THP-1.
 
 A Python port of Seurat's [cell-cycle vignette](https://satijalab.org/seurat/articles/cell_cycle_vignette)
 and `AddModuleScore`, run on the THP-1 ECCITE-seq dataset (**GSE153056**,
@@ -12,11 +12,11 @@ The task these two functions solve: **score a gene program per cell against a
 matched control set**, so the score reflects the program and not a cell's overall
 depth or the genes' baseline abundance.
 
-  * :func:`shanuz.add_module_score` ↔ ``AddModuleScore`` — the general primitive:
+  * :func:`truecell.add_module_score` ↔ ``AddModuleScore`` — the general primitive:
     a program's score is its genes' mean expression minus the mean of control
     genes drawn from the *same average-expression bins*, so highly- and
     lowly-expressed programs are put on the same footing.
-  * :func:`shanuz.cell_cycle_scoring` ↔ ``CellCycleScoring`` — module scoring
+  * :func:`truecell.cell_cycle_scoring` ↔ ``CellCycleScoring`` — module scoring
     applied to the Tirosh 2016 S and G2/M gene sets (Seurat's
     ``cc.genes.updated.2019``), then a discrete ``Phase`` per cell: ``G1`` when
     both scores are ≤ 0, else whichever of S / G2M is larger.
@@ -43,7 +43,7 @@ S / G2M / module gene symbols it resolved against the assay to
 ``figures_cellcycle/*.txt``, which the R script reads back. So the only thing
 left to differ is the control-gene RNG. The dataset also ships Papalexi's own
 published ``Phase`` (from their Seurat run); we keep it as ``published_Phase`` for
-a bonus external sanity check, but the controlled comparison is shanuz vs a fresh
+a bonus external sanity check, but the controlled comparison is truecell vs a fresh
 R ``CellCycleScoring`` on identical input.
 
 Usage
@@ -79,10 +79,10 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import thp1_eccite
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data
-from shanuz.module_score import add_module_score, cell_cycle_scoring, CC_GENES
+from truecell.datasets import thp1_eccite
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data
+from truecell.module_score import add_module_score, cell_cycle_scoring, CC_GENES
 
 FIGURES = Path(__file__).parent / "figures_cellcycle"
 
@@ -197,7 +197,7 @@ def load_thp1_object(data_dir=None, min_cells=3):
                      (G2M_COL, "published_G2M.Score")):
         if col in meta.columns:
             keep[out] = meta.loc[cells, col].to_numpy()
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=rna_mat, assay="RNA", min_cells=min_cells, min_features=0,
         project="thp1_cellcycle", feature_names=list(rna_genes),
         cell_names=list(cells), meta_data=keep,

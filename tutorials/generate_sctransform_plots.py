@@ -1,6 +1,6 @@
 """Generate all figures for the SCTransform (PBMC 3k) tutorial.
 
-Runs pbmc3k_sctransform_tutorial.run_full() and renders the shanuz-side figures
+Runs pbmc3k_sctransform_tutorial.run_full() and renders the truecell-side figures
 to tutorials/figures_sctransform/.
 
 Usage
@@ -23,7 +23,7 @@ if str(_ROOT) not in sys.path:
 from tutorials.pbmc3k_sctransform_tutorial import (
     run_full, VIGNETTE_MARKERS_1, VIGNETTE_MARKERS_2, VLN_MARKERS,
 )
-from shanuz.plotting import dim_plot, feature_plot, vln_plot
+from truecell.plotting import dim_plot, feature_plot, vln_plot
 
 FIGURES = Path(__file__).parent / "figures_sctransform"
 FIGURES.mkdir(exist_ok=True)

@@ -2,19 +2,19 @@
 
 Both defects here were invisible to the suite: `find_markers` had tests, they
 passed throughout, and neither the fold-change formula nor the negative-binomial
-statistic was pinned to anything outside shanuz itself.
+statistic was pinned to anything outside truecell itself.
 
 Constants marked "R:" were read off a live Seurat 5.5.1 / MASS session on pbmc3k
-clusters 0 vs 1 (695 vs 477 cells), not derived from shanuz's own output.
+clusters 0 vs 1 (695 vs 477 cells), not derived from truecell's own output.
 """
 import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
 
-from shanuz import create_shanuz_object
-from shanuz.markers import PSEUDOCOUNT, find_markers
-from shanuz.preprocessing import normalize_data
+from truecell import create_truecell_object
+from truecell.markers import PSEUDOCOUNT, find_markers
+from truecell.preprocessing import normalize_data
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ def _seurat_log2fc(mat1, mat2, pseudocount=1.0):
         log2((rowSums(expm1(x)) + pseudocount) / NCOL(x))
 
     Written out here rather than imported so the test compares against the R
-    formula, not against whatever shanuz currently does.
+    formula, not against whatever truecell currently does.
     """
     m1 = (np.expm1(mat1).sum(axis=1) + pseudocount) / mat1.shape[1]
     m2 = (np.expm1(mat2).sum(axis=1) + pseudocount) / mat2.shape[1]
@@ -47,7 +47,7 @@ def two_group_object():
     counts = rng.poisson(3.0, size=(g, n1 + n2)).astype(float)
     counts[:10, :n1] = 0.0          # silent in group A only
     counts[10:15, :] = 0.0          # silent everywhere
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(g)],
         cell_names=[f"c{i}" for i in range(n1 + n2)],
@@ -143,7 +143,7 @@ def test_unequal_group_sizes_still_cancel_for_a_silent_gene():
     rng = np.random.default_rng(3)
     counts = rng.poisson(3.0, size=(5, 90)).astype(float)
     counts[0, :] = 0.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(5)],
         cell_names=[f"c{i}" for i in range(90)],
@@ -192,7 +192,7 @@ def test_negbinom_matches_glm_nb_wald():
         np.r_[rng.poisson(8.0, n1), rng.poisson(2.0, n2)],   # clearly different
         np.r_[rng.poisson(3.0, n1), rng.poisson(3.0, n2)],   # null
     ]).astype(float)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp.csc_matrix(counts), assay="RNA", feature_names=["hit", "null"],
         cell_names=[f"c{i}" for i in range(n1 + n2)],
     )
@@ -234,7 +234,7 @@ def test_negbinom_is_not_a_likelihood_ratio_test():
     rng = np.random.default_rng(9)
     n = 60
     row = np.r_[rng.poisson(9.0, n), rng.poisson(2.0, n)].astype(float)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp.csc_matrix(row.reshape(1, -1)), assay="RNA", feature_names=["hit"],
         cell_names=[f"c{i}" for i in range(2 * n)],
     )
@@ -264,8 +264,8 @@ def test_negbinom_is_not_a_likelihood_ratio_test():
 # ---------------------------------------------------------------------------
 #
 # T1's handoff found this. On PBMC 3k, two clusters ended up with *identical*
-# cell membership on both sides; on those two, shanuz returned 190 and 383
-# genes against Seurat's 151 and 242. Every extra row was a gene shanuz agreed
+# cell membership on both sides; on those two, truecell returned 190 and 383
+# genes against Seurat's 151 and 242. Every extra row was a gene truecell agreed
 # with Seurat about numerically (max |avg_log2FC diff| 4.9e-15) and that Seurat
 # simply does not return: `FindAllMarkers(return.thresh = 1e-2)` drops
 # everything with p_val >= 0.01. Applying the same filter reproduced Seurat's
@@ -284,7 +284,7 @@ def _three_cluster_object():
     counts[0, :n] += 30          # g0 marks cluster A
     counts[1, n:2 * n] += 30     # g1 marks cluster B
     counts[2, 2 * n:] += 30      # g2 marks cluster C
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(g)],
         cell_names=[f"c{i}" for i in range(3 * n)],
@@ -295,7 +295,7 @@ def _three_cluster_object():
 
 
 def test_find_all_markers_applies_seurats_return_thresh():
-    from shanuz.markers import find_all_markers
+    from truecell.markers import find_all_markers
 
     obj = _three_cluster_object()
     unfiltered = find_all_markers(obj, return_thresh=None)
@@ -316,7 +316,7 @@ def test_find_all_markers_applies_seurats_return_thresh():
 
 
 def test_find_all_markers_return_thresh_is_configurable():
-    from shanuz.markers import find_all_markers
+    from truecell.markers import find_all_markers
 
     obj = _three_cluster_object()
     loose = find_all_markers(obj, return_thresh=0.5)
@@ -348,7 +348,7 @@ def _tied_marker_object():
     for i, lift in enumerate([10, 20, 40, 80, 160, 320]):
         counts[i, :n] = lift + np.arange(n)                 # group A, well clear
         counts[i, n:] = 0.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(g)],
         cell_names=[f"c{i}" for i in range(2 * n)],
@@ -366,7 +366,7 @@ def test_find_all_markers_breaks_p_value_ties_on_fold_change():
     among the genes that tie, and the strongest markers are exactly the ones
     that tie.
     """
-    from shanuz.markers import find_all_markers
+    from truecell.markers import find_all_markers
 
     got = find_all_markers(_tied_marker_object())
     checked = 0
@@ -394,7 +394,7 @@ def test_cluster_labels_are_ordered_numerically_past_ten():
     silently, and only past ten clusters, which is why every tutorial in the
     suite (eight and nine clusters on PBMC 3k) missed it.
     """
-    from shanuz.markers import _ident_sort_key
+    from truecell.markers import _ident_sort_key
 
     labels = [str(i) for i in range(12)]
     assert sorted(labels, key=_ident_sort_key) == labels

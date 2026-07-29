@@ -1,4 +1,4 @@
-"""Cell-hashing demultiplexing tutorial — HTODemux + MULTIseqDemux with Shanuz.
+"""Cell-hashing demultiplexing tutorial — HTODemux + MULTIseqDemux with Truecell.
 
 A Python port of Seurat's hashing vignette
 (https://satijalab.org/seurat/articles/hashing_vignette) using the original
@@ -7,12 +7,12 @@ tagged with a distinct antibody hashtag (BatchA–H), pooled and sequenced on on
 lane. Demultiplexing recovers, per droplet, which sample the cell came from —
 and which droplets caught two cells (doublets) or none (negatives).
 
-It demonstrates Shanuz's two demultiplexers side by side with Seurat's:
+It demonstrates Truecell's two demultiplexers side by side with Seurat's:
   * build the object, attach the hashtag counts as an ``"HTO"`` assay, and
     CLR-normalise them (margin 1 — per hashtag across cells, Seurat's default),
-  * :func:`shanuz.hto_demux` — Seurat's ``HTODemux``: a negative-binomial cutoff
+  * :func:`truecell.hto_demux` — Seurat's ``HTODemux``: a negative-binomial cutoff
     per hashtag, learned from its background cluster,
-  * :func:`shanuz.multiseq_demux` — Seurat's ``MULTIseqDemux``: a kernel-density
+  * :func:`truecell.multiseq_demux` — Seurat's ``MULTIseqDemux``: a kernel-density
     cutoff per barcode instead, and how the two methods differ at the margins,
   * an independent ground-truth check that only this dataset offers: the RNA is
     aligned to a *combined human+mouse* genome, so a droplet with both human and
@@ -41,7 +41,7 @@ Usage
 -----
     python tutorials/pbmc_hashing_tutorial.py [--data-dir PATH]
 
-The dataset (~34 MB) downloads automatically to ~/.shanuz_data/pbmc_hashing.
+The dataset (~34 MB) downloads automatically to ~/.truecell_data/pbmc_hashing.
 Then, for the side-by-side numbers and figures:
 
     Rscript tutorials/pbmc_hashing_verify.R
@@ -68,12 +68,12 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import pbmc_hashing
-from shanuz.shanuz import create_shanuz_object
-from shanuz.assay5 import create_assay5_object
-from shanuz.preprocessing import normalize_data
-from shanuz.hto import hto_demux
-from shanuz.multiseq import multiseq_demux
+from truecell.datasets import pbmc_hashing
+from truecell.truecell import create_truecell_object
+from truecell.assay5 import create_assay5_object
+from truecell.preprocessing import normalize_data
+from truecell.hto import hto_demux
+from truecell.multiseq import multiseq_demux
 
 FIGURES = Path(__file__).parent / "figures_hashing"
 
@@ -152,7 +152,7 @@ def load_hashing_object(data_dir=None, min_cells=3, short_names=True):
     """
     rna, genes, hto, hto_names, cells = pbmc_hashing(data_dir=data_dir)
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=rna, assay="RNA", min_cells=min_cells, min_features=0,
         project="hashing", feature_names=genes, cell_names=cells,
     )

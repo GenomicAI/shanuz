@@ -1,24 +1,24 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)"
-            srcset="docs/assets/logo/shanuz-lockup-inverse-1200.png">
-    <img src="docs/assets/logo/shanuz-lockup-1200.png"
-         alt="shanuz" width="420">
+            srcset="docs/assets/logo/truecell-lockup-inverse-1200.png">
+    <img src="docs/assets/logo/truecell-lockup-1200.png"
+         alt="truecell" width="420">
   </picture>
 </p>
 
-# Shanuz — Python Single-Cell Genomics Toolkit
+# Truecell — Python Single-Cell Genomics Toolkit
 
-[![PyPI](https://img.shields.io/pypi/v/shanuz.svg)](https://pypi.org/project/shanuz/)
+[![PyPI](https://img.shields.io/pypi/v/truecell.svg)](https://pypi.org/project/truecell/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docs](https://img.shields.io/badge/docs-genomicai.github.io%2Fshanuz-17423a.svg)](https://genomicai.github.io/shanuz/)
+[![Docs](https://img.shields.io/badge/docs-genomicai.github.io%2Ftruecell-17423a.svg)](https://genomicai.github.io/truecell/)
 
-📖 **[Documentation](https://genomicai.github.io/shanuz/)** — API reference, all
+📖 **[Documentation](https://genomicai.github.io/truecell/)** — API reference, all
 eighteen tutorials, and [how the port is checked against R
-Seurat](https://genomicai.github.io/shanuz/fidelity/).
+Seurat](https://genomicai.github.io/truecell/fidelity/).
 
-**Shanuz** is a Python port of the [Seurat](https://satijalab.org/seurat/) single-cell RNA-seq
+**Truecell** is a Python port of the [Seurat](https://satijalab.org/seurat/) single-cell RNA-seq
 analysis framework, implementing Seurat's core data structures, preprocessing pipeline,
 dimensionality reduction, clustering, and marker detection — entirely in Python.
 
@@ -30,7 +30,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 
 ## Features
 
-- **Shanuz object** — mirrors the R `Seurat` S4 class with `__slots__`-based Python classes
+- **Truecell object** — mirrors the R `Seurat` S4 class with `__slots__`-based Python classes
 - **Assay5** — sparse-matrix-backed multi-layer assay (counts, data, scale.data)
 - **Preprocessing** — `normalize_data`, `find_variable_features` (VST), `scale_data`, `percentage_feature_set`
 - **SCTransform** — `sctransform` (regularized negative-binomial Pearson residuals; `vst_flavor="v2"` by default, as Seurat 5, or `"v1"` for the 2019 model)
@@ -67,7 +67,7 @@ dimensionality reduction, clustering, and marker detection — entirely in Pytho
 
 ## Installation
 
-Shanuz is published on [PyPI](https://pypi.org/project/shanuz/) — `pip install shanuz` just works.
+Truecell is published on [PyPI](https://pypi.org/project/truecell/) — `pip install truecell` just works.
 
 **Requires Python 3.12 or newer**, and CI tests 3.12 and 3.13. The floor follows
 [SPEC 0](https://scientific-python.org/specs/spec-0000/), the support window
@@ -80,35 +80,35 @@ ships manylinux wheels only through cp313, and the alternatives are a source
 build needing BLAS or a resolver backtrack that pulls in torch. Everything else
 in the dependency set already has 3.14 wheels, so this is one package away.
 
-> **`pip install shanuz` is current again.** The newest release is **0.9.0**
+> **`pip install truecell` is current again.** The newest release is **0.9.0**
 > (2026-07-27), and it closes the gap the previous note here warned about:
 > reference mapping, sketching, `LazyMatrix`, cell hashing, Mixscape,
 > `run_spca`/`glm_pca`, pseudobulk DE, and the MERSCOPE/Visium additions are all
-> in it. [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)
+> in it. [`CHANGELOG.md`](https://github.com/GenomicAI/truecell/blob/main/CHANGELOG.md)
 > is still the authority on exactly what shipped when a gap like that opens up
 > again — a milestone landing on `main` does not mean it has been released.
 
 ### From PyPI — the released core
 
 ```bash
-pip install shanuz                 # core: object model, preprocessing, PCA, markers
-pip install "shanuz[analysis]"     # + clustering, UMAP, plotting (matplotlib/seaborn)
-pip install "shanuz[anndata]"      # + AnnData interoperability
-pip install "shanuz[integration]"  # + Harmony batch correction (harmonypy)
-pip install "shanuz[all]"          # everything (analysis + anndata + integration + dev/test tooling)
+pip install truecell                 # core: object model, preprocessing, PCA, markers
+pip install "truecell[analysis]"     # + clustering, UMAP, plotting (matplotlib/seaborn)
+pip install "truecell[anndata]"      # + AnnData interoperability
+pip install "truecell[integration]"  # + Harmony batch correction (harmonypy)
+pip install "truecell[all]"          # everything (analysis + anndata + integration + dev/test tooling)
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv pip install "shanuz[analysis]"
+uv pip install "truecell[analysis]"
 ```
 
 ### From source — everything above
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell
 uv venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -e ".[all]"  # editable install + tests/linting
@@ -117,8 +117,8 @@ uv pip install -e ".[all]"  # editable install + tests/linting
 With `pip` instead of `uv`:
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell
 pip install -e ".[analysis]"
 ```
 ---
@@ -128,13 +128,13 @@ pip install -e ".[analysis]"
 ```python
 import scipy.sparse as sp
 import numpy as np
-from shanuz import create_shanuz_object
+from truecell import create_truecell_object
 
-# Create a Shanuz object from a counts matrix
+# Create a Truecell object from a counts matrix
 counts = sp.random(2000, 500, density=0.2, format="csc")
-sobj = create_shanuz_object(counts, project="my_project", min_cells=3, min_features=200)
+sobj = create_truecell_object(counts, project="my_project", min_cells=3, min_features=200)
 print(sobj)
-# Shanuz object — my_project
+# Truecell object — my_project
 #   500 cells × 2000 features
 #   Active assay: 'RNA'
 #   Reductions: []
@@ -152,29 +152,29 @@ Eighteen end-to-end tutorials — from basic guided clustering through multimoda
 CITE-seq, cell-hashing demultiplexing, pooled-CRISPR Mixscape, batch integration,
 reference mapping, cell-cycle scoring, PC-significance testing, leverage-score
 sketching and the object model itself to Xenium spatial — each pairing R Seurat
-code side-by-side with the Python Shanuz equivalent.
-See **[`tutorials/README.md`](https://github.com/GenomicAI/shanuz/blob/main/tutorials/README.md)** for the full index.
+code side-by-side with the Python Truecell equivalent.
+See **[`tutorials/README.md`](https://github.com/GenomicAI/truecell/blob/main/tutorials/README.md)** for the full index.
 
 | # | Tutorial | Dataset | Complexity |
 |---|----------|---------|-----------|
-| 1 | [PBMC 3k — Guided Clustering](https://github.com/GenomicAI/shanuz/blob/main/tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
-| 2 | [PBMC 8k — Advanced Subclustering](https://github.com/GenomicAI/shanuz/blob/main/tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
-| 3 | [CBMC CITE-seq — Multimodal](https://github.com/GenomicAI/shanuz/blob/main/tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
-| 4 | [PBMC 3k — SCTransform](https://github.com/GenomicAI/shanuz/blob/main/tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
-| 5 | [Xenium — Spatial (R vs Python)](https://github.com/GenomicAI/shanuz/blob/main/tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
-| 6 | [Cell Hashing — Demultiplexing](https://github.com/GenomicAI/shanuz/blob/main/tutorials/hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 | Advanced |
-| 7 | [Mixscape — Pooled CRISPR Screen](https://github.com/GenomicAI/shanuz/blob/main/tutorials/mixscape_vignette.md) | 20,729 cells · 25 guides · GSE153056 | Advanced |
-| 8 | [Batch Integration — Harmony/CCA/RPCA](https://github.com/GenomicAI/shanuz/blob/main/tutorials/integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
-| 9 | [Reference Mapping — Label Transfer](https://github.com/GenomicAI/shanuz/blob/main/tutorials/refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 | Advanced |
-| 10 | [Cell-cycle & Module Scoring](https://github.com/GenomicAI/shanuz/blob/main/tutorials/cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 | Advanced |
-| 11 | [Dimensional-Reduction Extras](https://github.com/GenomicAI/shanuz/blob/main/tutorials/dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
-| 12 | [Leverage-Score Sketching](https://github.com/GenomicAI/shanuz/blob/main/tutorials/sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
-| 13 | [The Object Model Itself](https://github.com/GenomicAI/shanuz/blob/main/tutorials/objects_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
-| 14 | [Spatial Statistics & the Spatial Container](https://github.com/GenomicAI/shanuz/blob/main/tutorials/svf_vignette.md) | 36,602 cells · 10x Xenium mouse brain | Advanced |
-| 15 | [The Differential-Expression Test Suite](https://github.com/GenomicAI/shanuz/blob/main/tutorials/de_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
-| 16 | [Out of Core — `LazyMatrix` vs BPCells](https://github.com/GenomicAI/shanuz/blob/main/tutorials/lazy_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
-| 17 | [Visium — the Spatial Container](https://github.com/GenomicAI/shanuz/blob/main/tutorials/visium_vignette.md) | 2,695 spots · 10x mouse brain | Spatial |
-| 18 | [Anchor Internals — CCA & RPCA](https://github.com/GenomicAI/shanuz/blob/main/tutorials/anchors_vignette.md) | 2,400 cells · ifnb | Advanced |
+| 1 | [PBMC 3k — Guided Clustering](https://github.com/GenomicAI/truecell/blob/main/tutorials/pbmc3k_tutorial.md) | 3k PBMCs · 10x Genomics | Beginner |
+| 2 | [PBMC 8k — Advanced Subclustering](https://github.com/GenomicAI/truecell/blob/main/tutorials/advanced_pbmc8k_subclustering.md) | 8k PBMCs · GRCh38 | Intermediate |
+| 3 | [CBMC CITE-seq — Multimodal](https://github.com/GenomicAI/truecell/blob/main/tutorials/multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 proteins | Advanced |
+| 4 | [PBMC 3k — SCTransform](https://github.com/GenomicAI/truecell/blob/main/tutorials/sctransform_vignette.md) | 3k PBMCs · 10x Genomics | Advanced |
+| 5 | [Xenium — Spatial (R vs Python)](https://github.com/GenomicAI/truecell/blob/main/tutorials/xenium_spatial_tutorial.md) | 36k cells · 10x Xenium mouse brain | Spatial |
+| 6 | [Cell Hashing — Demultiplexing](https://github.com/GenomicAI/truecell/blob/main/tutorials/hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 | Advanced |
+| 7 | [Mixscape — Pooled CRISPR Screen](https://github.com/GenomicAI/truecell/blob/main/tutorials/mixscape_vignette.md) | 20,729 cells · 25 guides · GSE153056 | Advanced |
+| 8 | [Batch Integration — Harmony/CCA/RPCA](https://github.com/GenomicAI/truecell/blob/main/tutorials/integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
+| 9 | [Reference Mapping — Label Transfer](https://github.com/GenomicAI/truecell/blob/main/tutorials/refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 | Advanced |
+| 10 | [Cell-cycle & Module Scoring](https://github.com/GenomicAI/truecell/blob/main/tutorials/cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 | Advanced |
+| 11 | [Dimensional-Reduction Extras](https://github.com/GenomicAI/truecell/blob/main/tutorials/dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 12 | [Leverage-Score Sketching](https://github.com/GenomicAI/truecell/blob/main/tutorials/sketch_vignette.md) | 13,999 cells · CTRL/STIM · ifnb | Advanced |
+| 13 | [The Object Model Itself](https://github.com/GenomicAI/truecell/blob/main/tutorials/objects_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 14 | [Spatial Statistics & the Spatial Container](https://github.com/GenomicAI/truecell/blob/main/tutorials/svf_vignette.md) | 36,602 cells · 10x Xenium mouse brain | Advanced |
+| 15 | [The Differential-Expression Test Suite](https://github.com/GenomicAI/truecell/blob/main/tutorials/de_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 16 | [Out of Core — `LazyMatrix` vs BPCells](https://github.com/GenomicAI/truecell/blob/main/tutorials/lazy_vignette.md) | 2,700 PBMCs · 10x Genomics | Advanced |
+| 17 | [Visium — the Spatial Container](https://github.com/GenomicAI/truecell/blob/main/tutorials/visium_vignette.md) | 2,695 spots · 10x mouse brain | Spatial |
+| 18 | [Anchor Internals — CCA & RPCA](https://github.com/GenomicAI/truecell/blob/main/tutorials/anchors_vignette.md) | 2,400 cells · ifnb | Advanced |
 
 ```bash
 # Tutorial 1 — PBMC 3k
@@ -224,9 +224,9 @@ python tutorials/pbmc3k_de_tutorial.py && python tutorials/generate_de_plots.py
 ### Object creation
 
 ```python
-from shanuz import create_shanuz_object
+from truecell import create_truecell_object
 
-pbmc = create_shanuz_object(
+pbmc = create_truecell_object(
     counts,             # scipy.sparse CSC/CSR or numpy ndarray (genes × cells)
     project="pbmc3k",
     min_cells=3,        # filter genes present in fewer than N cells
@@ -237,7 +237,7 @@ pbmc = create_shanuz_object(
 ### Preprocessing
 
 ```python
-from shanuz.preprocessing import (
+from truecell.preprocessing import (
     normalize_data,
     find_variable_features,
     scale_data,
@@ -253,10 +253,10 @@ scale_data(pbmc)
 ### Dimensionality reduction & clustering
 
 ```python
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
 
 run_pca(pbmc, n_pcs=50)
 find_neighbors(pbmc, dims=range(10), k_param=20)
@@ -267,7 +267,7 @@ run_umap(pbmc, dims=range(10))
 ### Differential expression
 
 ```python
-from shanuz import (
+from truecell import (
     find_markers, find_all_markers, find_conserved_markers, aggregate_expression,
 )
 
@@ -281,7 +281,7 @@ conserved = find_conserved_markers(pbmc, ident_1=1, grouping_var="condition")
 pseudobulk = aggregate_expression(pbmc, group_by=["cell_type", "donor"])
 
 # Pseudobulk DESeq2 between two conditions, one profile per donor (needs
-# `pip install shanuz[deseq2]`). pbmc.idents must hold the two conditions.
+# `pip install truecell[deseq2]`). pbmc.idents must hold the two conditions.
 de = find_markers(pbmc, ident_1="stim", ident_2="ctrl",
                   test_use="deseq2", sample_col="donor")
 ```
@@ -291,7 +291,7 @@ de = find_markers(pbmc, ident_1="stim", ident_2="ctrl",
 All plotting functions return a `matplotlib.figure.Figure` — save or display as needed.
 
 ```python
-from shanuz.plotting import (
+from truecell.plotting import (
     dim_plot,            # DimPlot   — cells on UMAP/PCA coloured by ident
     feature_plot,        # FeaturePlot — gene expression on embedding
     vln_plot,            # VlnPlot   — violin plots per cluster
@@ -312,7 +312,7 @@ fig = do_heatmap(pbmc, top_marker_genes)
 fig.savefig("output.png", dpi=150, bbox_inches="tight")
 ```
 
-| Shanuz function | R Seurat equivalent |
+| Truecell function | R Seurat equivalent |
 |-----------------|---------------------|
 | `dim_plot` | `DimPlot` |
 | `feature_plot` | `FeaturePlot` |
@@ -330,7 +330,7 @@ fig.savefig("output.png", dpi=150, bbox_inches="tight")
 ## Data Structures
 
 ```
-Shanuz
+Truecell
 ├── assays: dict[str, Assay5]
 │   └── "RNA"
 │       ├── layers["counts"]    # raw integer counts (genes × cells)
@@ -343,15 +343,15 @@ Shanuz
 ├── graphs: dict
 │   ├── "RNA_nn": Graph         # KNN graph
 │   └── "RNA_snn": Graph        # SNN graph
-└── commands: list[ShanuzCommand]  # audit log
+└── commands: list[TruecellCommand]  # audit log
 ```
 
 ---
 
 ## Roadmap
 
-See **[`ROADMAP.md`](https://github.com/GenomicAI/shanuz/blob/main/ROADMAP.md)** for the full
-development plan, and **[`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md)**
+See **[`ROADMAP.md`](https://github.com/GenomicAI/truecell/blob/main/ROADMAP.md)** for the full
+development plan, and **[`CHANGELOG.md`](https://github.com/GenomicAI/truecell/blob/main/CHANGELOG.md)**
 for what has actually shipped. The two are not the same thing — these milestones are planning
 labels rather than release versions — but as of **0.9.0** every row below through v0.9.0 is
 released, not just landed on `main`. Milestones:
@@ -366,7 +366,7 @@ released, not just landed on `main`. Milestones:
 | v0.7.0 | Spatial — Xenium/Visium/CosMx/MERSCOPE loaders, niche/neighbourhood analysis, `find_spatially_variable_features` (Moran's I + markvariogram), `image_*` plots, `VisiumV2` tissue images, `spatial_*` H&E plots ✅ *(released in 0.9.0 — see Tutorial 5)* |
 | v0.8.0 | Scale — `SketchData`/`ProjectData` (leverage-score sketching) ✅; BPCells-style lazy on-disk matrices (`LazyMatrix`) ✅ *(released in 0.9.0)* |
 | v0.9.0 | Specialized — `HTODemux` ✅ + `MULTIseqDemux` ✅ (cell hashing); Mixscape ✅ (`CalcPerturbSig` + `RunMixscape` + `MixscapeLDA` + `PlotPerturbScore` + `MixscapeHeatmap`, CRISPR screens) — **released in 0.9.0** |
-| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.12–3.13 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/shanuz/blob/main/CHANGELOG.md) ✅, `mypy` clean ✅, this release ✅; MkDocs site on `main` but not yet released |
+| v0.10.0 | Infrastructure — PyPI ✅, GitHub Actions CI ✅ (3.12–3.13 matrix, wheel build + clean-install verification, coverage), [`CHANGELOG.md`](https://github.com/GenomicAI/truecell/blob/main/CHANGELOG.md) ✅, `mypy` clean ✅, this release ✅; MkDocs site on `main` but not yet released |
 
 ---
 
@@ -384,7 +384,7 @@ Twenty-five further tests run the tutorials end-to-end against real data. They a
 CI:
 
 ```bash
-SHANUZ_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v
+TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v
 ```
 
 Worth running before cutting a release: a green suite says nothing about the
@@ -425,9 +425,9 @@ Where a difference from Seurat remains, it was examined and is documented as
 either a deliberate choice or an open question, rather than quietly absorbed.
 
 **Original R Seurat package:**  
-The algorithms and data structures in Shanuz are direct Python translations of the
+The algorithms and data structures in Truecell are direct Python translations of the
 R [Seurat](https://satijalab.org/seurat/) package by the Satija Lab.
-Please cite the original Seurat papers if you use Shanuz in published work:
+Please cite the original Seurat papers if you use Truecell in published work:
 
 > Hao Y, Stuart T, Kowalski MH, et al. (2024).
 > **Dictionary learning for integrative, multimodal and scalable single-cell analysis.**
@@ -457,7 +457,7 @@ https://www.10xgenomics.com/resources/datasets/3-k-pb-mcs-from-a-healthy-donor-1
 
 ## License
 
-MIT License — see [LICENSE](https://github.com/GenomicAI/shanuz/blob/main/LICENSE) for details.
+MIT License — see [LICENSE](https://github.com/GenomicAI/truecell/blob/main/LICENSE) for details.
 
 This software is an independent reimplementation for educational and research purposes.
 It is not affiliated with, endorsed by, or maintained by the Satija Lab or 10x Genomics.

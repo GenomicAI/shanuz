@@ -2,35 +2,35 @@
 
 ## From 10x output
 
-::: shanuz.io.read_10x
+::: truecell.io.read_10x
 
 ## Bundled datasets
 
-`shanuz.datasets` stands in for R's `SeuratData`. Each loader downloads on first
-call into `~/.shanuz_data/` and returns a ready `Shanuz` object; the whole set is
+`truecell.datasets` stands in for R's `SeuratData`. Each loader downloads on first
+call into `~/.truecell_data/` and returns a ready `Truecell` object; the whole set is
 roughly 770 MB cached. These are the datasets the [tutorials](../tutorials/README.md)
 run on, which is what makes each tutorial reproducible from a clean machine.
 
-::: shanuz.datasets.pbmc3k
+::: truecell.datasets.pbmc3k
 
-::: shanuz.datasets.pbmc8k
+::: truecell.datasets.pbmc8k
 
-::: shanuz.datasets.cbmc_citeseq
+::: truecell.datasets.cbmc_citeseq
 
-::: shanuz.datasets.pbmc_hashing
+::: truecell.datasets.pbmc_hashing
 
-::: shanuz.datasets.ifnb
+::: truecell.datasets.ifnb
 
-::: shanuz.datasets.panc8
+::: truecell.datasets.panc8
 
-::: shanuz.datasets.thp1_eccite
+::: truecell.datasets.thp1_eccite
 
-::: shanuz.datasets.xenium_mouse_brain
+::: truecell.datasets.xenium_mouse_brain
 
-::: shanuz.datasets.visium_mouse_brain
+::: truecell.datasets.visium_mouse_brain
 
 ## AnnData interoperability
 
-::: shanuz.compat.anndata.as_anndata
+::: truecell.compat.anndata.as_anndata
 
-::: shanuz.compat.anndata.from_anndata
+::: truecell.compat.anndata.from_anndata

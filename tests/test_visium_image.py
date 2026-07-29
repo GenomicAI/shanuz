@@ -8,8 +8,8 @@ import pytest
 import scipy.io as sio
 import scipy.sparse as sp
 
-from shanuz import VisiumV2, load_visium
-from shanuz.spatial.visium import ScaleFactors, read_scale_factors, read_tissue_image
+from truecell import VisiumV2, load_visium
+from truecell.spatial.visium import ScaleFactors, read_scale_factors, read_tissue_image
 
 SPOT_DIAMETER = 20.0
 HIRES_SCALEF = 0.1
@@ -291,8 +291,8 @@ def test_rename_cells_preserves_image(tmp_path):
 
 
 def test_get_image_generic_dispatches(tmp_path):
-    """shanuz.generics.get_image(image) works, as R's GetImage(obj[['slice1']]) does."""
-    from shanuz.generics import get_image, radius
+    """truecell.generics.get_image(image) works, as R's GetImage(obj[['slice1']]) does."""
+    from truecell.generics import get_image, radius
 
     _write_visium(tmp_path)
     (visium,) = load_visium(tmp_path).images.values()

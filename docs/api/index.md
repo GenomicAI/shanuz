@@ -1,18 +1,18 @@
 # API reference
 
-Most of what follows is exported from the top level, so `shanuz.find_markers` and
-`shanuz.markers.find_markers` are the same object. The grouping below is for
+Most of what follows is exported from the top level, so `truecell.find_markers` and
+`truecell.markers.find_markers` are the same object. The grouping below is for
 reading; it is not a package layout you need to know.
 
 Two pages are the exception, and on those the import path shown is the one to
-use. The [generics](generics.md) live on `shanuz.generics` —
-`shanuz.generics.features(obj)`, not `shanuz.features(obj)`, which raises
+use. The [generics](generics.md) live on `truecell.generics` —
+`truecell.generics.features(obj)`, not `truecell.features(obj)`, which raises
 `AttributeError`. Seven of them are re-exported at the top level as well
-(`create_shanuz_object`, `create_assay_object`, `create_centroids`,
+(`create_truecell_object`, `create_assay_object`, `create_centroids`,
 `create_segmentation`, `create_fov`, `get_tissue_coordinates`, `as_graph`); the
 other 66 are not. The loaders on [Loading data](io.md) likewise stay on their own
-modules: `shanuz.io.read_10x`, `shanuz.datasets.pbmc3k`,
-`shanuz.compat.anndata.as_anndata`.
+modules: `truecell.io.read_10x`, `truecell.datasets.pbmc3k`,
+`truecell.compat.anndata.as_anndata`.
 
 The docstrings are the primary source. Many of them record a specific decision
 about matching R — which of Seurat's two code paths a function follows, where a
@@ -22,9 +22,9 @@ the reason this reference exists rather than a signature dump.
 
 ## The map from Seurat
 
-| Seurat | shanuz | Page |
+| Seurat | truecell | Page |
 |---|---|---|
-| `CreateSeuratObject`, `Seurat`, `Assay5` | `create_shanuz_object`, `Shanuz`, `Assay5` | [Objects](objects.md) |
+| `CreateSeuratObject`, `Seurat`, `Assay5` | `create_truecell_object`, `Truecell`, `Assay5` | [Objects](objects.md) |
 | `NormalizeData`, `FindVariableFeatures`, `ScaleData`, `SCTransform` | `normalize_data`, `find_variable_features`, `scale_data`, `sctransform` | [Preprocessing](preprocessing.md) |
 | `RunPCA`, `RunUMAP`, `RunTSNE`, `JackStraw` | `run_pca`, `run_umap`, `run_tsne`, `jack_straw` | [Dimensional reduction](dimreduc.md) |
 | `FindNeighbors`, `FindClusters`, `FindMultiModalNeighbors` | `find_neighbors`, `find_clusters`, `find_multi_modal_neighbors` | [Graphs and clustering](clustering.md) |
@@ -36,13 +36,13 @@ the reason this reference exists rather than a signature dump.
 | `SketchData`, `LeverageScore`, BPCells matrices | `sketch_data`, `leverage_score`, `LazyMatrix` | [Working at scale](scale.md) |
 | `DimPlot`, `FeaturePlot`, `VlnPlot`, `DoHeatmap` | `dim_plot`, `feature_plot`, `vln_plot`, `do_heatmap` | [Plotting](plotting.md) |
 | `Cells`, `Features`, `Idents`, `FetchData`, `LayerData` | `cells`, `features`, `idents`, `fetch_data`, `layer_data` | [Generics](generics.md) |
-| `Read10X`, `SeuratData::` | `read_10x`, `shanuz.datasets` | [Loading data](io.md) |
+| `Read10X`, `SeuratData::` | `read_10x`, `truecell.datasets` | [Loading data](io.md) |
 
 ## Reading the signatures
 
 Type annotations are resolved statically, straight from the source, so
 annotation-only imports guarded by `if TYPE_CHECKING:` still render and still
 cross-link. Three of them matter in practice — `matplotlib.figure.Figure` on
-every plotting function, `Neighbor` on `as_graph`, and `Shanuz` on
+every plotting function, `Neighbor` on `as_graph`, and `Truecell` on
 `from_anndata` — and all three are deliberate: they keep matplotlib optional and
 break two import cycles. See [Fidelity](../fidelity.md#the-annotations-that-only-exist-for-readers).

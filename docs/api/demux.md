@@ -23,14 +23,14 @@ which each guide population separates.
 
 ## Cell hashing
 
-::: shanuz.hto.hto_demux
+::: truecell.hto.hto_demux
 
-::: shanuz.multiseq.multiseq_demux
+::: truecell.multiseq.multiseq_demux
 
 ## Mixscape
 
-::: shanuz.mixscape.calc_perturb_sig
+::: truecell.mixscape.calc_perturb_sig
 
-::: shanuz.mixscape.run_mixscape
+::: truecell.mixscape.run_mixscape
 
-::: shanuz.mixscape.mixscape_lda
+::: truecell.mixscape.mixscape_lda

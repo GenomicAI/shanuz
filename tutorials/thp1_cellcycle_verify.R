@@ -5,7 +5,7 @@
 # bytes, scores the cell cycle (CellCycleScoring) and an interferon program
 # (AddModuleScore) on the SAME resolved gene lists the Python run wrote, and
 # writes the per-cell calls (r_calls.csv) the Python tutorial's
-# report_concordance() reads — the references for shanuz.cell_cycle_scoring /
+# report_concordance() reads — the references for truecell.cell_cycle_scoring /
 # add_module_score. Also writes the R-side figures.
 #
 # Both AddModuleScore and CellCycleScoring sample control genes at random, and
@@ -32,7 +32,7 @@ set.seed(42)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_cellcycle")
-DATA <- Sys.getenv("CELLCYCLE_DATA", path.expand("~/.shanuz_data/thp1_eccite"))
+DATA <- Sys.getenv("CELLCYCLE_DATA", path.expand("~/.truecell_data/thp1_eccite"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 
 RNA_TSV  <- file.path(DATA, "GSM4633614_ECCITE_cDNA_counts.tsv.gz")

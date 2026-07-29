@@ -1,11 +1,11 @@
 #!/usr/bin/env Rscript
 # Wave 0 data bridge: export a SeuratData dataset to a language-neutral 10x-style
-# matrix folder that Python's shanuz.datasets can read, guaranteeing R and Python
+# matrix folder that Python's truecell.datasets can read, guaranteeing R and Python
 # analyse *byte-identical* counts.
 #
 # Needed only for the two Wave-1 datasets with no clean raw source: ifnb and
 # panc8 are curated SeuratData `.rda` objects (R binaries). Every other tutorial
-# dataset is fetched from its original GEO/10x files by shanuz.datasets directly.
+# dataset is fetched from its original GEO/10x files by truecell.datasets directly.
 #
 # This is the mirror image of the existing verify scripts, where R depends on the
 # Python download (e.g. pbmc3k_verify.R needs `python pbmc3k_tutorial.py` first).
@@ -14,8 +14,8 @@
 # Usage:
 #   Rscript tutorials/export_seuratdata.R ifnb
 #   Rscript tutorials/export_seuratdata.R panc8
-# Writes into ~/.shanuz_data/<name>/ :
-#   matrix.mtx  features.tsv  barcodes.tsv   (read by shanuz.io.read_10x, v3 plain)
+# Writes into ~/.truecell_data/<name>/ :
+#   matrix.mtx  features.tsv  barcodes.tsv   (read by truecell.io.read_10x, v3 plain)
 #   metadata.csv                             (per-cell labels: stim/tech/celltype…)
 # Needs: Seurat, SeuratData, Matrix.
 
@@ -32,7 +32,7 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1)
   stop("usage: Rscript export_seuratdata.R <ifnb|panc8> [out_dir]")
 name <- args[[1]]
-out  <- if (length(args) >= 2) args[[2]] else file.path(path.expand("~/.shanuz_data"), name)
+out  <- if (length(args) >= 2) args[[2]] else file.path(path.expand("~/.truecell_data"), name)
 dir.create(out, recursive = TRUE, showWarnings = FALSE)
 
 log <- function(...) cat(format(Sys.time(), "%H:%M:%S"), "-", ..., "\n")
@@ -63,7 +63,7 @@ log(sprintf("counts: %d genes x %d cells (nnz=%d)",
 # --- write the 10x-style trio (gzipped v3 layout) + metadata ----------------
 writeMM(counts, file.path(out, "matrix.mtx"))
 # features.tsv: id <tab> symbol <tab> type. These datasets carry only symbols,
-# so id == symbol; shanuz.io.read_10x(var_names="gene_symbols") reads column 1.
+# so id == symbol; truecell.io.read_10x(var_names="gene_symbols") reads column 1.
 feats <- data.frame(id = rownames(counts), symbol = rownames(counts),
                     type = "Gene Expression")
 write.table(feats, file.path(out, "features.tsv"),

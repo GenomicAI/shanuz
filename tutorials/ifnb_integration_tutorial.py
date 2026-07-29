@@ -1,4 +1,4 @@
-"""Batch integration tutorial — Harmony / CCA / RPCA with Shanuz on ifnb.
+"""Batch integration tutorial — Harmony / CCA / RPCA with Truecell on ifnb.
 
 A Python port of Seurat's integration vignettes
 (https://satijalab.org/seurat/articles/integration_introduction) on the
@@ -14,13 +14,13 @@ integration collapses the CTRL/STIM shift (so a CD14 monocyte looks like a
 CD14 monocyte in either condition) while keeping monocytes, T cells, B cells,
 NK cells and the rest apart.
 
-It demonstrates Shanuz's three integration paths side by side with Seurat's:
-  * :func:`shanuz.run_harmony` — Seurat's ``RunHarmony(group.by.vars=...)``:
+It demonstrates Truecell's three integration paths side by side with Seurat's:
+  * :func:`truecell.run_harmony` — Seurat's ``RunHarmony(group.by.vars=...)``:
     iteratively nudges the PCA embedding so batches mix while clusters hold,
-  * :func:`shanuz.integrate_layers` ``method="cca"`` — Seurat's
+  * :func:`truecell.integrate_layers` ``method="cca"`` — Seurat's
     ``FindIntegrationAnchors(reduction="cca")`` + ``IntegrateData``: anchors are
     mutual nearest neighbours in a shared canonical-correlation space,
-  * :func:`shanuz.integrate_layers` ``method="rpca"`` — the reciprocal-PCA
+  * :func:`truecell.integrate_layers` ``method="rpca"`` — the reciprocal-PCA
     variant: each dataset is projected into the other's PCA space before the
     mutual-nearest-neighbour search — faster and more conservative than CCA.
 
@@ -82,14 +82,14 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import ifnb
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.integration import run_harmony, integrate_layers
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
+from truecell.datasets import ifnb
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.integration import run_harmony, integrate_layers
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
 
 FIGURES = Path(__file__).parent / "figures_integration"
 
@@ -203,7 +203,7 @@ def load_ifnb_object(data_dir=None, min_cells=3):
     """
     counts, genes, cells, meta = ifnb(data_dir=data_dir)
     keep = meta[[c for c in (BATCH, CELLTYPE) if c in meta.columns]].copy()
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA", min_cells=min_cells, min_features=0,
         project="ifnb", feature_names=list(genes), cell_names=list(cells),
         meta_data=keep,

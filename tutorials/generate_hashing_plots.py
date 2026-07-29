@@ -1,6 +1,6 @@
 """Generate all figures for the cell-hashing tutorial.
 
-Runs pbmc_hashing_tutorial.run_full() and renders the shanuz-side figures to
+Runs pbmc_hashing_tutorial.run_full() and renders the truecell-side figures to
 tutorials/figures_hashing/, alongside the r_*.png the R verify script writes:
   * py_01_ridge.png          hashtag CLR enrichment per assigned sample
   * py_02_scatter.png        two hashtags, coloured by HTODemux global class
@@ -26,7 +26,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.pbmc_hashing_tutorial import run_full
-from shanuz.plotting import ridge_plot, feature_scatter, vln_plot, _palette
+from truecell.plotting import ridge_plot, feature_scatter, vln_plot, _palette
 
 FIGURES = Path(__file__).parent / "figures_hashing"
 FIGURES.mkdir(exist_ok=True)

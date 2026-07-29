@@ -9,10 +9,10 @@ an RNG. Against R Seurat the per-cell phase call is 96.6 % concordant and the
 continuous scores correlate at Pearson ≥ 0.998 — the residual is the control
 draw, and nothing else. [Cell-cycle vignette](../tutorials/cellcycle_vignette.md).
 
-::: shanuz.module_score.add_module_score
+::: truecell.module_score.add_module_score
 
-::: shanuz.module_score.cell_cycle_scoring
+::: truecell.module_score.cell_cycle_scoring
 
 ## The bundled gene lists
 
-::: shanuz.module_score.CC_GENES
+::: truecell.module_score.CC_GENES

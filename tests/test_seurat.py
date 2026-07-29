@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
-from shanuz import DimReduc, create_shanuz_object
+from truecell import DimReduc, create_truecell_object
 
 
 def test_create(small_seurat):
@@ -85,7 +85,7 @@ def test_rename_cells(small_seurat, cell_names):
 
 
 def test_merge(small_seurat, feature_names):
-    other = create_shanuz_object(
+    other = create_truecell_object(
         counts=sp.csc_matrix(np.ones((50, 10))),
         assay="RNA",
         feature_names=feature_names,
@@ -120,7 +120,7 @@ def test_default_assay_setter(small_seurat):
 
 def test_repr(small_seurat):
     r = repr(small_seurat)
-    assert "Shanuz" in r
+    assert "Truecell" in r
     assert "TestProject" in r
 
 
@@ -143,7 +143,7 @@ def test_getattr_metadata(small_seurat):
 
 def _prepared(small_seurat):
     """The fixture with a `data` layer and a two-component reduction."""
-    from shanuz import normalize_data
+    from truecell import normalize_data
     normalize_data(small_seurat)
     emb = np.arange(40, dtype=float).reshape(20, 2)
     small_seurat.reductions["pca"] = DimReduc(
@@ -186,7 +186,7 @@ def test_fetch_data_falls_back_to_counts_with_a_warning(small_seurat, feature_na
 
 def test_fetch_data_addresses_an_embedding_by_its_key(small_seurat):
     # `FetchData(obj, "PC_1")` is how every vignette asks for a component;
-    # shanuz accepted only the reduction name and raised KeyError on this.
+    # truecell accepted only the reduction name and raised KeyError on this.
     obj = _prepared(small_seurat)
     got = obj.fetch_data(["PC_1"])["PC_1"].to_numpy()
     assert np.array_equal(got, obj.reductions["pca"].cell_embeddings[:, 0])
@@ -207,7 +207,7 @@ def test_object_has_orig_ident(small_seurat):
 
 
 def test_add_meta_data_accepts_a_plain_vector(small_seurat):
-    # R's AddMetaData documents "a vector, list, or data.frame"; shanuz raised
+    # R's AddMetaData documents "a vector, list, or data.frame"; truecell raised
     # TypeError on the vector, which is the form the vignettes use.
     small_seurat.add_meta_data(np.arange(20), "depth")
     assert small_seurat.meta_data["depth"].tolist() == list(range(20))

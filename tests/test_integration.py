@@ -17,14 +17,14 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.integration import run_harmony, integrate_layers  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.integration import run_harmony, integrate_layers  # noqa: E402
 
 pytest.importorskip("harmonypy")
 from sklearn.metrics import silhouette_score  # noqa: E402
@@ -54,7 +54,7 @@ def _batched_object(seed=0):
                 c += 1
 
     meta = pd.DataFrame({"batch": batch, "celltype": celltype}, index=cells)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(mat), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
         meta_data=meta,
@@ -107,7 +107,7 @@ def test_run_harmony_unknown_group_by_raises():
 # CCA / RPCA anchor integration
 # ----------------------------------------------------------------------
 
-from shanuz.anchors import (  # noqa: E402
+from truecell.anchors import (  # noqa: E402
     find_integration_anchors,
     integrate_data,
     IntegrationAnchors,
@@ -136,7 +136,7 @@ def _one_batch_object(batch, seed=0, n_per=50, G=200):
             c += 1
 
     meta = pd.DataFrame({"celltype": celltype, "batch": batch}, index=cells)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(mat), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
         meta_data=meta,
@@ -223,7 +223,7 @@ def test_integrate_data_refuses_k_weight_above_the_anchor_cell_count():
     """Seurat stops rather than quietly narrowing the neighbourhood.
 
     ``FindWeights`` errors when there are fewer distinct query anchor cells than
-    ``k.weight``. Silently shrinking k instead — which is what shanuz used to do
+    ``k.weight``. Silently shrinking k instead — which is what truecell used to do
     — hides that the correction is being averaged over far fewer anchors than
     asked for.
     """
@@ -286,7 +286,7 @@ def test_standardize_and_l2_normalizes_dimensions_then_cells():
     row-normalisation whenever the columns have unequal spread (so the SD step is
     provably not a no-op).
     """
-    from shanuz.anchors import _l2_normalize_rows
+    from truecell.anchors import _l2_normalize_rows
 
     rng = np.random.default_rng(0)
     # Columns with wildly different scales — the reciprocal-PCA situation, where
@@ -300,7 +300,7 @@ def test_standardize_and_l2_normalizes_dimensions_then_cells():
 def test_find_integration_anchors_rpca_embedding_is_l2_normalized():
     """RPCA must normalise its reciprocal embedding before the MNN and weighting.
 
-    Regression for Bug 2 (the anchor-quality half): shanuz searched the raw
+    Regression for Bug 2 (the anchor-quality half): truecell searched the raw
     ``scaled.T @ loadings`` projection, so PC1's variance dominated the neighbour
     search and the anchors were wrong — RPCA under-integrated ifnb (batch-mixing
     entropy 0.22 vs Seurat 0.91). The fix mirrors Seurat's ``ReciprocalProject``:

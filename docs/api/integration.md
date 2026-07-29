@@ -16,28 +16,28 @@ clustering they produce, in [Anchor internals](../tutorials/anchors_vignette.md)
 
 ## Batch correction
 
-::: shanuz.integration.integrate_layers
+::: truecell.integration.integrate_layers
 
-::: shanuz.integration.run_harmony
+::: truecell.integration.run_harmony
 
 ## Anchors, directly
 
-::: shanuz.anchors.find_integration_anchors
+::: truecell.anchors.find_integration_anchors
 
-::: shanuz.anchors.integrate_embeddings
+::: truecell.anchors.integrate_embeddings
 
-::: shanuz.anchors.integrate_data
+::: truecell.anchors.integrate_data
 
-::: shanuz.anchors.IntegrationAnchors
+::: truecell.anchors.IntegrationAnchors
 
 ## Reference mapping
 
-::: shanuz.transfer.find_transfer_anchors
+::: truecell.transfer.find_transfer_anchors
 
-::: shanuz.transfer.transfer_data
+::: truecell.transfer.transfer_data
 
-::: shanuz.transfer.TransferAnchors
+::: truecell.transfer.TransferAnchors
 
-::: shanuz.mapping.map_query
+::: truecell.mapping.map_query
 
-::: shanuz.mapping.project_umap
+::: truecell.mapping.project_umap

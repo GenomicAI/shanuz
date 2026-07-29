@@ -1,6 +1,6 @@
 """Behaviour behind the object model's type annotations.
 
-Two of the fixes that cleared mypy from `shanuz.py` / `assay5.py` /
+Two of the fixes that cleared mypy from `truecell.py` / `assay5.py` /
 `reduction.py` / `spatial/fov.py` changed what the code does, not just what it
 claims — a merge across assay classes, and `run_pca` on an unscaled Assay5. Both
 are pinned here, because a type checker is advisory in this repo (`|| true` in
@@ -18,20 +18,20 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import (
-    create_shanuz_object,
+from truecell import (
+    create_truecell_object,
     find_variable_features,
     normalize_data,
     run_pca,
 )
-from shanuz.assay import Assay
-from shanuz.assay5 import Assay5
+from truecell.assay import Assay
+from truecell.assay5 import Assay5
 
 
 def _obj(use_v5=True, tag="c", n_genes=80, n_cells=40, seed=0):
     rng = np.random.default_rng(seed)
     counts = sp.csc_matrix(rng.poisson(3.0, size=(n_genes, n_cells)).astype(float))
-    return create_shanuz_object(
+    return create_truecell_object(
         counts=counts,
         assay="RNA",
         feature_names=[f"g{i}" for i in range(n_genes)],
@@ -145,7 +145,7 @@ def test_stdassay_methods_return_the_callers_own_class(call):
 
     They used to be annotated with the abstract `StdAssay`, which forced every
     caller downstream to widen — that is what put `Assay | StdAssay` where
-    `Shanuz` wanted `Assay | Assay5` and produced four of the errors this change
+    `Truecell` wanted `Assay | Assay5` and produced four of the errors this change
     cleared. `Self` is the accurate type *because* of the property asserted
     here; hardcode `Assay5(...)` in any one of these and the annotation becomes
     a promise the code does not keep, with nothing else in the suite noticing.

@@ -28,15 +28,15 @@ matplotlib.use("Agg")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.mixscape import calc_perturb_sig, mixscape_lda, run_mixscape  # noqa: E402
-from shanuz.plotting import (  # noqa: E402
+from truecell.mixscape import calc_perturb_sig, mixscape_lda, run_mixscape  # noqa: E402
+from truecell.plotting import (  # noqa: E402
     do_heatmap,
     mixscape_heatmap,
     plot_perturb_score,
 )
-from shanuz.preprocessing import normalize_data, scale_data  # noqa: E402
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.preprocessing import normalize_data, scale_data  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 N_GENES = 80
 N_RESP = 12          # first N_RESP genes respond to perturbation
@@ -85,7 +85,7 @@ def _screen_object(seed=0, split=False):
     if split:
         # interleaved replicate label, so every replicate carries NT + guide cells
         meta["rep"] = [f"rep{i % 2}" for i in range(len(cells))]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=genes, cell_names=cells, meta_data=meta,
     )

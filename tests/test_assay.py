@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import scipy.sparse as sp
-from shanuz import create_assay_object
+from truecell import create_assay_object
 
 
 def test_create_from_counts(small_assay):

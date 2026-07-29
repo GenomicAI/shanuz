@@ -1,7 +1,7 @@
 """Generate all figures for the integration tutorial.
 
 Runs ifnb_integration_tutorial.run_full(do_umap=True) and renders the
-shanuz-side figures to tutorials/figures_integration/, alongside the r_*.png the
+truecell-side figures to tutorials/figures_integration/, alongside the r_*.png the
 R verify script writes:
   * py_01_uncorrected_stim.png   UMAP of raw PCA, coloured by condition (the batch)
   * py_02_harmony_stim.png       UMAP after Harmony, by condition (now mixed)
@@ -26,7 +26,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.ifnb_integration_tutorial import run_full, BATCH, CELLTYPE
-from shanuz.plotting import dim_plot, _palette
+from truecell.plotting import dim_plot, _palette
 
 FIGURES = Path(__file__).parent / "figures_integration"
 FIGURES.mkdir(exist_ok=True)

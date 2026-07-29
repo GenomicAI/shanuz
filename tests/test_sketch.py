@@ -20,15 +20,15 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca, _default_features  # noqa: E402
-from shanuz.umap import run_umap  # noqa: E402
-from shanuz.sketch import leverage_score, sketch_data, project_data  # noqa: E402
+from truecell.reduction import run_pca, _default_features  # noqa: E402
+from truecell.umap import run_umap  # noqa: E402
+from truecell.sketch import leverage_score, sketch_data, project_data  # noqa: E402
 
 
 def _clustered_object(sizes=(60, 60, 60), seed=0, G=150, nfeatures=100):
@@ -49,7 +49,7 @@ def _clustered_object(sizes=(60, 60, 60), seed=0, G=150, nfeatures=100):
 
     mat = np.array(cols).T  # (G features × n cells)
     meta = pd.DataFrame({"celltype": celltype}, index=cells)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(mat), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
         meta_data=meta,
@@ -92,7 +92,7 @@ def test_leverage_score_matches_seurats_truncated_svd():
 def test_leverage_scores_sum_to_the_truncation_not_the_rank():
     """The regression test for the defect this tutorial found.
 
-    Seurat truncates at 50 components, so the scores sum to 50. Shanuz used to
+    Seurat truncates at 50 components, so the scores sum to 50. Truecell used to
     whiten against the *full* rank, which sums to the rank instead — on a matrix
     with more features than 50 that is a completely different, and far flatter,
     distribution. Asserting the sum pins the truncation directly.
@@ -325,7 +325,7 @@ def test_project_data_votes_over_neighbours_not_anchors():
     so the check is structural: no anchor object is built, and the scores are a
     normalized vote (bounded by 1) over exactly ``k_weight`` neighbours.
     """
-    import shanuz.transfer as transfer_mod
+    import truecell.transfer as transfer_mod
 
     obj, ct = _clustered_object(sizes=(80, 80, 80))
     sk = sketch_data(obj, ncells=90, seed=0)

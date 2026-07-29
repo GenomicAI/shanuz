@@ -1,4 +1,4 @@
-# Cell-cycle & module scoring (R Seurat vs Shanuz)
+# Cell-cycle & module scoring (R Seurat vs Truecell)
 
 A side-by-side port of Seurat's [cell-cycle vignette](https://satijalab.org/seurat/articles/cell_cycle_vignette)
 and `AddModuleScore`, run on the THP-1 ECCITE-seq dataset (**GSE153056**,
@@ -49,7 +49,7 @@ writes the exact S / G2M / interferon gene symbols it resolved against the assay
 to `figures_cellcycle/*.txt`, and the R script reads them back — so the only
 thing left to differ is the control-gene RNG. The dataset also ships Papalexi's
 own published `Phase` (from their Seurat run); we keep it for a bonus external
-sanity check, but the controlled comparison is shanuz vs a fresh R
+sanity check, but the controlled comparison is truecell vs a fresh R
 `CellCycleScoring` on identical input.
 
 ---
@@ -60,7 +60,7 @@ Cell-cycle and module scoring run on the log-normalized `data` layer — no
 variable features, scaling or PCA required.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -72,12 +72,12 @@ obj <- NormalizeData(obj, verbose = FALSE)
 </td><td>
 
 ```python
-from shanuz.datasets import thp1_eccite
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data
+from truecell.datasets import thp1_eccite
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data
 
 rna, genes, *_ , cells = thp1_eccite()
-obj = create_shanuz_object(counts=rna, assay="RNA", min_cells=3,
+obj = create_truecell_object(counts=rna, assay="RNA", min_cells=3,
         feature_names=genes, cell_names=cells)
 normalize_data(obj, assay="RNA")
 ```
@@ -95,7 +95,7 @@ dataset whose screen targets interferon-γ regulators. Both tools score the
 **same resolved gene lists** (written by the Python run).
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -111,7 +111,7 @@ obj <- AddModuleScore(obj, features = list(ifn),
 </td><td>
 
 ```python
-from shanuz.module_score import (
+from truecell.module_score import (
     add_module_score, cell_cycle_scoring, CC_GENES)
 
 cell_cycle_scoring(obj, s_features=s, g2m_features=g2m)   # S.Score/G2M.Score/Phase
@@ -131,7 +131,7 @@ phase: G1 cells cluster near the origin (both scores ≤ 0), S cells fan out alo
 the x-axis, G2/M cells up the y-axis.
 
 <table>
-<tr><th>R — scores by phase</th><th>Shanuz — scores by phase</th></tr>
+<tr><th>R — scores by phase</th><th>Truecell — scores by phase</th></tr>
 <tr>
 <td><img src="figures_cellcycle/r_01_score_scatter.png" width="420"/></td>
 <td><img src="figures_cellcycle/py_01_score_scatter.png" width="420"/></td>
@@ -142,14 +142,14 @@ The phase split is the same on both sides — a genuinely cycling population, no
 the flat all-G1 that resting PBMCs would give:
 
 <table>
-<tr><th>R — phase distribution</th><th>Shanuz — phase distribution</th></tr>
+<tr><th>R — phase distribution</th><th>Truecell — phase distribution</th></tr>
 <tr>
 <td><img src="figures_cellcycle/r_02_phase_bar.png" width="360"/></td>
 <td><img src="figures_cellcycle/py_02_phase_bar.png" width="360"/></td>
 </tr>
 </table>
 
-| phase | Shanuz | R Seurat |
+| phase | Truecell | R Seurat |
 |-------|---:|---:|
 | G1 | 72.4 % | 70.8 % |
 | S | 15.1 % | 16.5 % |
@@ -197,10 +197,10 @@ KDE).
 python  tutorials/thp1_cellcycle_tutorial.py    # downloads ~66 MB (shared with Mixscape), writes gene lists
 Rscript tutorials/thp1_cellcycle_verify.R       # Seurat reference → r_calls.csv + r_*.png
 python  tutorials/thp1_cellcycle_tutorial.py    # re-run → prints the R-vs-Python concordance
-python  tutorials/generate_cellcycle_plots.py   # Shanuz figures → figures_cellcycle/py_*.png
+python  tutorials/generate_cellcycle_plots.py   # Truecell figures → figures_cellcycle/py_*.png
 ```
 
-**Figures** (`tutorials/figures_cellcycle/`, `r_*` = R Seurat, `py_*` = Shanuz):
+**Figures** (`tutorials/figures_cellcycle/`, `r_*` = R Seurat, `py_*` = Truecell):
 
 | Figure | Description |
 |---|---|
@@ -210,13 +210,13 @@ python  tutorials/generate_cellcycle_plots.py   # Shanuz figures → figures_cel
 
 ---
 
-## R Seurat → Shanuz API
+## R Seurat → Truecell API
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | Module score | `AddModuleScore(obj, features=list(program), name="X")` | `add_module_score(obj, features={"X": program})` |
 | Cell-cycle score | `CellCycleScoring(obj, s.features, g2m.features)` | `cell_cycle_scoring(obj, s_features, g2m_features)` |
-| Bundled cc genes | `cc.genes.updated.2019$s.genes` / `$g2m.genes` | `shanuz.module_score.CC_GENES["s_genes"]` / `["g2m_genes"]` |
+| Bundled cc genes | `cc.genes.updated.2019$s.genes` / `$g2m.genes` | `truecell.module_score.CC_GENES["s_genes"]` / `["g2m_genes"]` |
 | Set phase as identity | `CellCycleScoring(..., set.ident = TRUE)` | `cell_cycle_scoring(..., set_ident=True)` |
 | Regress out cell cycle | `ScaleData(obj, vars.to.regress=c("S.Score","G2M.Score"))` | `scale_data(obj, vars_to_regress=["S.Score","G2M.Score"])` |
 

@@ -5,7 +5,7 @@
 ## From PyPI
 
 ```bash
-pip install shanuz
+pip install truecell
 ```
 
 That gets the core: the object model, preprocessing, PCA and marker detection,
@@ -22,14 +22,14 @@ runs without matplotlib, scikit-learn or umap-learn anywhere on the system.
 | `all` | all of the above, plus the dev tooling | Running the test suite |
 
 ```bash
-pip install "shanuz[analysis]"      # what most analyses want
-pip install "shanuz[all]"           # everything
+pip install "truecell[analysis]"      # what most analyses want
+pip install "truecell[all]"           # everything
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv pip install "shanuz[analysis]"
+uv pip install "truecell[analysis]"
 ```
 
 ## From source
@@ -42,8 +42,8 @@ before the next release; [the changelog](CHANGELOG.md) is the authority on
 which is which.
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell
 uv venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -e ".[all]"
@@ -73,7 +73,7 @@ declaring support for, so the CI matrix stops at 3.13 until that wheel exists.
 
 ## R, for the comparisons
 
-Nothing in `shanuz` needs R. The R side is only for reproducing the
+Nothing in `truecell` needs R. The R side is only for reproducing the
 [fidelity checks](fidelity.md) yourself — each tutorial ships a `*_verify.R`
 that runs the same analysis under Seurat and writes the numbers the Python
 script compares against.

@@ -43,7 +43,7 @@ set.seed(42)
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_dimreduc")
 DATA <- Sys.getenv("PBMC3K_DATA",
-                   path.expand("~/.shanuz_data/pbmc3k/filtered_gene_bc_matrices/hg19"))
+                   path.expand("~/.truecell_data/pbmc3k/filtered_gene_bc_matrices/hg19"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 
 # Mirror the Python constants (pbmc3k_dimreduc_tutorial.py).
@@ -100,7 +100,7 @@ write.csv(data.frame(cell = rownames(emb), emb, check.names = FALSE),
 # ---- 2. JackStraw + ScoreJackStraw ------------------------------------------
 # The step this tutorial exists for. R's JackRandom permutes prop.freq of the
 # rows and re-runs a full PCA per replicate, taking the null loadings from that
-# refit basis; shanuz projects the permuted rows onto the fixed original basis.
+# refit basis; truecell projects the permuted rows onto the fixed original basis.
 # Both matrices are written out so the difference (if any) can be located.
 cat(sprintf("JackStraw: %d replicates x %d dims (re-runs a PCA per replicate) ...\n",
             JS_REPLICATES, JS_DIMS))

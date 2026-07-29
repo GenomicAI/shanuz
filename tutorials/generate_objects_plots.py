@@ -39,7 +39,7 @@ from tutorials.pbmc3k_objects_tutorial import (  # noqa: E402
     compare_anchors,
     run_full,
 )
-from shanuz.plotting import _palette  # noqa: E402
+from truecell.plotting import _palette  # noqa: E402
 
 FIGURES.mkdir(exist_ok=True)
 
@@ -158,7 +158,7 @@ def nn_degree(obj):
     """Neighbours per cell, against the flat k Seurat's directed graph gives.
 
     Once the kNN graph is stored directed (PR #55) this is a single bar sitting
-    on Seurat's line — which is the point. Before that fix shanuz symmetrized,
+    on Seurat's line — which is the point. Before that fix truecell symmetrized,
     and the same plot ran from 20 to 83 with a mean of 28.1.
     """
     import matplotlib.pyplot as plt
@@ -173,14 +173,14 @@ def nn_degree(obj):
     # Bins centred on the integers, so a single-valued degree draws as one bar
     # *at* 20 rather than a block spanning 20-21 that implies a spread.
     ax.hist(degrees, bins=np.arange(lo - 0.5, hi + 1.5, 1.0),
-            color=_PY_COLOR, label="shanuz (directed)")
+            color=_PY_COLOR, label="truecell (directed)")
     ax.axvline(20, color=_R_COLOR, lw=2.5, linestyle="--",
                label="Seurat (directed): exactly 20 for every cell")
     ax.set_xlim(min(lo, 20) - 4, max(hi, 20) + 4)
     ax.set_xlabel("neighbours per cell in the `RNA_nn` graph")
     ax.set_ylabel("cells")
     ax.set_title(
-        f"kNN degree — shanuz min {degrees.min()}, max {degrees.max()}, "
+        f"kNN degree — truecell min {degrees.min()}, max {degrees.max()}, "
         f"mean {degrees.mean():.1f} — matching Seurat", fontsize=11)
     ax.legend(fontsize=8, frameon=False)
     ax.spines[["top", "right"]].set_visible(False)

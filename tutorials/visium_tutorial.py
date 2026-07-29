@@ -1,6 +1,6 @@
 """Visium — the spatial container Seurat's own accessor cannot read.
 
-shanuz's ``load_visium`` / ``VisiumV2`` against Seurat 5.5.1's ``Read10X_Image`` /
+truecell's ``load_visium`` / ``VisiumV2`` against Seurat 5.5.1's ``Read10X_Image`` /
 ``Load10X_Spatial``, on the 10x V1_Mouse_Brain_Sagittal_Anterior Space Ranger
 1.1.0 bundle — 2,695 in-tissue spots x 32,285 genes, the anterior half of
 ``stxBrain``.
@@ -8,7 +8,7 @@ shanuz's ``load_visium`` / ``VisiumV2`` against Seurat 5.5.1's ``Read10X_Image``
 Why this one is different from the other sixteen
 ------------------------------------------------
 Every earlier tutorial treated Seurat as the reference and a difference as
-shanuz's defect. That was the right default and it found 29 of them. Here it
+truecell's defect. That was the right default and it found 29 of them. Here it
 would have introduced one.
 
 Seurat builds the Visium FOV with ``radius = scale.factors[["spot"]]``, and
@@ -43,14 +43,14 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz import (  # noqa: E402
+from truecell import (  # noqa: E402
     find_variable_features,
     load_visium,
     normalize_data,
     run_pca,
     scale_data,
 )
-from shanuz.datasets import visium_mouse_brain  # noqa: E402
+from truecell.datasets import visium_mouse_brain  # noqa: E402
 
 FIGURES = Path(__file__).parent / "figures_visium"
 ASSAY = "Spatial"
@@ -84,7 +84,7 @@ FLOAT_TOLERANCES = {
     # Counts.
     "qc.ncount_head": 0.0,
     "qc.nfeature_head": 0.0,
-    # The image: R keeps png::readPNG's double, shanuz normalises to float32,
+    # The image: R keeps png::readPNG's double, truecell normalises to float32,
     # so the gap is float32 epsilon on values in [0, 1].
     "image.dim": 0.0,
     "image.corner": 1e-6,
@@ -102,14 +102,14 @@ REPORTED_ONLY = (
     "radius.centroids",             # Seurat stores the diameter here
     "radius.visium_is_null",        # no Radius.VisiumV2 method exists
     "radius.has_visiumv2_method",
-    "load.default_image_name",      # a filename in R, a resolution word in shanuz
+    "load.default_image_name",      # a filename in R, a resolution word in truecell
     "load.default_filter_matrix",
     "load.image_class",
     "obj.image_names",
     "obj.assay",
     "coords.cells_head",
     # The known LOESS residual, unchanged from the out-of-core tutorial:
-    # variance.standardized is proportional to 1/10^loess_fitted, and shanuz's
+    # variance.standardized is proportional to 1/10^loess_fitted, and truecell's
     # NumPy local-quadratic fit differs from R's cloess Fortran.
     "vst.var_std_head",
     # Downstream of that residual, not independent of it: the two tools select
@@ -303,12 +303,12 @@ def report_concordance(py_anchors=None, r_anchors=None):
 
     matched, differed, reported = compare(py_anchors, r_anchors)
     total = len(matched) + len(differed)
-    print(f"\n{'=' * 74}\nshanuz vs Seurat 5.5.1 — Visium\n{'=' * 74}")
+    print(f"\n{'=' * 74}\ntruecell vs Seurat 5.5.1 — Visium\n{'=' * 74}")
     print(f"  {len(matched)} of {total} compared anchors match "
           f"({len([m for m, t in matched if t == 0.0])} exactly)\n")
     for name, py, r, tol in differed:
         print(f"  DIFFERS  {name}  (tol {tol:g})")
-        print(f"           shanuz {np.asarray(py).ravel()[:4]}")
+        print(f"           truecell {np.asarray(py).ravel()[:4]}")
         print(f"           Seurat {np.asarray(r).ravel()[:4]}")
 
     overlap = None
@@ -323,7 +323,7 @@ def report_concordance(py_anchors=None, r_anchors=None):
 
     print(f"\n{'-' * 74}\nReported, not matched\n{'-' * 74}")
     for name, py, r in reported:
-        print(f"  {name:<32} shanuz {str(py)[:24]:<26} Seurat {str(r)[:24]}")
+        print(f"  {name:<32} truecell {str(py)[:24]:<26} Seurat {str(r)[:24]}")
 
     if overlap is not None and overlap < len(r_hvg):
         print(f"\n{'-' * 74}\nIs the PCA gap the PCA, or the {len(r_hvg) - overlap} "
@@ -334,7 +334,7 @@ def report_concordance(py_anchors=None, r_anchors=None):
         rstd = np.asarray(r_anchors["pca.stdev_head"], dtype=float)
         own = np.asarray(py_anchors["pca.stdev_head"], dtype=float)
         rel = lambda v: float(np.abs(v - rstd).max() / np.abs(rstd).max())  # noqa: E731
-        print(f"  PCA on shanuz's own {len(py_hvg)} features : "
+        print(f"  PCA on truecell's own {len(py_hvg)} features : "
               f"max rel diff vs Seurat {rel(own):.3g}")
         print(f"  PCA on Seurat's {n} features        : "
               f"max rel diff vs Seurat {rel(shared):.3g}")

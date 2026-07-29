@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from shanuz import DimReduc
+from truecell import DimReduc
 
 
 @pytest.fixture

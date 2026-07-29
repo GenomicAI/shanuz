@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shanuz"
+name = "truecell"
 version = "0.9.0"
 description = "Python single-cell genomics toolkit — a port of Seurat's core data structures and analysis pipeline"
 readme = "README.md"
@@ -69,15 +69,15 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
 ]
-all = ["shanuz[analysis,anndata,integration,deseq2,dev,docs]"]
+all = ["truecell[analysis,anndata,integration,deseq2,dev,docs]"]
 
 [project.urls]
-Homepage = "https://github.com/GenomicAI/shanuz"
-Repository = "https://github.com/GenomicAI/shanuz"
-"Bug Tracker" = "https://github.com/GenomicAI/shanuz/issues"
+Homepage = "https://github.com/GenomicAI/truecell"
+Repository = "https://github.com/GenomicAI/truecell"
+"Bug Tracker" = "https://github.com/GenomicAI/truecell/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["shanuz"]
+packages = ["truecell"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -89,7 +89,7 @@ target-version = "py312"
 
 [tool.ruff.lint.per-file-ignores]
 # Tests and tutorials are runnable straight from a clone, so each one bootstraps
-# `sys.path` before importing shanuz. That puts every subsequent import below a
+# `sys.path` before importing truecell. That puts every subsequent import below a
 # statement, which is E402 by definition — 121 reports for one deliberate line
 # per file. Ignored by scope rather than by 121 scattered `# noqa: E402`.
 "tests/*" = ["E402"]
@@ -107,9 +107,9 @@ target-version = "py312"
 #
 # Scope is pinned here rather than only in CI's command, so a bare `mypy` checks
 # exactly what CI checks. `ruff` takes its scope from the command line, where
-# `ruff check shanuz` (75 errors) and `ruff check .` (163) are both correct and
+# `ruff check truecell` (75 errors) and `ruff check .` (163) are both correct and
 # easy to confuse.
-files = ["shanuz"]
+files = ["truecell"]
 # The scientific stack (scipy, sklearn, numba, umap-learn, igraph, anndata, ...)
 # ships no type information. Without this, ~140 errors saying only "this third
 # party has no stubs" drown the ~80 that are about our own code.
