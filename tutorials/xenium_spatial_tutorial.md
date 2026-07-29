@@ -10,7 +10,7 @@ section so it can be shared.
 > (the same section featured in
 > [Seurat's spatial vignette](https://satijalab.org/seurat/articles/spatial_vignette_2)).
 > **36,602 cells × 248 genes**, single FOV. Auto-downloads (~20 MB).  
-> **R reference:** Seurat v5 · **Python:** Truecell (branch `feature/spatial-seurat-parity`)
+> **R reference:** Seurat 5.5.1 · **Python:** Truecell v0.9.0
 
 This tutorial exercises the spatial Seurat-parity layer added to Truecell:
 `load_xenium` · `get_tissue_coordinates` · `image_dim_plot` ·
