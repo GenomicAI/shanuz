@@ -1,6 +1,6 @@
 # Objects
 
-The container, before any analysis touches it. `Shanuz` holds one or more assays,
+The container, before any analysis touches it. `Truecell` holds one or more assays,
 the reductions computed off them, the neighbour graphs, the per-cell metadata and
 the command log — the same slots R's `Seurat` S4 class holds, as ordinary Python
 classes with `__slots__`.
@@ -16,40 +16,40 @@ tolerance.
 
 ## The top-level object
 
-::: shanuz.shanuz.Shanuz
+::: truecell.truecell.Truecell
 
-::: shanuz.shanuz.create_shanuz_object
+::: truecell.truecell.create_truecell_object
 
 ## Assays
 
-::: shanuz.assay5.Assay5
+::: truecell.assay5.Assay5
 
-::: shanuz.assay5.create_assay5_object
+::: truecell.assay5.create_assay5_object
 
-::: shanuz.assay5.StdAssay
+::: truecell.assay5.StdAssay
 
-::: shanuz.assay.Assay
+::: truecell.assay.Assay
 
-::: shanuz.assay.create_assay_object
+::: truecell.assay.create_assay_object
 
 ## Reductions, graphs and neighbours
 
-::: shanuz.dimreduc.DimReduc
+::: truecell.dimreduc.DimReduc
 
-::: shanuz.graph.Graph
+::: truecell.graph.Graph
 
-::: shanuz.graph.as_graph
+::: truecell.graph.as_graph
 
-::: shanuz.neighbor.Neighbor
+::: truecell.neighbor.Neighbor
 
 ## Supporting structures
 
-::: shanuz.jackstraw.JackStrawData
+::: truecell.jackstraw.JackStrawData
 
-::: shanuz.logmap.LogMap
+::: truecell.logmap.LogMap
 
-::: shanuz.mixins.key_mixin.KeyMixin
+::: truecell.mixins.key_mixin.KeyMixin
 
-::: shanuz.command.ShanuzCommand
+::: truecell.command.TruecellCommand
 
-::: shanuz.command.log_shanuz_command
+::: truecell.command.log_truecell_command

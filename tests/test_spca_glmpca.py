@@ -8,15 +8,15 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.graph import Graph  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.graph import Graph  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca, run_spca  # noqa: E402
-from shanuz.glmpca import (  # noqa: E402
+from truecell.reduction import run_pca, run_spca  # noqa: E402
+from truecell.glmpca import (  # noqa: E402
     glm_pca,
     _counts_for,
     _orthogonalize,
@@ -24,7 +24,7 @@ from shanuz.glmpca import (  # noqa: E402
     _nb_deviance,
     _estimate_theta,
 )
-from shanuz.neighbors import find_neighbors  # noqa: E402
+from truecell.neighbors import find_neighbors  # noqa: E402
 
 pytest.importorskip("sklearn")
 
@@ -52,7 +52,7 @@ def clustered():
     for c in range(n):
         cluster = c // per
         lam[cluster * 20:(cluster + 1) * 20, c] += 8.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rng.poisson(lam).astype(float)),
         assay="RNA",
         feature_names=[f"g{i}" for i in range(n_genes)],
@@ -121,7 +121,7 @@ def test_spca_finds_what_the_graph_knows_and_pca_misses(clustered):
     lam[45:60] += 3.0 * (1 - group)                  # 15 genes up in group 0
     #  the remaining 5 genes are noise
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rng.poisson(lam).astype(float)),
         assay="RNA",
         feature_names=[f"g{i}" for i in range(n_genes)],
@@ -205,7 +205,7 @@ def counts_obj():
     counts = rng.poisson(lam).astype(float)
     counts[-1, :] = 0.0                                  # the silent gene
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts),
         assay="RNA",
         feature_names=[f"g{i}" for i in range(n_genes - 1)] + ["silent"],
@@ -292,7 +292,7 @@ def test_glmpca_rejects_an_unknown_family(counts_obj):
 def test_glmpca_rejects_a_cell_with_no_counts():
     counts = np.ones((5, 4))
     counts[:, 2] = 0.0                                   # an empty droplet
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(5)],
         cell_names=[f"c{i}" for i in range(4)],
@@ -328,7 +328,7 @@ def overdispersed_obj():
         mean[cluster * 10:(cluster + 1) * 10, c] += 10.0
     counts = _nb_counts(rng, mean, theta=4.0)
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts),
         assay="RNA",
         feature_names=[f"g{i}" for i in range(n_genes)],

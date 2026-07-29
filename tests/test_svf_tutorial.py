@@ -6,7 +6,7 @@ nothing, so `compare_anchors` and its tolerance lookup get tested the same way
 any other code would.
 
 The tutorial's own end-to-end run needs the Xenium download and lives behind
-SHANUZ_TUTORIAL_SMOKE=1 in test_tutorial_smoke.py.
+TRUECELL_TUTORIAL_SMOKE=1 in test_tutorial_smoke.py.
 """
 import sys
 from pathlib import Path

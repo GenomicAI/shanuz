@@ -1,4 +1,4 @@
-# Batch integration — Harmony, CCA & RPCA (R Seurat vs Shanuz)
+# Batch integration — Harmony, CCA & RPCA (R Seurat vs Truecell)
 
 A side-by-side port of Seurat's [integration vignette](https://satijalab.org/seurat/articles/integration_introduction)
 on the Kang et al. 2018 PBMC dataset (`ifnb`): ~14,000 human blood cells, half
@@ -8,7 +8,7 @@ without correction the cells split first by *condition* and only then by *cell
 type* — the textbook batch effect.
 
 The task integration solves: **make the same cell type from the two conditions
-overlap, without erasing the biology that separates cell types.** Shanuz ships
+overlap, without erasing the biology that separates cell types.** Truecell ships
 three integration paths, and this walkthrough runs all three against their Seurat
 references on identical counts:
 
@@ -60,12 +60,12 @@ back — so the only divergences left are the genuinely method-level ones (PCA
 numerics, the integration algorithms, Louvain ties).
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
 # same exported counts Python reads
-counts <- Read10X("~/.shanuz_data/ifnb")
+counts <- Read10X("~/.truecell_data/ifnb")
 obj <- CreateSeuratObject(counts, min.cells = 3,
                           meta.data = meta)
 
@@ -80,14 +80,14 @@ obj <- RunPCA(obj, features = hvg, npcs = 30,
 </td><td>
 
 ```python
-from shanuz.datasets import ifnb
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import ifnb
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data)
-from shanuz.reduction import run_pca
+from truecell.reduction import run_pca
 
 counts, genes, cells, meta = ifnb()
-obj = create_shanuz_object(counts=counts, assay="RNA",
+obj = create_truecell_object(counts=counts, assay="RNA",
         min_cells=3, feature_names=genes,
         cell_names=cells, meta_data=meta)
 
@@ -110,7 +110,7 @@ is stored under its own name and clustered identically (Louvain, resolution 0.5,
 neighbours on 30 dims) so the comparison is like-for-like.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -127,7 +127,7 @@ obj <- IntegrateLayers(obj, method = RPCAIntegration,
 </td><td>
 
 ```python
-from shanuz.integration import run_harmony, integrate_layers
+from truecell.integration import run_harmony, integrate_layers
 
 run_harmony(obj, group_by="stim", reduction="pca",
             reduction_name="harmony")
@@ -147,7 +147,7 @@ integrate_layers(obj, method="rpca", group_by="stim",
 Two rotation-invariant summaries tell the story. **Batch separation** (silhouette
 by `stim`, *lower is better* — a good integration mixes the conditions) and
 **cell-type preservation** (silhouette by cell type, and the adjusted Rand index
-of the clusters against the known annotations, *higher is better*). The Shanuz
+of the clusters against the known annotations, *higher is better*). The Truecell
 scoreboard:
 
 | method | sil_batch ↓ | sil_celltype ↑ | n_clusters | ARI→celltype ↑ | batch-mix ↑ |
@@ -164,7 +164,7 @@ cell-type recovery, and now land within a point of each other (batch-mix
 concordance section.
 
 <table>
-<tr><th>R — uncorrected, by condition</th><th>Shanuz — uncorrected, by condition</th></tr>
+<tr><th>R — uncorrected, by condition</th><th>Truecell — uncorrected, by condition</th></tr>
 <tr>
 <td><img src="figures_integration/r_01_uncorrected_stim.png" width="420"/></td>
 <td><img src="figures_integration/py_01_uncorrected_stim.png" width="420"/></td>
@@ -175,7 +175,7 @@ The two conditions form two clouds — the interferon shift dominates the embedd
 After Harmony they interleave, while the cell types stay apart:
 
 <table>
-<tr><th>R — Harmony, by condition</th><th>Shanuz — Harmony, by condition</th></tr>
+<tr><th>R — Harmony, by condition</th><th>Truecell — Harmony, by condition</th></tr>
 <tr>
 <td><img src="figures_integration/r_02_harmony_stim.png" width="420"/></td>
 <td><img src="figures_integration/py_02_harmony_stim.png" width="420"/></td>
@@ -183,7 +183,7 @@ After Harmony they interleave, while the cell types stay apart:
 </table>
 
 <table>
-<tr><th>R — Harmony, by cell type</th><th>Shanuz — Harmony, by cell type</th></tr>
+<tr><th>R — Harmony, by cell type</th><th>Truecell — Harmony, by cell type</th></tr>
 <tr>
 <td><img src="figures_integration/r_03_harmony_celltype.png" width="420"/></td>
 <td><img src="figures_integration/py_03_harmony_celltype.png" width="420"/></td>
@@ -209,14 +209,14 @@ batch mixing (`mix`, 1 = fully mixed). All are computed from the cluster labels
 | **RPCA** | 0.774 | **0.922** | 0.736 | **0.991** | 0.917 |
 
 **Harmony and CCA match Seurat closely on every axis**, partition agreement
-included. This is the confirmation the initiative was built to get: shanuz's
+included. This is the confirmation the initiative was built to get: truecell's
 two most-used integration paths reproduce Seurat's result on the standard
 benchmark, cluster-for-cluster.
 
 **RPCA took four bugs to get here, in two rounds.** The first two were caught
 by an earlier pass of this tutorial and are described in
 [the anchor-internals vignette](anchors_vignette.md): a crash on unequal batch
-sizes (#41), and an under-integration where shanuz scaled batches globally
+sizes (#41), and an under-integration where truecell scaled batches globally
 instead of per-object and searched the raw reciprocal projection instead of
 Seurat's SD-standardized, L2-normalized one (#42). Those took RPCA's batch
 mixing from 0.222 to **0.867** and cell-type recovery from 0.444 (below the
@@ -232,7 +232,7 @@ claim to verify rather than a place to stop:
    `IntegrateLayers(method = CCAIntegration/RPCAIntegration)` does not call
    `IntegrateData` — it calls **`IntegrateEmbeddings`**, which corrects the
    *PCA embedding itself* by transposing it into a fake assay and running the
-   same anchor machinery over it. shanuz was running the v4 workflow instead
+   same anchor machinery over it. truecell was running the v4 workflow instead
    (correct expression, re-scale, re-run PCA) — a different object with the
    same shape, which is why the two agreed on only 1 of 30 output dimensions
    above \|r\| = 0.99 on a matched-size probe.
@@ -255,8 +255,8 @@ above Seurat's 0.736.
 **What that leaves is not an integration gap — it's a clustering one.**
 `ARI(py,R)` for RPCA is still only 0.774, which looks like a leftover
 disagreement, but it isn't upstream of `find_clusters`: clustering **Seurat's
-own** RPCA embedding with shanuz's `find_neighbors` + `find_clusters` gives
-batch-mix 0.990 and ARI→type 0.920 — almost identical to shanuz's own
+own** RPCA embedding with truecell's `find_neighbors` + `find_clusters` gives
+batch-mix 0.990 and ARI→type 0.920 — almost identical to truecell's own
 end-to-end numbers, and nothing like Seurat's 0.917 / 0.736 on that same
 embedding. The embeddings agree; the two tools' Louvain implementations, given
 an identical input, do not.
@@ -265,7 +265,7 @@ an identical input, do not.
 
 ## The clustering divergence is not a defect
 
-That last gap was chased down, and for once the answer was that shanuz is
+That last gap was chased down, and for once the answer was that truecell is
 right. The investigation ran Seurat's own RPCA embedding through both tools in
 three stages — neighbours, graph, community detection — with
 `nn.method = "rann"` on the R side so the neighbour search is exact on both.
@@ -277,15 +277,15 @@ happening, it is not the graph.
 
 **Stage three is where they part**, and only in how hard each searches.
 Seurat's `FindClusters` runs its own modularity optimiser with `n.start = 10`
-restarts and keeps the best; shanuz runs a single pass of igraph's multilevel
-Louvain. On this graph Seurat's partition scores **0.899903** and shanuz's
+restarts and keeps the best; truecell runs a single pass of igraph's multilevel
+Louvain. On this graph Seurat's partition scores **0.899903** and truecell's
 **0.898336** under igraph's own modularity at γ = 0.5 — Seurat wins by 0.17%,
-and 20 different shanuz seeds never reach it. So shanuz genuinely finds a
+and 20 different truecell seeds never reach it. So truecell genuinely finds a
 shallower optimum. It searched less hard and it shows.
 
-**But the deeper optimum is the worse answer.** shanuz's partition is a
+**But the deeper optimum is the worse answer.** truecell's partition is a
 strict *coarsening* of Seurat's: no Seurat cluster is split, and exactly one
-shanuz cluster absorbs two of Seurat's. Those two are both **CD14 Mono** —
+truecell cluster absorbs two of Seurat's. Those two are both **CD14 Mono** —
 2,587 and 1,729 cells of it — and they are split along the batch axis:
 
 | Seurat cluster | cells | CTRL | STIM |
@@ -296,17 +296,17 @@ shanuz cluster absorbs two of Seurat's. Those two are both **CD14 Mono** —
 
 The extra 0.17% of modularity is bought by re-discovering the batch effect
 that integration just removed. Against the dataset's own `seurat_annotations`,
-shanuz scores **ARI 0.9195** to Seurat's **0.7368**, and batch mixing
+truecell scores **ARI 0.9195** to Seurat's **0.7368**, and batch mixing
 **0.8937** to **0.8328**.
 
-This is not a lucky seed. Across 20 seeds shanuz gives 15 clusters 17 times,
+This is not a lucky seed. Across 20 seeds truecell gives 15 clusters 17 times,
 **85% of seeds beat Seurat's cell-type ARI**, and **none** reaches its
-modularity. The pattern is consistent in both directions: shanuz optimises
+modularity. The pattern is consistent in both directions: truecell optimises
 less thoroughly, and on this dataset that is an advantage.
 
 So the Louvain search was left exactly as it is, and no `n.start` equivalent
 was added — the knob's main effect here would be to converge harder onto the
-batch split. The honest caveat is that shanuz's single pass is more
+batch split. The honest caveat is that truecell's single pass is more
 seed-sensitive than Seurat's best-of-10: cell-type ARI ranged 0.72–0.93 over
 those 20 seeds. If you need stability more than you need this particular
 result, cluster at a few seeds and compare.
@@ -352,14 +352,14 @@ Rscript tutorials/export_seuratdata.R ifnb        # one-time counts export (~394
 python  tutorials/ifnb_integration_tutorial.py    # writes HVGs, prints the scoreboard
 Rscript tutorials/ifnb_integration_verify.R       # Seurat reference → r_calls.csv + r_*.png
 python  tutorials/ifnb_integration_tutorial.py    # re-run: now prints the R-vs-Python concordance
-python  tutorials/generate_integration_plots.py   # Shanuz figures → figures_integration/py_*.png
+python  tutorials/generate_integration_plots.py   # Truecell figures → figures_integration/py_*.png
 ```
 
 The R reference needs the `harmony` package and enough headroom for Seurat v5's
 parallel integration (`options(future.globals.maxSize = 3 * 1024^3)`, set in the
 script).
 
-**Figures** (`tutorials/figures_integration/`, `r_*` = R Seurat, `py_*` = Shanuz):
+**Figures** (`tutorials/figures_integration/`, `r_*` = R Seurat, `py_*` = Truecell):
 
 | Figure | Description |
 |---|---|
@@ -370,9 +370,9 @@ script).
 
 ---
 
-## R Seurat → Shanuz API
+## R Seurat → Truecell API
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | Harmony | `RunHarmony(obj, "stim")` / `IntegrateLayers(method=HarmonyIntegration)` | `run_harmony(obj, group_by="stim")` / `integrate_layers(method="harmony")` |
 | CCA anchors | `FindIntegrationAnchors(list, reduction="cca")` + `IntegrateData` / `IntegrateLayers(method=CCAIntegration)` | `find_integration_anchors(objs, reduction="cca")` + `integrate_data` / `integrate_layers(method="cca")` |

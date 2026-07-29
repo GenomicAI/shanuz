@@ -1,16 +1,16 @@
-# Spatial Statistics and the Spatial Container — R Seurat vs Shanuz (Python)
+# Spatial Statistics and the Spatial Container — R Seurat vs Truecell (Python)
 
 Wave 2's last side-by-side, and the first one to check two things the existing
 [Xenium tutorial](xenium_spatial_tutorial.md) left alone: the **container** —
 `FOV`, `Centroids`, `Segmentation` — and the one real spatial **statistic** in
 the library, `FindSpatiallyVariableFeatures`. Every R Seurat call is paired with
-the Shanuz equivalent and both outputs are shown side by side.
+the Truecell equivalent and both outputs are shown side by side.
 
 > **Dataset:** 10x Xenium mouse brain, coronal CTX + HP section.
 > **36,602 cells × 248 genes**, one FOV. Auto-downloads (~14 MB).
-> **R reference:** Seurat 5.5.1 / SeuratObject 5.4.0 · **Python:** Shanuz
+> **R reference:** Seurat 5.5.1 / SeuratObject 5.4.0 · **Python:** Truecell
 
-| Seurat | Shanuz |
+| Seurat | Truecell |
 |---|---|
 | `LoadXenium(dir, molecule.coordinates = FALSE)` | `load_xenium(dir)` |
 | `CreateCentroids(coords)` | `create_centroids(coords)` |
@@ -49,7 +49,7 @@ difference in how the two languages carry a row label rather than in the data.
 ## Setup
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -58,7 +58,7 @@ library(Seurat)
 library(SeuratObject)
 
 obj <- LoadXenium(
-  "~/.shanuz_data/xenium_mouse_brain",
+  "~/.truecell_data/xenium_mouse_brain",
   fov = "fov", assay = "Xenium",
   molecule.coordinates = FALSE
 )
@@ -69,9 +69,9 @@ obj <- NormalizeData(obj, verbose = FALSE)
 <td>
 
 ```python
-from shanuz.datasets import xenium_mouse_brain
-from shanuz.preprocessing import normalize_data
-from shanuz.spatial import load_xenium
+from truecell.datasets import xenium_mouse_brain
+from truecell.preprocessing import normalize_data
+from truecell.spatial import load_xenium
 
 obj = load_xenium(xenium_mouse_brain(), assay="Xenium")
 normalize_data(obj)
@@ -95,7 +95,7 @@ identical order (the name digests match).
 ## What is in the object
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -125,13 +125,13 @@ fov.boundaries["centroids"].radius()   # 42.82543
 </table>
 
 The FOV's *name* differs because it is a parameter with different defaults —
-`LoadXenium(fov = "fov")` against `load_xenium`'s `"xenium"` — and shanuz does not
+`LoadXenium(fov = "fov")` against `load_xenium`'s `"xenium"` — and truecell does not
 currently expose a way to choose it, so R code indexing `obj[["fov"]]` needs
 adjusting. Everything about the FOV other than what it is filed under is the same.
 
 `Radius()` on the FOV is empty in **both** tools — that is R's design, and the
 number lives on the boundary underneath. Getting that right matters more than it
-looks: shanuz's plotting code read the radius off the *FOV*, so it always saw
+looks: truecell's plotting code read the radius off the *FOV*, so it always saw
 `None`. See [defect 2](#2-centroids-never-carried-a-radius).
 
 R routes the control probes into three extra assays (`BlankCodeword`,
@@ -147,7 +147,7 @@ Small enough to check by eye, which is the point — the slide-scale anchors say
 *whether* the tools agree, these say *what* they agree on.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -189,13 +189,13 @@ fov.subset(cells=["b", "d"]).cells()
 </table>
 
 `0.165` is `SeuratObject`'s `.AutoRadius`: `0.01 × mean(width, height)` of the
-bounding box, so `0.01 × mean(3, 30)`. shanuz returned `None` here before this
+bounding box, so `0.01 × mean(3, 30)`. truecell returned `None` here before this
 tutorial.
 
 Polygons are where the two most visibly parted company:
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -235,7 +235,7 @@ len(create_segmentation(square)
 This is the section the tutorial exists for.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -275,7 +275,7 @@ in the same order. The p-values do not agree, and that is deliberate — see
 
 **A note on scale.** `RunMoransI` builds `as.matrix(dist(pos))` — the full n × n
 weight matrix. On this slide that is a **10.7 GB** allocation, which is why the
-comparison above runs on a shared 2,000-cell subset. shanuz evaluates the same
+comparison above runs on a shared 2,000-cell subset. truecell evaluates the same
 weights in row blocks and runs the whole slide in **5.3 s at 0.95 GB peak**. The
 answers are R's; the ceiling is not.
 
@@ -287,7 +287,7 @@ answers are R's; the ceiling is not.
 
 Seurat's `RunMoransI` constructs `weights <- 1 / pos.dist.mat ^ 2` over every
 pair of cells, and `Rfast2::moranI` row-standardises it before computing
-`cor(y, x) · sd(y) / sd(x)`. shanuz used a **k-nearest-neighbour graph** with
+`cor(y, x) · sd(y) / sd(x)`. truecell used a **k-nearest-neighbour graph** with
 `k = 10`.
 
 Both are legitimate Moran's I. Only one is the one the function said it was
@@ -310,7 +310,7 @@ approximation it is. After the fix: **max abs diff 1.6e-14, 10/10**.
 ### 2. `Centroids` never carried a radius
 
 `SeuratObject` always computes one — `.AutoRadius`, 1% of the mean bounding-box
-dimension, **42.83** on this slide. shanuz left the slot `None`.
+dimension, **42.83** on this slide. truecell left the slot `None`.
 
 The consequence was invisible. `_spot_collection` returns `None` for a `None`
 radius and the caller falls back to a fixed-size scatter, so **every true-to-scale
@@ -329,13 +329,13 @@ too. It now reads the default boundary, which is where R keeps it.
 The middle panel is worth dwelling on. R's default radius overlaps badly at this
 cell density, because 1% of a bounding box is a slide-scale hint and not a
 measurement of a cell. Seurat draws this slide the same way. The fix is not that
-shanuz now draws prettier spots — it is that the slot means something, and can be
+truecell now draws prettier spots — it is that the slot means something, and can be
 set.
 
 ### 3. `Segmentation` stored polygons open
 
 R closes each ring by repeating the first vertex: a four-vertex square comes back
-as five rows. shanuz stored four.
+as five rows. truecell stored four.
 
 Anything that measures a perimeter from the vertex list, or strokes an outline
 without asking the renderer to close the path, is short exactly one edge. Fixed,
@@ -351,7 +351,7 @@ described backwards, so it is left alone.
 **The Moran's I p-value.** R runs a 999-permutation test through
 `Rfast2::moranI`. On this 248-gene panel that produces **14 distinct p-values**
 and ties **233 of 248 genes** at its floor of 1/1025 — it cannot tell the most
-spatially variable gene in the panel from the two-hundredth. shanuz's
+spatially variable gene in the panel from the two-hundredth. truecell's
 normal-approximation p-value is continuous, deterministic and the standard
 closed form for Moran's I. Matching R would have cost real information and bought
 nothing, so the statistic was fixed and the p-value deliberately was not.
@@ -363,15 +363,15 @@ nicer" — it is whether the divergence costs the user something they came for.
 Here it does not.
 
 **The FOV `Key`.** R derives it from the assay (`CreateFOV(coords, assay="RNA")`
-gives `RNA_`); shanuz hardcodes `fov_`. It appears in `__repr__` and nowhere
+gives `RNA_`); truecell hardcodes `fov_`. It appears in `__repr__` and nowhere
 else — no lookup, no prefixing, no `FetchData` path — so changing a default to
 correct a display string was not worth the churn. Recorded rather than fixed.
 
 ### The anchor that does not match
 
 `GetTissueCoordinates` returns **three** columns in R (`x`, `y`, `cell`) and
-**two** in shanuz, which carries the cell as the DataFrame index. The information
-is identical; only the container differs, and shanuz's object-level
+**two** in truecell, which carries the cell as the DataFrame index. The information
+is identical; only the container differs, and truecell's object-level
 `get_tissue_coordinates()` already materialises `cell` as a column. Adding a
 duplicate column that mirrors the index would give the two ways to drift apart.
 Left as it is, and reported here rather than quietly excluded from the table —

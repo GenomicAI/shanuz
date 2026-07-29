@@ -1,4 +1,4 @@
-"""Generate all comparison plots for the PBMC 3k tutorial using shanuz.plotting.
+"""Generate all comparison plots for the PBMC 3k tutorial using truecell.plotting.
 
 Saves PNG figures to tutorials/figures/ for use in the tutorial README.
 
@@ -19,17 +19,17 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import pbmc3k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data, percentage_feature_set,
 )
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.markers import find_all_markers
-from shanuz.plotting import (
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.markers import find_all_markers
+from truecell.plotting import (
     vln_plot, feature_plot, dim_plot, dot_plot, elbow_plot,
     variable_feature_plot, viz_dim_loadings, do_heatmap, ridge_plot,
 )
@@ -85,7 +85,7 @@ def _save(fig, name):
 def run_pipeline(data_dir=None):
     print("Running pipeline...")
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    pbmc = create_shanuz_object(
+    pbmc = create_truecell_object(
         counts=counts, assay="RNA", min_cells=3, min_features=200,
         project="pbmc3k", feature_names=genes, cell_names=cells,
     )
@@ -114,7 +114,7 @@ def main(data_dir=None):
 
     # 1. QC violin (before filtering — re-create pre-filter object just for QC)
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    pbmc_raw = create_shanuz_object(
+    pbmc_raw = create_truecell_object(
         counts=counts, assay="RNA", min_cells=3, min_features=200,
         project="pbmc3k_qc", feature_names=genes, cell_names=cells,
     )
@@ -127,7 +127,7 @@ def main(data_dir=None):
     import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
     # Draw both scatters directly into subplots
-    from shanuz.plotting import _get_expression
+    from truecell.plotting import _get_expression
     for ax_idx, (f1, f2) in enumerate([("nCount_RNA", "percent.mt"),
                                         ("nCount_RNA", "nFeature_RNA")]):
         ax = axes[ax_idx]

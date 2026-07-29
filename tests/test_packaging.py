@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 from packaging.version import InvalidVersion, Version
 
-import shanuz
+import truecell
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
@@ -51,11 +51,11 @@ def test_version_agrees_with_the_installed_distribution():
     """
     from importlib.metadata import version
 
-    assert shanuz.__version__ == version("shanuz")
+    assert truecell.__version__ == version("truecell")
 
 
 def test_version_is_pep440():
-    assert Version(shanuz.__version__)
+    assert Version(truecell.__version__)
 
 
 def test_version_matches_pyproject():
@@ -63,15 +63,15 @@ def test_version_matches_pyproject():
 
     ``__version__`` resolves through the *installed* dist-info, which is a
     snapshot written at install time: the directory is literally named
-    ``shanuz-<version>.dist-info``. Editing pyproject.toml does not rewrite it,
+    ``truecell-<version>.dist-info``. Editing pyproject.toml does not rewrite it,
     so an editable install keeps reporting the old number until someone
     reinstalls (verified: pyproject at 9.9.9 still imported as 0.2.0). The
     hard-coded string this replaced could not drift this way, so the single
     source of truth is only worth having if something checks it is still single.
     """
     declared = tomllib.loads(PYPROJECT.read_text())["project"]["version"]
-    assert shanuz.__version__ == declared, (
-        f"__version__ is {shanuz.__version__!r} but pyproject.toml declares "
+    assert truecell.__version__ == declared, (
+        f"__version__ is {truecell.__version__!r} but pyproject.toml declares "
         f"{declared!r}. The installed metadata is stale — reinstall with "
         f"`uv pip install -e .`"
     )
@@ -98,8 +98,8 @@ def test_version_falls_back_when_the_distribution_is_missing():
 
         importlib.metadata.version = _missing
 
-        import shanuz
-        assert shanuz.__version__ == {FALLBACK_VERSION!r}, shanuz.__version__
+        import truecell
+        assert truecell.__version__ == {FALLBACK_VERSION!r}, truecell.__version__
         print("ok")
         """
     )
@@ -109,7 +109,7 @@ def test_version_falls_back_when_the_distribution_is_missing():
 
 
 def test_the_fallback_version_is_itself_pep440():
-    """So ``Version(shanuz.__version__)`` parses on that path too, and sorts low."""
+    """So ``Version(truecell.__version__)`` parses on that path too, and sorts low."""
     assert Version(FALLBACK_VERSION) < Version("0.1.0")
 
 
@@ -126,10 +126,10 @@ def test_changelog_exists_and_leads_with_unreleased():
 
 
 def test_changelog_documents_the_current_version():
-    """Whatever ``pip install shanuz`` reports has to be findable in the changelog."""
+    """Whatever ``pip install truecell`` reports has to be findable in the changelog."""
     headings = [name for name, _ in _changelog_headings()]
-    assert shanuz.__version__ in headings, (
-        f"__version__ is {shanuz.__version__!r} with no `## [{shanuz.__version__}]` "
+    assert truecell.__version__ in headings, (
+        f"__version__ is {truecell.__version__!r} with no `## [{truecell.__version__}]` "
         f"section; the changelog has {headings}"
     )
 

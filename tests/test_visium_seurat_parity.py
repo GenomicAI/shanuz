@@ -1,11 +1,11 @@
 """What the Visium side-by-side established, pinned so it cannot quietly rot.
 
 Constants marked "R:" were read off a live Seurat 5.5.1 session on the 10x
-V1_Mouse_Brain_Sagittal_Anterior bundle, not derived from shanuz's own output.
+V1_Mouse_Brain_Sagittal_Anterior bundle, not derived from truecell's own output.
 The tests need neither R nor the dataset — CI has no R — so the R side is
 transcribed rather than invoked, as `test_lazy_bpcells_parity.py` does.
 
-The finding worth protecting is unusual for this suite: **here shanuz is right
+The finding worth protecting is unusual for this suite: **here truecell is right
 and Seurat is not.** Seurat builds the Visium FOV with
 ``radius = scale.factors[["spot"]]``, and that field holds
 ``spot_diameter_fullres`` — a diameter in a slot named radius. So the tests
@@ -30,7 +30,7 @@ SEURAT_RADIUS = 89.47199235723474         # == spot_diameter_fullres, the diamet
 SEURAT_RADIUS_ON_VISIUMV2_IS_NULL = True  # no Radius.VisiumV2 method exists
 SEURAT_HVG_OVERLAP = 1995                 # out of 2000
 # R: PCA stdev, max relative difference against Seurat's, measured two ways.
-SEURAT_PCA_REL_OWN_FEATURES = 0.00194     # shanuz picks 1995 of the same 2000
+SEURAT_PCA_REL_OWN_FEATURES = 0.00194     # truecell picks 1995 of the same 2000
 SEURAT_PCA_REL_SHARED_FEATURES = 2.49e-05  # same features -> the PCA itself
 
 # 10x Visium slide geometry. Fixed by the hardware, not by either tool — this is
@@ -73,9 +73,9 @@ def test_reading_the_spot_diameter_as_a_radius_implies_overlapping_spots():
     assert as_diameter == pytest.approx(REFERENCE_SPOT_UM, rel=0.01)
 
 
-def test_shanuz_radius_is_half_seurats_on_purpose():
+def test_truecell_radius_is_half_seurats_on_purpose():
     """A 2x divergence that must not be 'fixed' into agreement."""
-    from shanuz.spatial.visium import ScaleFactors, VisiumV2
+    from truecell.spatial.visium import ScaleFactors, VisiumV2
 
     sf = ScaleFactors(spot=SEURAT_RADIUS, fiducial=144.5316799616869,
                       hires=0.17211704, lowres=0.051635113)
@@ -85,8 +85,8 @@ def test_shanuz_radius_is_half_seurats_on_purpose():
     assert SEURAT_RADIUS / fov.radius() == pytest.approx(2.0)
 
 
-def test_shanuz_exposes_a_radius_where_seurats_visiumv2_returns_null():
-    from shanuz.spatial.visium import ScaleFactors, VisiumV2
+def test_truecell_exposes_a_radius_where_seurats_visiumv2_returns_null():
+    from truecell.spatial.visium import ScaleFactors, VisiumV2
 
     assert SEURAT_RADIUS_ON_VISIUMV2_IS_NULL, "Seurat 5.5.1 has no Radius.VisiumV2"
     fov = VisiumV2(scale_factors=ScaleFactors(spot=10.0, fiducial=20.0,
@@ -95,7 +95,7 @@ def test_shanuz_exposes_a_radius_where_seurats_visiumv2_returns_null():
 
 
 def test_radius_is_none_rather_than_a_guess_without_scale_factors():
-    from shanuz.spatial.visium import VisiumV2
+    from truecell.spatial.visium import VisiumV2
 
     assert VisiumV2().radius() is None
 
@@ -107,7 +107,7 @@ def test_radius_is_none_rather_than_a_guess_without_scale_factors():
 def test_load_visium_defaults_are_seurats():
     import inspect
 
-    from shanuz import load_visium
+    from truecell import load_visium
 
     p = inspect.signature(load_visium).parameters
     assert p["filter_by_tissue"].default is True       # Read10X_Image filter.matrix
@@ -122,7 +122,7 @@ def test_tissue_coordinates_have_seurats_columns():
     """
     import pandas as pd
 
-    from shanuz import create_centroids
+    from truecell import create_centroids
 
     cells = ["a", "b", "c"]
     cen = create_centroids(pd.DataFrame({"x": [1.0, 2.0, 3.0],

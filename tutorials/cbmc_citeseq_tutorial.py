@@ -1,11 +1,11 @@
-"""Multimodal CITE-seq Tutorial — RNA + surface protein (ADT) with Shanuz.
+"""Multimodal CITE-seq Tutorial — RNA + surface protein (ADT) with Truecell.
 
 A Python port of Seurat's multimodal vignette
 (https://satijalab.org/seurat/articles/multimodal_vignette) using the CBMC
 CITE-seq dataset (GSE100866): ~8,600 cord-blood mononuclear cells measured for
 both the transcriptome and 13 surface proteins.
 
-It demonstrates Shanuz's multi-assay support:
+It demonstrates Truecell's multi-assay support:
   * build the object from RNA and run the standard clustering workflow,
   * attach the antibody-capture counts as a second ("ADT") assay,
   * CLR-normalise the proteins (margin=2, per-cell across the panel),
@@ -18,7 +18,7 @@ Usage
 -----
     python tutorials/cbmc_citeseq_tutorial.py [--data-dir PATH]
 
-The CBMC dataset (~15 MB) downloads automatically to ~/.shanuz_data/cbmc.
+The CBMC dataset (~15 MB) downloads automatically to ~/.truecell_data/cbmc.
 
 References
 ----------
@@ -41,19 +41,19 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import cbmc_citeseq
-from shanuz.shanuz import create_shanuz_object
-from shanuz.assay5 import create_assay5_object
-from shanuz.preprocessing import (
+from truecell.datasets import cbmc_citeseq
+from truecell.truecell import create_truecell_object
+from truecell.assay5 import create_assay5_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data,
 )
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.multimodal import find_multi_modal_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.markers import find_all_markers
-from shanuz.plotting import _get_expression
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.multimodal import find_multi_modal_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.markers import find_all_markers
+from truecell.plotting import _get_expression
 
 
 # Surface proteins in the CBMC panel, mapped to their encoding gene(s) for the
@@ -73,7 +73,7 @@ def load_object(data_dir=None, clr_margin=2):
     """Load CBMC, build the RNA object, and attach the CLR-normalised ADT assay."""
     rna, genes, adt, proteins, cells = cbmc_citeseq(data_dir=data_dir)
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=rna, assay="RNA", min_cells=3, min_features=0,
         project="cbmc", feature_names=genes, cell_names=cells,
     )
@@ -369,7 +369,7 @@ def report():
         return
 
     print("=" * 74)
-    print("shanuz vs Seurat 5.5.1 — CITE-seq: CLR, WNN weights, annotation")
+    print("truecell vs Seurat 5.5.1 — CITE-seq: CLR, WNN weights, annotation")
     print("=" * 74)
 
     # ---- 1. the CLR transform, which depends on nothing stochastic ----------
@@ -392,7 +392,7 @@ def report():
     print(f"\n  WNN modality weights — {len(cells)} shared barcodes")
     print(f"    ADT weight  pearson {pearsonr(a, b).statistic:.4f}   "
           f"spearman {spearmanr(a, b).statistic:.4f}")
-    print(f"    mean        shanuz {a.mean():.4f}   R {b.mean():.4f}   "
+    print(f"    mean        truecell {a.mean():.4f}   R {b.mean():.4f}   "
           f"diff {abs(a.mean() - b.mean()):.4f}")
     print(f"    max|diff| per cell {np.abs(a - b).max():.4f}   "
           f"median|diff| {np.median(np.abs(a - b)):.4f}")
@@ -401,9 +401,9 @@ def report():
     # Score each tool's weights under *both* labellings. If the gap follows the
     # labels rather than the weights, it was never a WNN difference.
     print("\n  Mean ADT weight by cell type — under each tool's own labels,")
-    print("  then shanuz's weights re-grouped by R's labels. A row that moves")
+    print("  then truecell's weights re-grouped by R's labels. A row that moves")
     print("  in the third column was a labelling difference, not a weight one.")
-    print(f"\n  {'cell type':<14}{'shanuz':>9}{'R':>9}{'shanuz w/ R labels':>21}"
+    print(f"\n  {'cell type':<14}{'truecell':>9}{'R':>9}{'truecell w/ R labels':>21}"
           f"{'n py':>8}{'n R':>8}")
     print(f"  {'-' * 69}")
     py_by = pw.groupby("protein_celltype")["ADT.weight"].mean()
@@ -428,7 +428,7 @@ def report():
     # that neither tool reproduces bit-for-bit, so they get a relative
     # difference rather than a MATCH/differ verdict that would always read
     # "differ" and tell you nothing.
-    print(f"\n  {'anchor':<20}{'shanuz':>20}{'R Seurat':>20}   verdict")
+    print(f"\n  {'anchor':<20}{'truecell':>20}{'R Seurat':>20}   verdict")
     print(f"  {'-' * 68}")
     for k in sorted(set(pa) & set(ra)):
         x, y = pa[k], ra[k]

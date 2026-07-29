@@ -18,13 +18,13 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.transfer import (  # noqa: E402
+from truecell.transfer import (  # noqa: E402
     find_transfer_anchors,
     transfer_data,
     TransferAnchors,
@@ -52,7 +52,7 @@ def _labelled_object(batch, seed=0, n_per=60, G=200):
             c += 1
 
     meta = pd.DataFrame({"celltype": celltype, "batch": batch}, index=cells)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(mat), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
         meta_data=meta,

@@ -19,14 +19,14 @@ from tutorials.pbmc8k_subclustering_tutorial import (  # noqa: E402
 
 
 def _make_object(gene_levels, n_per_cluster=6, housekeeping=50):
-    """Build a normalised Shanuz object from per-cluster gene expression.
+    """Build a normalised Truecell object from per-cluster gene expression.
 
     gene_levels: dict[cluster_label -> dict[gene -> raw_count]]. Every gene
     mentioned anywhere becomes a row; unmentioned genes are 0 in that cluster.
     A housekeeping gene ('MALAT1') is added to every cell so totals are sane.
     """
-    from shanuz.shanuz import create_shanuz_object
-    from shanuz.preprocessing import normalize_data
+    from truecell.truecell import create_truecell_object
+    from truecell.preprocessing import normalize_data
 
     clusters = list(gene_levels)
     genes = sorted({g for lv in gene_levels.values() for g in lv} | {"MALAT1"})
@@ -44,7 +44,7 @@ def _make_object(gene_levels, n_per_cluster=6, housekeeping=50):
             idents.append(cl)
             col += 1
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(mat), assay="RNA",
         feature_names=genes, cell_names=cells,
     )

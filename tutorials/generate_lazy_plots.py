@@ -7,7 +7,7 @@ Renders to tutorials/figures_lazy/:
 
 01 is the tutorial's finding: whether a tool returns the same answer once the
 matrix moves to disk. 02 is why the fixes mattered — before them, backing a
-matrix on disk *raised* peak memory. 03 is where shanuz loses.
+matrix on disk *raised* peak memory. 03 is where truecell loses.
 
 The R-side numbers are constants read off a live Seurat 5.5.1 / BPCells 0.3.1
 session rather than recomputed here, so these figures render without R
@@ -34,7 +34,7 @@ if str(_ROOT) not in sys.path:
 
 from tutorials.lazy_bpcells_tutorial import FIGURES  # noqa: E402
 
-_SHANUZ = "#48a9a6"
+_TRUECELL = "#48a9a6"
 _SEURAT = "#c1666b"
 _GREY = "0.35"
 _BEFORE = "#c1666b"
@@ -46,7 +46,7 @@ SEURAT_SELF = {
     "scale.data": 1.7167773513904e-06,
     "variance.standardized": 2.05553676092025e-02,
 }
-# shanuz's are all exactly zero; plotted at a floor so a log axis can show them.
+# truecell's are all exactly zero; plotted at a floor so a log axis can show them.
 FLOOR = 1e-17
 
 # Measured on this machine, pbmc3k, separate processes. See the vignette.
@@ -58,7 +58,7 @@ MEMORY = {
 # bytes
 STORAGE = {
     "dgCMatrix arrays": 26_875_340,
-    "shanuz LazyMatrix": 26_875_830,
+    "truecell LazyMatrix": 26_875_830,
     "BPCells (float64)": 20_710_000,
     "BPCells (uint32)": 4_501_708,
 }
@@ -86,12 +86,12 @@ def self_consistency():
     fig, ax = plt.subplots(figsize=(8.6, 3.4))
     ax.barh(y, seurat, height=0.42, color=_SEURAT, left=left,
             label="Seurat 5.5.1 + BPCells")
-    # shanuz's differences are exactly zero, which has no length on a log axis.
+    # truecell's differences are exactly zero, which has no length on a log axis.
     # Drawing a stub at some floor would read as a measurement; a marker on the
     # zero rule says what is true.
-    ax.plot([left] * len(labels), y, "o", color=_SHANUZ, ms=8, zorder=3,
-            label="shanuz — exactly zero")
-    ax.axvline(left, color=_SHANUZ, lw=1.2, ls=":", zorder=1)
+    ax.plot([left] * len(labels), y, "o", color=_TRUECELL, ms=8, zorder=3,
+            label="truecell — exactly zero")
+    ax.axvline(left, color=_TRUECELL, lw=1.2, ls=":", zorder=1)
 
     ax.set_xscale("log")
     ax.set_xlim(left / 3, 3)
@@ -106,7 +106,7 @@ def self_consistency():
     ax.legend(fontsize=8, frameon=False, loc="lower right")
     ax.spines[["top", "right"]].set_visible(False)
     fig.text(0.5, -0.14,
-             "Bars start at the zero rule; shanuz has no bar because its two "
+             "Bars start at the zero rule; truecell has no bar because its two "
              "paths return the same bits. BPCells computes in single precision, "
              "so Seurat's\nout-of-core run also selects a different variable "
              "feature — 1999/2000 agree with its own in-memory run.",
@@ -120,7 +120,7 @@ def memory():
 
     labels = list(MEMORY)
     values = [MEMORY[k] for k in labels]
-    colours = ["0.78", _BEFORE, _SHANUZ]
+    colours = ["0.78", _BEFORE, _TRUECELL]
 
     fig, (ax, ax2) = plt.subplots(1, 2, figsize=(11, 4.0),
                                   gridspec_kw={"width_ratios": [1.35, 1]})
@@ -155,12 +155,12 @@ def memory():
 
 
 def storage():
-    """What each on-disk format costs — the axis shanuz loses on."""
+    """What each on-disk format costs — the axis truecell loses on."""
     import matplotlib.pyplot as plt
 
     labels = list(STORAGE)
     values = [STORAGE[k] / 1e6 for k in labels]
-    colours = ["0.78", _SHANUZ, _SEURAT, _SEURAT]
+    colours = ["0.78", _TRUECELL, _SEURAT, _SEURAT]
 
     fig, ax = plt.subplots(figsize=(7.6, 3.8))
     bars = ax.barh(range(len(labels)), values, color=colours, height=0.6)
@@ -168,7 +168,7 @@ def storage():
     ax.set_yticklabels(labels, fontsize=9)
     ax.invert_yaxis()
     ax.set_xlabel("on disk, MB  ·  pbmc3k counts, 2,238,732 non-zeros")
-    ax.set_title("shanuz stores the CSC arrays verbatim; BPCells bitpacks",
+    ax.set_title("truecell stores the CSC arrays verbatim; BPCells bitpacks",
                  fontsize=11)
     for bar, v in zip(bars, values):
         ax.text(v + 0.4, bar.get_y() + bar.get_height() / 2, f"{v:.2f} MB",

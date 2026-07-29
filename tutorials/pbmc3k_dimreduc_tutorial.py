@@ -1,17 +1,17 @@
-"""Dimensional-reduction extras — Shanuz vs R Seurat on PBMC 3k.
+"""Dimensional-reduction extras — Truecell vs R Seurat on PBMC 3k.
 
 The three reductions that sit *beside* the standard PCA → UMAP path, and the one
 question every guided-clustering run has to answer: **how many PCs are real?**
 
-  * :func:`shanuz.jack_straw` ↔ ``JackStraw`` — a permutation test for PC
+  * :func:`truecell.jack_straw` ↔ ``JackStraw`` — a permutation test for PC
     significance. A small fraction of features is scrambled across cells, the
     loadings are recomputed, and each observed loading gets an empirical p-value
     against that null.
-  * :func:`shanuz.score_jackstraw` ↔ ``ScoreJackStraw`` — aggregates the
+  * :func:`truecell.score_jackstraw` ↔ ``ScoreJackStraw`` — aggregates the
     per-feature p-values into one score per PC, so you can read off a cutoff.
-  * :func:`shanuz.run_ica` ↔ ``RunICA`` — independent components instead of
+  * :func:`truecell.run_ica` ↔ ``RunICA`` — independent components instead of
     principal ones.
-  * :func:`shanuz.run_tsne` ↔ ``RunTSNE`` — the older 2-D embedding, still the
+  * :func:`truecell.run_tsne` ↔ ``RunTSNE`` — the older 2-D embedding, still the
     reference point for a lot of published figures.
 
 Why this tutorial exists — and what it found
@@ -22,19 +22,19 @@ both fixed in the same pull request as this tutorial:
 
 1. **The null was too tight.** R's ``JackRandom`` permutes the chosen rows and
    **re-runs a full PCA**, taking the null loadings from that refit basis.
-   Shanuz projected the permuted rows onto the **fixed** original embedding — a
+   Truecell projected the permuted rows onto the **fixed** original embedding — a
    fixed basis cannot rotate to absorb the scrambled signal, so the permuted
    loadings came out too small and ordinary noise looked extreme against them.
    On the pure-noise PCs 14-20, that put **109-203** of 2000 features below
    p ≤ 1e-5 where R finds **0-5**.
 2. **The aggregation was the wrong test.** R's ``ScoreJackStraw`` runs
    ``prop.test`` on the count of features below ``score.thresh`` against the
-   count expected under a uniform null. Shanuz ran a one-sided KS test against
+   count expected under a uniform null. Truecell ran a one-sided KS test against
    Uniform(0, 1), which is enormously more sensitive: its largest score across
    all 20 pbmc3k PCs was **8.1e-112**, so no PC ever failed.
 
-Together they made the function unable to do its one job: shanuz kept **all 20**
-PCs where Seurat kept 13. After the fix shanuz keeps **13-15** depending on the
+Together they made the function unable to do its one job: truecell kept **all 20**
+PCs where Seurat kept 13. After the fix truecell keeps **13-15** depending on the
 seed, against Seurat's deterministic 13, and that spread is asserted by
 :data:`BANDS` rather than described. A third, smaller
 gap is closed too — ``JackStrawData.fake_reduction_scores`` was declared but
@@ -46,15 +46,15 @@ show where any residual difference comes from.
 
 What remains is permutation scatter, not a defect. R fixes each replicate's seed
 to its loop index, so ``JackStraw`` there returns the same answer on every run;
-shanuz seeds from its ``seed`` argument. Over a 60-seed sweep it keeps 12, 13, 14
+truecell seeds from its ``seed`` argument. Over a 60-seed sweep it keeps 12, 13, 14
 or 15 PCs — 2, 28, 11 and 19 seeds respectively — so R's deterministic **13 is
-also shanuz's modal answer**, and the worst case is 2 PCs either side. That
+also truecell's modal answer**, and the worst case is 2 PCs either side. That
 measured spread is what :data:`BANDS` asserts; the scatter is the method's, not
 the port's.
 
 ICA and t-SNE need a different yardstick. Independent components are defined
 only up to sign and order, and t-SNE coordinates are not comparable across
-implementations at all (R's ``Rtsne`` is Barnes-Hut, shanuz calls scikit-learn).
+implementations at all (R's ``Rtsne`` is Barnes-Hut, truecell calls scikit-learn).
 So neither is compared coordinate-wise:
 
   * **ICA** — components are Hungarian-matched between the tools by \\|Pearson r\\|,
@@ -109,11 +109,11 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import pbmc3k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca, run_ica, run_tsne
-from shanuz.jackstraw import jack_straw, score_jackstraw
+from truecell.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca, run_ica, run_tsne
+from truecell.jackstraw import jack_straw, score_jackstraw
 from tutorials.bands import (
     Band, check_bands, check_same_cells, check_same_features, render_verdicts,
 )
@@ -139,7 +139,7 @@ KNN_K = 30                   # neighbourhood size for the structure comparisons
 
 # --- Declared bands --------------------------------------------------------
 # The JackStraw cutoff genuinely moves with the seed, and used to be described
-# in prose: "R's deterministic 13 sits at the bottom of shanuz's spread". Prose
+# in prose: "R's deterministic 13 sits at the bottom of truecell's spread". Prose
 # does not fail, so a regression that landed on 15 read the same as a good run
 # that landed on 15. These are measured, not asserted from one run — a 60-seed
 # sweep of `jack_straw` against the same R reference gave keeps of 12/13/14/15
@@ -148,8 +148,8 @@ KNN_K = 30                   # neighbourhood size for the structure comparisons
 BANDS = {
     "jackstraw_keep_gap": Band(
         0, 2,
-        "|shanuz - R| over the PC cutoff. R's JackRandom seeds each replicate "
-        "from its loop index so R is deterministic at 13; shanuz seeds from its "
+        "|truecell - R| over the PC cutoff. R's JackRandom seeds each replicate "
+        "from its loop index so R is deterministic at 13; truecell seeds from its "
         "`seed` argument and spans 12-15 over 60 seeds, with 13 the mode. A gap "
         "of 3 is outside anything the permutation scatter produces."),
     "significant_agreement": Band(
@@ -158,7 +158,7 @@ BANDS = {
         "0.8750 median over the 60 seeds. The floor sits below the measured "
         "worst case on purpose — R's own set includes stray post-cutoff PCs "
         "(15 and 19 in the current reference), so this number moves with R's "
-        "noise tail as well as shanuz's, and it is the *cutoff* that the band "
+        "noise tail as well as truecell's, and it is the *cutoff* that the band "
         "above pins."),
     "pca_basis_aligned_through": Band(
         13, JS_DIMS,
@@ -253,7 +253,7 @@ def knn_overlap(a, b, k: int = KNN_K) -> float:
     """Mean fraction of each cell's k nearest neighbours shared by two embeddings.
 
     The comparison for embeddings whose coordinates are not comparable. Used
-    twice: between R's and shanuz's t-SNE (do they place the same cells
+    twice: between R's and truecell's t-SNE (do they place the same cells
     together?), and between a t-SNE and the PCA space it came from (does the
     embedding preserve its input's neighbourhoods?). 1.0 is identical
     neighbourhoods; for k ≪ n, random embeddings score ≈ k/n.
@@ -401,7 +401,7 @@ def load_pbmc3k_object(data_dir=None):
     so the R script subsets to exactly this set.
     """
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    return create_shanuz_object(
+    return create_truecell_object(
         counts=counts, assay="RNA", min_cells=3, min_features=200,
         project="pbmc3k_dimreduc", feature_names=list(genes), cell_names=list(cells),
     )
@@ -475,7 +475,7 @@ def summarize(obj, scores, js, verbose=True) -> dict:
     if not verbose:
         return out
 
-    section("JackStraw — which PCs are significant? (shanuz)")
+    section("JackStraw — which PCs are significant? (truecell)")
     board = out["pc_table"][["PC", "py_score", "py_n_sig_features", "py_median_p"]]
     print("    " + board.head(JS_DIMS).round(6).to_string(index=False)
           .replace("\n", "\n    "))
@@ -599,7 +599,7 @@ def _print_concordance(out, summary) -> None:
         print(f"  through PC {aligned}.")
 
     if "pc_table" in out:
-        section("JackStraw — R vs shanuz")
+        section("JackStraw — R vs truecell")
         cols = ["PC", "py_score", "r_score", "py_n_sig_features",
                 "r_n_sig_features", "py_median_p", "r_median_p"]
         table = out["pc_table"]
@@ -607,11 +607,11 @@ def _print_concordance(out, summary) -> None:
         print("    " + table[show].round(6).to_string(index=False)
               .replace("\n", "\n    "))
         print(f"\n  PCs significant at alpha={ALPHA}:")
-        print(f"    shanuz : {out['py_significant'].tolist()}")
+        print(f"    truecell : {out['py_significant'].tolist()}")
         print(f"    R      : {out['r_significant'].tolist()}")
         print(f"    Jaccard agreement: {out['significant_agreement']:.4f}")
         print(f"  PCs kept (run before the first drop-off): "
-              f"shanuz {out['py_keep']}, R {out['r_keep']}")
+              f"truecell {out['py_keep']}, R {out['r_keep']}")
         if "feature_p_spearman" in out:
             fs = out["feature_p_spearman"]
             print(f"\n  Per-feature empirical-p Spearman, per PC: "

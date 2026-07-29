@@ -5,7 +5,7 @@
 # query (smartseq2) objects from the same exported panc8 counts, runs Seurat's
 # FindTransferAnchors(reduction = "pcaproject") + TransferData to annotate the
 # query, and writes the per-cell predicted labels (r_calls.csv) that the Python
-# tutorial's report_concordance() compares against — the reference for shanuz's
+# tutorial's report_concordance() compares against — the reference for truecell's
 # find_transfer_anchors / transfer_data. Also writes the R-side projection figure.
 #
 # Transferred labels ARE comparable per cell (both tools pick a predicted.id from
@@ -35,7 +35,7 @@ set.seed(42)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_refmap")
-DATA <- Sys.getenv("PANC8_DATA", path.expand("~/.shanuz_data/panc8"))
+DATA <- Sys.getenv("PANC8_DATA", path.expand("~/.truecell_data/panc8"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 
 REFERENCE_TECH <- "celseq2"

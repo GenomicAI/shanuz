@@ -24,7 +24,7 @@ FIGURES <- if (dir.exists("tutorials")) {
   "figures_objects"
 }
 DATA <- Sys.getenv("PBMC3K_DATA",
-                   file.path(path.expand("~"), ".shanuz_data", "pbmc3k",
+                   file.path(path.expand("~"), ".truecell_data", "pbmc3k",
                              "filtered_gene_bc_matrices", "hg19"))
 
 MIN_CELLS <- 3
@@ -99,7 +99,7 @@ cat("object:", ncol(obj), "cells x", nrow(obj), "features\n")
 hvg_path <- file.path(FIGURES, "hvg_features.txt")
 stopifnot("run the Python tutorial first" = file.exists(hvg_path))
 # Read10X rewrites '_' to '-' in gene symbols (pbmc3k has Y_RNA, RP11-*_* and
-# friends); shanuz's loader leaves them alone. Normalise to R's spelling before
+# friends); truecell's loader leaves them alone. Normalise to R's spelling before
 # matching — the difference belongs to the two loaders, not to the object model
 # this tutorial is auditing. The Python side hashes the same normalised names.
 hvg <- gsub("_", "-", readLines(hvg_path))
@@ -112,7 +112,7 @@ VariableFeatures(obj) <- hvg
 obj <- ScaleData(obj, features = hvg, verbose = FALSE)
 obj <- RunPCA(obj, features = hvg, npcs = N_PCS, verbose = FALSE)
 # nn.method = "rann" gives exact neighbours. Seurat's default is "annoy", which
-# is approximate, and shanuz's neighbour search is exact — so the default made
+# is approximate, and truecell's neighbour search is exact — so the default made
 # the graph anchors compare two different neighbour tables and report a
 # difference that belongs to annoy rather than to either object model. On this
 # dataset annoy costs 182 SNN edges (199,434 against the exact 199,616).

@@ -2,7 +2,7 @@ import pytest
 
 anndata = pytest.importorskip("anndata", reason="anndata not installed")
 
-from shanuz.compat import as_anndata, from_anndata
+from truecell.compat import as_anndata, from_anndata
 
 
 def test_as_anndata(small_seurat):

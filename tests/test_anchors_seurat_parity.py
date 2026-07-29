@@ -19,7 +19,7 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.anchors import (  # noqa: E402
+from truecell.anchors import (  # noqa: E402
     _anchor_feature_matrix,
     _anchor_weights,
     _cca,
@@ -34,10 +34,10 @@ from shanuz.anchors import (  # noqa: E402
     find_integration_anchors,
     integrate_data,
 )
-from shanuz.integration import integrate_layers  # noqa: E402
-from shanuz.preprocessing import normalize_data, scale_data  # noqa: E402
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.integration import integrate_layers  # noqa: E402
+from truecell.preprocessing import normalize_data, scale_data  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Transcribed from Seurat 5.5.1 (see the module docstring for the run)
@@ -73,7 +73,7 @@ def _pair(n=260, n_genes=150, seed=0):
             base[80:110] += shift
             mat[:, c] = rng.poisson(base * 2000.0 / base.sum())
             cells.append(f"b{b}_c{c}")
-        obj = create_shanuz_object(
+        obj = create_truecell_object(
             counts=sp.csc_matrix(mat), assay="RNA",
             feature_names=[f"g{i}" for i in range(n_genes)], cell_names=cells,
         )
@@ -223,7 +223,7 @@ def test_returned_scores_are_consistent_with_the_returned_anchor_set():
         objs, reduction="cca", dims=dims, k_anchor=k_anchor,
         k_score=k_score, k_filter=k_filter,
     )
-    from shanuz.anchors import _anchor_feature_matrix
+    from truecell.anchors import _anchor_feature_matrix
 
     feats = anchors.anchor_features
     ref = _anchor_feature_matrix(objs[0], feats, "scale.data")
@@ -252,7 +252,7 @@ def test_the_filter_sees_the_data_layer_not_scale_data():
     negatives. Recording what the filter was handed distinguishes the two
     without asserting anything about the filtering itself.
     """
-    import shanuz.anchors as A
+    import truecell.anchors as A
 
     seen = []
     original = A._filter_anchors
@@ -462,12 +462,12 @@ def test_integrate_layers_makes_the_largest_batch_the_reference():
     the first batch is invisible on an even split and pulls the wrong way on a
     real one.
     """
-    import shanuz.anchors as A
-    from shanuz.integration import _integrate_anchor_reduction
+    import truecell.anchors as A
+    from truecell.integration import _integrate_anchor_reduction
 
     captured = {}
     # _integrate_anchor_reduction imports from .anchors at call time, so the
-    # patch has to land on the source module, not on shanuz.integration.
+    # patch has to land on the source module, not on truecell.integration.
     original = A.find_integration_anchors
 
     def spy(objects, **kw):
@@ -587,7 +587,7 @@ def test_v5_path_disables_the_anchor_filter(method):
     """``CCAIntegration``/``RPCAIntegration`` both call FindIntegrationAnchors
     with ``k.filter = NA``. v4's default of 200 belongs to the object-list API
     only, and applying it here drops ~15% of Seurat's CCA anchors."""
-    import shanuz.anchors as A
+    import truecell.anchors as A
 
     captured = {}
     original = A.find_integration_anchors
@@ -615,7 +615,7 @@ def test_rpca_rescales_each_batch_but_cca_does_not():
     runs ``ScaleData`` per object, ``CCAIntegration`` slices the object's
     existing ``scale.data``. Reciprocal PCA needs each batch centred on its own
     mean; CCA is given the pooled centring on purpose."""
-    import shanuz.anchors as A
+    import truecell.anchors as A
 
     seen = {}
     original = A.find_integration_anchors
@@ -660,7 +660,7 @@ def test_integrate_layers_requires_the_reduction_to_exist():
 def test_integrate_embeddings_rejects_a_reduction_missing_cells():
     """A reduction that does not span every dataset would silently correct a
     subset; Seurat errors on the same condition in ValidateParams."""
-    from shanuz.anchors import integrate_embeddings
+    from truecell.anchors import integrate_embeddings
 
     merged, n_a, _b = _batched()
     objs = _pair(n=90)

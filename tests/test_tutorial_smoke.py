@@ -1,10 +1,10 @@
 """End-to-end tutorial runs.
 
 **These do not run in CI, and are not meant to be mistaken for coverage.** They
-need the cached datasets (~200 MB under ``~/.shanuz_data``) and take minutes, so
+need the cached datasets (~200 MB under ``~/.truecell_data``) and take minutes, so
 they are gated behind an explicit opt-in:
 
-    SHANUZ_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v
+    TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v
 
 The gate is an env var rather than a bare "skip if the data is missing" check on
 purpose. A test that silently skips wherever the data happens to be absent reads
@@ -26,9 +26,9 @@ import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_ROOT = Path(os.path.expanduser("~/.shanuz_data"))
+DATA_ROOT = Path(os.path.expanduser("~/.truecell_data"))
 
-OPT_IN = os.environ.get("SHANUZ_TUTORIAL_SMOKE") == "1"
+OPT_IN = os.environ.get("TRUECELL_TUTORIAL_SMOKE") == "1"
 
 # script -> the dataset directory it needs cached
 TUTORIALS = [
@@ -52,7 +52,7 @@ TUTORIALS = [
 
 pytestmark = pytest.mark.skipif(
     not OPT_IN,
-    reason="set SHANUZ_TUTORIAL_SMOKE=1 to run the tutorials end-to-end "
+    reason="set TRUECELL_TUTORIAL_SMOKE=1 to run the tutorials end-to-end "
            "(needs ~200MB of cached datasets, takes minutes)",
 )
 
@@ -85,7 +85,7 @@ def test_tutorial_runs_to_completion(script, dataset):
 def test_ifnb_rpca_matches_seurat_batch_mixing():
     """Bug 2 regression, on real data: RPCA must actually integrate ifnb.
 
-    Before the reciprocal-PCA fix, shanuz RPCA reached batch-mixing entropy 0.22
+    Before the reciprocal-PCA fix, truecell RPCA reached batch-mixing entropy 0.22
     on ifnb against Seurat's 0.91 — it barely mixed the CTRL/STIM batches and
     recovered cell type *below* the uncorrected baseline. The fix (Seurat's
     per-object scaling + the stacked-embedding SD/L2 normalisation) lifts it to
@@ -196,7 +196,7 @@ def test_ifnb_leverage_tracks_rarity():
 
     This is the check no synthetic fixture can stand in for. Poisson clusters
     around a shared baseline do *not* reproduce it (several were tried, and R
-    agrees with shanuz on those to 1e-5 while showing no enrichment either): real
+    agrees with truecell on those to 1e-5 while showing no enrichment either): real
     rare types are transcriptionally extreme, not merely scarce. Before the fix
     the full-rank scores were nearly flat — max/median 1.3 against R's 6.5 — so
     sampling by them was uniform sampling, and this correlation is what that
@@ -307,7 +307,7 @@ def test_xenium_moransi_matches_seurats_weighting():
 
     Seurat's weighting is exact, so this is an equality, not a threshold. It is
     checked against a dense transcription of `RunMoransI` rather than against
-    shanuz's own output — comparing the blocked implementation to itself would
+    truecell's own output — comparing the blocked implementation to itself would
     pass no matter which weight matrix it used, which is precisely the defect
     this tutorial found.
     """
@@ -323,7 +323,7 @@ def test_xenium_moransi_matches_seurats_weighting():
         load_slide,
         subset_cells,
     )
-    from shanuz.spatial import find_spatially_variable_features, get_tissue_coordinates
+    from truecell.spatial import find_spatially_variable_features, get_tissue_coordinates
 
     obj = load_slide()
     cells = subset_cells(obj)

@@ -1,7 +1,7 @@
-# Xenium Spatial Tutorial — R Seurat vs Shanuz (Python)
+# Xenium Spatial Tutorial — R Seurat vs Truecell (Python)
 
 A step-by-step **spatial** analysis of a 10x Genomics **Xenium** dataset, with
-every R Seurat call paired with the equivalent **Shanuz** Python code and both
+every R Seurat call paired with the equivalent **Truecell** Python code and both
 outputs shown side by side. This mirrors the spatial mast-cell / neighbourhood
 workflow used on internal celiac Xenium data — reproduced here on a fully public
 section so it can be shared.
@@ -10,9 +10,9 @@ section so it can be shared.
 > (the same section featured in
 > [Seurat's spatial vignette](https://satijalab.org/seurat/articles/spatial_vignette_2)).
 > **36,602 cells × 248 genes**, single FOV. Auto-downloads (~20 MB).  
-> **R reference:** Seurat v5 · **Python:** Shanuz (branch `feature/spatial-seurat-parity`)
+> **R reference:** Seurat v5 · **Python:** Truecell (branch `feature/spatial-seurat-parity`)
 
-This tutorial exercises the spatial Seurat-parity layer added to Shanuz:
+This tutorial exercises the spatial Seurat-parity layer added to Truecell:
 `load_xenium` · `get_tissue_coordinates` · `image_dim_plot` ·
 `image_feature_plot` · `nearest_neighbor_distance` · `local_neighborhood` ·
 `build_niche_assay` · `composition_test`.
@@ -29,7 +29,7 @@ This tutorial exercises the spatial Seurat-parity layer added to Shanuz:
 ## Setup
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -45,22 +45,22 @@ library(ggplot2)
 ```python
 import numpy as np
 
-from shanuz.datasets import xenium_mouse_brain
-from shanuz.spatial import load_xenium
-from shanuz.preprocessing import (
+from truecell.datasets import xenium_mouse_brain
+from truecell.spatial import load_xenium
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data,
 )
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
 
 # Spatial Seurat-parity layer
-from shanuz import (
+from truecell import (
     get_tissue_coordinates, nearest_neighbor_distance,
     local_neighborhood, build_niche_assay, composition_test,
 )
-from shanuz.plotting import (
+from truecell.plotting import (
     image_dim_plot, image_feature_plot, dim_plot, vln_plot,
 )
 ```
@@ -74,7 +74,7 @@ from shanuz.plotting import (
 ## Step 1 · Load the Xenium output
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -93,7 +93,7 @@ obj    <- CreateSeuratObject(counts, assay = "Xenium")
 <td>
 
 ```python
-# Downloads (~20 MB) to ~/.shanuz_data/xenium_mouse_brain
+# Downloads (~20 MB) to ~/.truecell_data/xenium_mouse_brain
 path = xenium_mouse_brain()
 
 obj = load_xenium(path, assay="Xenium")
@@ -117,7 +117,7 @@ print(obj.image_names())     # ['xenium']  — centroids populated
 ## Step 2 · QC filter
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -159,7 +159,7 @@ it is a pure function of the identical count matrix, R and Python produce
 (the same idea as the internal `KIT+ TPSAB1+` mast-cell rule).
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -224,7 +224,7 @@ Identical counts in both:
 ## Step 4 · Normalise, cluster, UMAP (unsupervised view)
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -269,7 +269,7 @@ run_umap(obj, dims=range(20), reduction_name="umap", seed=42)
 > clusters drawn back in tissue space (`ImageDimPlot` by cluster) — the cortical
 > layers and hippocampal structure fall out on their own. Louvain clustering is
 > stochastic and the two UMAP libraries (`uwot` vs `umap-learn`) place clusters
-> differently — R found 20 clusters, Shanuz 18 — but the same spatial structure
+> differently — R found 20 clusters, Truecell 18 — but the same spatial structure
 > separates cleanly in both (see the
 > [PBMC 3k note](pbmc3k_tutorial.md#step-12--umap)).
 
@@ -278,7 +278,7 @@ run_umap(obj, dims=range(20), reduction_name="umap", seed=42)
 ## Step 5 · Cells in tissue space — `ImageDimPlot`
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -306,7 +306,7 @@ fig.savefig("image_celltype.png", dpi=130)
 > oligodendrocytes tracing the white-matter tracts, and the hippocampal
 > formation clearly outlined.
 > **Note — under `ggplot2` 4.x, Seurat's `ImageDimPlot` renders blank**; the R
-> panel here is drawn from `GetTissueCoordinates()` with `geom_point`. Shanuz's
+> panel here is drawn from `GetTissueCoordinates()` with `geom_point`. Truecell's
 > `image_dim_plot` draws centroids directly with matplotlib, so it is immune to
 > that issue.
 
@@ -315,7 +315,7 @@ fig.savefig("image_celltype.png", dpi=130)
 ## Step 6 · A gene in tissue space — `ImageFeaturePlot`
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -347,11 +347,11 @@ fig = image_feature_plot(obj, "Slc17a7", cmap="viridis")
 
 We treat **Vascular** cells as the focal population (the analog of mast cells in
 the internal analysis) and measure, per cell, the distance to its nearest other
-vascular cell. Seurat users reach for `FNN::get.knn`; Shanuz wraps the identical
+vascular cell. Seurat users reach for `FNN::get.knn`; Truecell wraps the identical
 KD-tree in `nearest_neighbor_distance`.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -378,7 +378,7 @@ nn["distance"].median()                # 24.0739 µm
 </tr>
 </table>
 
-| metric | R Seurat (FNN) | Shanuz | 
+| metric | R Seurat (FNN) | Truecell | 
 |--------|---------------:|-------:|
 | n Vascular | 3,016 | 3,016 |
 | nearest-neighbour **median** | 24.0739 µm | 24.0739 µm |
@@ -392,7 +392,7 @@ For every vascular cell, what fraction of its 10 nearest neighbours are also
 vascular? (Local "clumpiness" of the focal type.)
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -429,10 +429,10 @@ Both give a mean local vascular density of **0.18107** — 8-figure agreement.
 
 Split the section into dorsal / ventral halves (median *y*) and test which cell
 types are enriched where. Seurat users build this table by hand (Fisher +
-`p.adjust`); Shanuz packages it as `composition_test`.
+`p.adjust`); Truecell packages it as `composition_test`.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -488,7 +488,7 @@ Cluster cells by the composition of their spatial neighbourhood into spatial
 "niches" (Seurat v5's `BuildNicheAssay`).
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -525,10 +525,10 @@ fig = image_dim_plot(obj, group_by="niches", size=1.5)
 
 ## Parity — verified against R Seurat
 
-Cross-checked by `compare_xenium_anchors.py` (R reference ↔ Shanuz). Every
+Cross-checked by `compare_xenium_anchors.py` (R reference ↔ Truecell). Every
 deterministic anchor matches to **8 significant figures**:
 
-| anchor | R Seurat | Shanuz | |
+| anchor | R Seurat | Truecell | |
 |--------|---------:|-------:|:-:|
 | cells (raw / QC) | 36,602 / 36,419 | 36,602 / 36,419 | ✓ |
 | genes | 248 | 248 | ✓ |
@@ -545,7 +545,7 @@ deterministic anchor matches to **8 significant figures**:
 
 ## Quick Reference — Spatial API Translation
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | Load Xenium | `LoadXenium(dir)` | `load_xenium(dir)` |
 | Load Visium / CosMx | `Load10X_Spatial` / `LoadNanostring` | `load_visium` / `load_cosmx` |
@@ -563,8 +563,8 @@ deterministic anchor matches to **8 significant figures**:
 ## Reproducing this tutorial
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell
 git checkout feature/spatial-seurat-parity
 uv venv && source .venv/bin/activate
 uv pip install -e ".[analysis]"

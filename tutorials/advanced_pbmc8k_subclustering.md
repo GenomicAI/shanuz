@@ -1,4 +1,4 @@
-# Advanced Tutorial — PBMC 8k Clustering & Subclustering (R Seurat vs Shanuz)
+# Advanced Tutorial — PBMC 8k Clustering & Subclustering (R Seurat vs Truecell)
 
 A more complex companion to the [PBMC 3k tutorial](README.md). It reproduces the
 standard Seurat guided-clustering workflow on a **larger** 10x Genomics dataset
@@ -8,7 +8,7 @@ lymphoid compartment is isolated and re-analysed from scratch to separate naive
 CD4, memory CD4, CD8, and NK populations that the global clustering merges.
 
 > **Dataset:** 8k PBMCs from a Healthy Donor — 10x Genomics (GRCh38, v2)
-> **Python:** Shanuz v0.2.0
+> **Python:** Truecell v0.2.0
 > **Methodology:** Satija et al. 2015 · Butler et al. 2018 · Hao et al. 2021
 
 > **Scope note.** This tutorial stays within the single-assay **RNA
@@ -18,7 +18,7 @@ CD4, memory CD4, CD8, and NK populations that the global clustering merges.
 
 > **About the figures.** Each step shows a genuine **side-by-side comparison**:
 > the **left** image is real **R Seurat** output (`pbmc8k_subclustering_verify.R`,
-> titled *"R Seurat – …"*) and the **right** image is **Shanuz**
+> titled *"R Seurat – …"*) and the **right** image is **Truecell**
 > (`generate_advanced_plots.py`). Both run the identical pipeline and the same
 > two annotation heuristics on the same data; clustering is stochastic and the
 > two UMAP libraries (`uwot` vs `umap-learn`) place clusters differently, so
@@ -28,7 +28,7 @@ Run everything with:
 
 ```bash
 python tutorials/pbmc8k_subclustering_tutorial.py   # printed validation
-python tutorials/generate_advanced_plots.py         # writes figures_advanced/  (Shanuz figures)
+python tutorials/generate_advanced_plots.py         # writes figures_advanced/  (Truecell figures)
 Rscript tutorials/pbmc8k_subclustering_verify.R     # writes figures_advanced/r_*  (R Seurat figures)
 ```
 
@@ -37,7 +37,7 @@ Rscript tutorials/pbmc8k_subclustering_verify.R     # writes figures_advanced/r_
 ## Step 1 · Load Data & Create Object
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -52,11 +52,11 @@ pbmc <- CreateSeuratObject(
 </td><td>
 
 ```python
-from shanuz.datasets import pbmc8k
-from shanuz.shanuz import create_shanuz_object
+from truecell.datasets import pbmc8k
+from truecell.truecell import create_truecell_object
 
 counts, genes, cells = pbmc8k()          # auto-downloads ~38 MB
-pbmc = create_shanuz_object(
+pbmc = create_truecell_object(
     counts=counts, project="pbmc8k",
     min_cells=3, min_features=200,
     feature_names=genes, cell_names=cells,
@@ -71,7 +71,7 @@ pbmc = create_shanuz_object(
 ## Step 2 · QC & Filtering
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -85,8 +85,8 @@ pbmc <- subset(pbmc, subset =
 </td><td>
 
 ```python
-from shanuz.preprocessing import percentage_feature_set
-from shanuz.plotting import vln_plot
+from truecell.preprocessing import percentage_feature_set
+from truecell.plotting import vln_plot
 
 percentage_feature_set(pbmc, pattern=r"^MT-", col_name="percent.mt")
 vln_plot(pbmc, ["nFeature_RNA","nCount_RNA","percent.mt"], ncol=3)
@@ -109,7 +109,7 @@ pbmc = pbmc.subset(cells=list(md.index[keep]))
 ## Step 3 · Normalize → HVG → Scale → PCA
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -123,9 +123,9 @@ ElbowPlot(pbmc, ndims = 30)
 </td><td>
 
 ```python
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.plotting import elbow_plot
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.plotting import elbow_plot
 
 normalize_data(pbmc)
 find_variable_features(pbmc, selection_method="vst", nfeatures=2000)
@@ -146,7 +146,7 @@ elbow_plot(pbmc, ndims=30)
 ## Step 4 · Global Clustering & UMAP
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -159,10 +159,10 @@ DimPlot(pbmc, reduction = "umap", label = TRUE)
 </td><td>
 
 ```python
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.plotting import dim_plot
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.plotting import dim_plot
 
 find_neighbors(pbmc, dims=range(10), k_param=20)
 find_clusters(pbmc, resolution=0.5, random_seed=0)   # 12 clusters
@@ -181,12 +181,12 @@ dim_plot(pbmc, reduction="umap", group_by="seurat_clusters", label=True)
 
 ## Step 5 · Lineage Markers & Broad Annotation
 
-Canonical lineage markers identify the major PBMC populations. Shanuz's
+Canonical lineage markers identify the major PBMC populations. Truecell's
 `annotate_clusters()` helper z-scores each marker across clusters and assigns
 every cluster to its most-enriched lineage.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -203,7 +203,7 @@ DimPlot(pbmc, label = TRUE)
 </td><td>
 
 ```python
-from shanuz.plotting import feature_plot
+from truecell.plotting import feature_plot
 from tutorials.pbmc8k_subclustering_tutorial import annotate_clusters, BROAD_MARKERS
 
 feature_plot(pbmc, ["CD3D","CD8A","IL7R","MS4A1",
@@ -229,7 +229,7 @@ dim_plot(pbmc, reduction="umap", label=True)
 Top markers per cluster (DoHeatmap → `do_heatmap`):
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td><img src="figures_advanced/r_06_global_markers_heatmap.png" width="420"/></td>
 <td><img src="figures_advanced/06_global_markers_heatmap.png" width="420"/></td>
@@ -246,7 +246,7 @@ those cells — recomputing variable genes, PCA, neighbours, clusters, and UMAP
 within the compartment. This is the standard Seurat subclustering recipe.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -302,7 +302,7 @@ Flat marker-argmax fails for fine T subsets (the high-magnitude naive markers
 MAIT/γδ T) → CD4 Naive (CCR7/SELL/LEF1) → CD4 Memory (IL7R/S100A4).
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -381,7 +381,7 @@ python tutorials/pbmc8k_subclustering_tutorial.py --report
 Nothing is pinned across the two sides. Both run the whole two-stage pipeline
 from the same 10x bytes.
 
-| Stage | shanuz vs Seurat 5.5.1 |
+| Stage | truecell vs Seurat 5.5.1 |
 |---|---|
 | QC | **the same 7,475 barcodes**; nCount and nFeature exact, percent.mt to 5.8e-15 |
 | Normalized data | total to 8.2e-13 relative · kNN graph **149,500 on both** |
@@ -403,13 +403,13 @@ cells" from "4,600 cells". Here they are the same to four cells.
 
 ### The extra cluster
 
-shanuz finds 13 global clusters where Seurat finds 12. Seurat's 100-cell
-cluster 11 holds both Platelet and DC; shanuz splits it into a 54-cell DC
+truecell finds 13 global clusters where Seurat finds 12. Seurat's 100-cell
+cluster 11 holds both Platelet and DC; truecell splits it into a 54-cell DC
 cluster and a 53-cell Platelet cluster. Two distinct myeloid lineages, so the
 split is the more resolved answer.
 
 Note that this runs *opposite* to the PBMC 3k tutorial, where Seurat resolves a
-32-cell DC cluster that shanuz folds into CD14+ Mono. Both are the same
+32-cell DC cluster that truecell folds into CD14+ Mono. Both are the same
 borderline population landing on different sides of a resolution threshold, and
 neither run is uniformly finer than the other — which is worth knowing before
 reading a cluster count as a verdict.
@@ -418,7 +418,7 @@ reading a cluster count as a verdict.
 
 ## API Translation (additions beyond the PBMC 3k tutorial)
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | Load PBMC 8k | `Read10X("…/GRCh38/")` | `pbmc8k()` |
 | Subset a lineage | `subset(pbmc, idents = …)` | `pbmc.subset(cells = …)` |

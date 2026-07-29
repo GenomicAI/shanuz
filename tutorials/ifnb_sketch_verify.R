@@ -50,7 +50,7 @@ set.seed(42)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_sketch")
-DATA <- Sys.getenv("IFNB_DATA", path.expand("~/.shanuz_data/ifnb"))
+DATA <- Sys.getenv("IFNB_DATA", path.expand("~/.truecell_data/ifnb"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 
 # Mirror the Python constants (ifnb_sketch_tutorial.py).

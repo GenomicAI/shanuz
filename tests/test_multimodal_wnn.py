@@ -15,18 +15,18 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.assay5 import create_assay5_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.assay5 import create_assay5_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca  # noqa: E402
-from shanuz.neighbors import find_neighbors  # noqa: E402
-from shanuz.clustering import find_clusters  # noqa: E402
-from shanuz.neighbors import _build_knn  # noqa: E402
-from shanuz.multimodal import (  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
+from truecell.neighbors import find_neighbors  # noqa: E402
+from truecell.clustering import find_clusters  # noqa: E402
+from truecell.neighbors import _build_knn  # noqa: E402
+from truecell.multimodal import (  # noqa: E402
     find_multi_modal_neighbors,
     _impute_dist,
     _l2_norm,
@@ -64,7 +64,7 @@ def _complementary_object(seed=0, per=40):
     rna_counts = rng.poisson(rna * 3000.0 / rna.sum(axis=0, keepdims=True))
     adt_counts = rng.poisson(adt * 1000.0 / adt.sum(axis=0, keepdims=True))
 
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rna_counts.astype(float)), assay="RNA",
         feature_names=[f"gene{i}" for i in range(Grna)], cell_names=cells,
     )

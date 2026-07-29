@@ -1,10 +1,10 @@
-site_name: shanuz
+site_name: truecell
 site_description: A Python port of Seurat's single-cell pipeline, verified against R Seurat test by test
-site_url: https://genomicai.github.io/shanuz/
-repo_url: https://github.com/GenomicAI/shanuz
-repo_name: GenomicAI/shanuz
+site_url: https://genomicai.github.io/truecell/
+repo_url: https://github.com/GenomicAI/truecell
+repo_name: GenomicAI/truecell
 edit_uri: edit/main/docs/
-copyright: MIT-licensed. Seurat is a trademark of its own authors; shanuz is an independent port.
+copyright: MIT-licensed. Seurat is a trademark of its own authors; truecell is an independent port.
 
 # The vignettes and their figures live in `tutorials/`, next to the scripts that
 # produce them, and `docs/tutorials` is a symlink there. That keeps one copy of
@@ -18,7 +18,7 @@ site_dir: site
 # from the package, so it has to be told about the source too — otherwise a
 # docstring edit shows no change until the server is restarted.
 watch:
-  - shanuz
+  - truecell
   - tools
 
 exclude_docs: |
@@ -64,7 +64,7 @@ theme:
   # ground, and it is the cream-ink file that goes there in both. It is the
   # simplified glyph rather than the pointillist mark because the header renders
   # it at about 24px, well under the 48px the dots need to hold together.
-  logo: assets/logo/shanuz-glyph-open.svg
+  logo: assets/logo/truecell-glyph-open.svg
   favicon: assets/logo/favicon.svg
   icon:
     repo: fontawesome/brands/github
@@ -163,7 +163,7 @@ plugins:
             docstring_section_style: list
             # Signatures rendered separately, with annotations, and every type
             # linked where it resolves. `matplotlib.figure.Figure`,
-            # `Neighbor` and `Shanuz` are all annotation-only imports guarded by
+            # `Neighbor` and `Truecell` are all annotation-only imports guarded by
             # `if TYPE_CHECKING:`; griffe reads them statically, so they render
             # here even though `typing.get_type_hints()` cannot resolve them at
             # runtime. See docs/fidelity.md.

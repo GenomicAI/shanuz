@@ -7,7 +7,7 @@ versions and platforms, so the fixtures regenerate identically without shipping
 data files and without needing R at test time. To refresh them, dump the arrays
 to text and feed them to the matching R function.
 
-Why this file exists: shanuz's SCT model was silently wrong. Its Poisson GLM was
+Why this file exists: truecell's SCT model was silently wrong. Its Poisson GLM was
 faithful (intercept and slope matched R at Spearman 1.0), but a moment estimator
 stood in for ``theta.ml``, the regularization was smoothed against the arithmetic
 rather than the geometric gene mean and targeted log(theta) rather than the
@@ -27,8 +27,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz.preprocessing import percentage_feature_set
-from shanuz.sctransform import (
+from truecell.preprocessing import percentage_feature_set
+from truecell.sctransform import (
     _bw_nrd,
     _bw_sj,
     _dispersion_par,
@@ -40,7 +40,7 @@ from shanuz.sctransform import (
     _theta_ml,
     sctransform,
 )
-from shanuz.shanuz import create_shanuz_object
+from truecell.truecell import create_truecell_object
 
 
 def _fixtures():
@@ -177,7 +177,7 @@ def test_dispersion_par_round_trips_through_theta():
 def test_dispersion_par_is_the_od_factor_not_log_theta():
     """Pins R's theta_regularization="od_factor" against the "log_theta" option.
 
-    shanuz used to smooth log10(theta). The two agree only in the limit where
+    truecell used to smooth log10(theta). The two agree only in the limit where
     gmean/theta dominates, so a fixture with a *low* gmean separates them — which
     is most genes in a real count matrix.
     """
@@ -192,7 +192,7 @@ def test_dispersion_par_is_monotone_decreasing_in_theta():
     """More overdispersion (smaller theta) => larger od factor.
 
     The property the smoother relies on; inverting it is what turned R's
-    Spearman +0.96 into shanuz's -0.89.
+    Spearman +0.96 into truecell's -0.89.
     """
     theta = np.array([0.01, 0.1, 1.0, 10.0, 100.0])
     disp = _dispersion_par(np.full(5, np.log10(0.5)), theta)
@@ -207,7 +207,7 @@ def test_dispersion_par_is_monotone_decreasing_in_theta():
 def test_row_gmean_matches_r():
     """sctransform's row_gmean. The regularization x-axis is log10 of *this*.
 
-    shanuz previously smoothed against the arithmetic mean, which on sparse
+    truecell previously smoothed against the arithmetic mean, which on sparse
     counts is a different quantity entirely (median log10 -1.59 vs -1.77 on
     PBMC 3k) and so put every gene in the wrong neighbourhood.
     """
@@ -268,7 +268,7 @@ def _object(n_cells=300, n_genes=60, seed=5):
     counts = rng.poisson(1.0, size=(n_genes, n_cells)).astype(float)
     counts[0, :] = 0.0
     counts[0, :10] = 3000.0          # a rare, bright marker
-    return create_shanuz_object(
+    return create_truecell_object(
         counts=sp.csr_matrix(counts), assay="RNA", min_cells=0, min_features=0,
         project="spike", feature_names=[f"g{i}" for i in range(n_genes)],
         cell_names=[f"c{i}" for i in range(n_cells)],
@@ -289,7 +289,7 @@ def test_residual_variance_ignores_the_scale_data_clip(flavor):
     much tighter sqrt(N/30) (or a caller's clip_range). So residual variance must
     be *invariant* to clip_range.
 
-    shanuz previously fed clip_range into both, capping residual variance at 8.05
+    truecell previously fed clip_range into both, capping residual variance at 8.05
     on PBMC 3k where R reached 71.75 and leaving the ranking uncorrelated with
     R's (Spearman -0.07). Under that code this test fails: res_var tracks the
     clip. Asserting invariance pins the two clips apart without depending on any
@@ -339,7 +339,7 @@ def test_v2_marks_non_overdispersed_genes_poisson():
     counts[1] = rng.negative_binomial(0.3, 0.3 / (0.3 + 5.0), n_cells)
 
     def build():
-        return create_shanuz_object(
+        return create_truecell_object(
             counts=sp.csr_matrix(counts), assay="RNA", min_cells=0, min_features=0,
             project="p", feature_names=[f"g{i}" for i in range(40)],
             cell_names=[f"c{i}" for i in range(n_cells)])
@@ -379,7 +379,7 @@ def test_vars_to_regress_still_removes_the_covariate():
     n_cells, n_genes = 200, 40
     depth = rng.uniform(0.5, 2.0, n_cells)
     counts = rng.poisson(2.0 * depth[None, :], size=(n_genes, n_cells)).astype(float)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csr_matrix(counts), assay="RNA", min_cells=0, min_features=0,
         project="p", feature_names=[f"g{i}" for i in range(n_genes)],
         cell_names=[f"c{i}" for i in range(n_cells)])
@@ -403,7 +403,7 @@ def test_model_table_carries_seurats_feature_attribute_columns():
 
     These are what `obj[["SCT"]]@SCTModel.list[[1]]@feature.attributes` holds,
     and the tutorial's `--report` pass reads them straight across. Before this,
-    shanuz stored only three of them, so the fitted intercept and slope — the
+    truecell stored only three of them, so the fitted intercept and slope — the
     model itself — could not be inspected or compared at all.
     """
     obj = _object()
@@ -468,7 +468,7 @@ def test_reported_residual_moments_match_residuals_rebuilt_from_the_model():
     counts[0, :10] = 3000.0        # a rare, bright marker, as in _object()
     counts[1, :] = rng.poisson(1.0, size=n_cells)
     counts[1, 0] = 400.0           # one spike the depth model cannot explain
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csr_matrix(counts), assay="RNA", min_cells=0, min_features=0,
         project="spike", feature_names=[f"g{i}" for i in range(n_genes)],
         cell_names=[f"c{i}" for i in range(n_cells)],

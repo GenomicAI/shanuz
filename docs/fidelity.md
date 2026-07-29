@@ -1,6 +1,6 @@
 # Fidelity
 
-A port is only worth as much as its evidence. This page is how `shanuz` is
+A port is only worth as much as its evidence. This page is how `truecell` is
 checked against R Seurat, what the checking has found, and where the two tools
 genuinely disagree.
 
@@ -59,7 +59,7 @@ the defects its own comparison found:
 | [Dim-reduction extras](tutorials/dimreduc_vignette.md) | **2** — a too-tight JackStraw null, and the wrong aggregation test |
 | [Leverage sketching](tutorials/sketch_vignette.md) | **2** — full-rank leverage, anchor-based label transfer |
 | [The DE test suite](tutorials/de_vignette.md) | **2** — Seurat's pseudocount applied to the group mean instead of the sum, which also changed *which genes* `logfc_threshold` returned |
-| [Visium](tutorials/visium_vignette.md) | **1 in shanuz, and 1 in Seurat** — the first tutorial where R is the one that's wrong |
+| [Visium](tutorials/visium_vignette.md) | **1 in truecell, and 1 in Seurat** — the first tutorial where R is the one that's wrong |
 
 Two lessons worth stating outright, because both cost real time:
 
@@ -77,10 +77,10 @@ flatters the port, that is a reason to look harder, not to keep it.
 Real, understood, and not going away:
 
 **Louvain cluster counts drift by one.** Both tools run the same algorithm at the
-same resolution and land on different local optima. On PBMC 3k, shanuz finds 8
+same resolution and land on different local optima. On PBMC 3k, truecell finds 8
 clusters to Seurat's 9 at ARI 0.938. On ifnb RPCA, Seurat's deeper modularity
 search buys 0.17 % modularity by splitting CD14 Mono along the batch — and
-shanuz's coarser partition then scores **ARI 0.92 against the annotations to
+truecell's coarser partition then scores **ARI 0.92 against the annotations to
 Seurat's 0.74**. The coarser answer is the better one there.
 
 **Variable-feature selection jitters at the boundary.** 1,998 of 2,000 genes
@@ -123,7 +123,7 @@ non-zero outside one. Two rules make them worth having:
 
 | Band | Range | Why it is where it is |
 |---|---|---|
-| JackStraw PC cutoff | \|shanuz − R\| ≤ 2 | R's `JackRandom` seeds each replicate from its loop index, so R is deterministic at 13. shanuz seeds from its `seed` argument and keeps 12/13/14/15 for 2/28/11/19 of 60 seeds — mode 13, which is R's answer. |
+| JackStraw PC cutoff | \|truecell − R\| ≤ 2 | R's `JackRandom` seeds each replicate from its loop index, so R is deterministic at 13. truecell seeds from its `seed` argument and keeps 12/13/14/15 for 2/28/11/19 of 60 seeds — mode 13, which is R's answer. |
 | `deseq2` top-50 overlap | 15–32 | Measured 20–26 over 20 replicate splits, median 22. A **divergence** measurement, not a parity target, and the *upper* bound is the load-bearing half: reaching 50 would mean `sample_col` had stopped being honoured and the pseudobulk aggregation was no longer happening. |
 | The other seven DE tests | exactly 50 | Two different cluster assignments both gave 50 of 50. One dropped gene is a regression. |
 | `roc` max ∆AUC | ≤ 5e-4 | Half a unit in Seurat's third decimal. Measured 4.9986e-4 — bands are inclusive by design, and this one sits on its boundary. |
@@ -163,7 +163,7 @@ runtime. All are guarded by `if TYPE_CHECKING:`, and all are deliberate:
   an optional dependency;
 - `Neighbor` in `graph.py`, because `Graph` and `Neighbor` convert into each
   other and a module-scope import would be a genuine cycle;
-- `Shanuz` in `compat/anndata.py`, for the same reason.
+- `Truecell` in `compat/anndata.py`, for the same reason.
 
 **`typing.get_type_hints()` raises `NameError` on all 19 of them**, and that was
 recorded as a blocker for this documentation site. It turned out not to be one.
@@ -175,8 +175,8 @@ question that nothing here needs an answer to.
 ## Reproducing any of it
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz && uv venv && uv pip install -e ".[all]"
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell && uv venv && uv pip install -e ".[all]"
 
 python tutorials/pbmc3k_de_tutorial.py
 Rscript tutorials/pbmc3k_de_verify.R
@@ -184,5 +184,5 @@ python tutorials/pbmc3k_de_tutorial.py --report
 ```
 
 Every vignette's header names the datasets it needs and the R packages beyond
-Seurat. Data downloads on first run to `~/.shanuz_data/`; the full set is about
+Seurat. Data downloads on first run to `~/.truecell_data/`; the full set is about
 770 MB.

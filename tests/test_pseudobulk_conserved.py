@@ -3,8 +3,8 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from shanuz import aggregate_expression, find_conserved_markers, find_markers
-from shanuz.preprocessing import normalize_data
+from truecell import aggregate_expression, find_conserved_markers, find_markers
+from truecell.preprocessing import normalize_data
 
 
 # ---------------------------------------------------------------------------

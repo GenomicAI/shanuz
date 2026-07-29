@@ -10,24 +10,24 @@ sampled away — analyses that, then extends the result back to every cell.
 **`LazyMatrix`** is the on-disk path, memory-mapped compressed-sparse-column
 arrays in BPCells' spirit but with no new dependency. A slice reads only the
 cells it touches, `col_blocks` streams a million cells at bounded RAM, and it
-drops straight into an `Assay5` layer. Against BPCells on PBMC 3k, shanuz's
+drops straight into an `Assay5` layer. Against BPCells on PBMC 3k, truecell's
 on-disk and in-memory paths are bit-identical to each other; Seurat's differ by
 1.0e-06. [The comparison](../tutorials/lazy_vignette.md).
 
 ## Sketching
 
-::: shanuz.sketch.leverage_score
+::: truecell.sketch.leverage_score
 
-::: shanuz.sketch.sketch_data
+::: truecell.sketch.sketch_data
 
-::: shanuz.sketch.project_data
+::: truecell.sketch.project_data
 
 ## Out-of-core matrices
 
-::: shanuz.lazy.LazyMatrix
+::: truecell.lazy.LazyMatrix
 
-::: shanuz.lazy.write_lazy_matrix
+::: truecell.lazy.write_lazy_matrix
 
-::: shanuz.lazy.open_lazy_matrix
+::: truecell.lazy.open_lazy_matrix
 
-::: shanuz.lazy.is_lazy
+::: truecell.lazy.is_lazy

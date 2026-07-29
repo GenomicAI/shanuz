@@ -1,0 +1,682 @@
+from __future__ import annotations
+
+import warnings
+from typing import Any, Optional, Union, cast
+
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+from packaging.version import Version
+
+from .assay import Assay, create_assay_object
+from .assay5 import Assay5, create_assay5_object
+from .command import TruecellCommand
+from .dimreduc import DimReduc
+from .graph import Graph
+from .neighbor import Neighbor
+from .spatial.fov import FOV
+
+_VERSION = Version("5.4.0")
+
+AnyAssay = Union[Assay, Assay5]
+
+
+class Truecell:
+    """Top-level Truecell single-cell data object.
+
+    Mirrors R's Seurat class from seurat.R.
+
+    Slots
+    -----
+    - ``assays`` (dict[str, AnyAssay])
+    - ``meta_data`` (pd.DataFrame) — cells × metadata columns
+    - ``active_assay`` (str)
+    - ``active_ident`` (pd.Categorical)
+    - ``graphs`` (dict[str, Graph])
+    - ``neighbors`` (dict[str, Neighbor])
+    - ``reductions`` (dict[str, DimReduc])
+    - ``images`` (dict[str, FOV])
+    - ``project_name`` (str)
+    - ``misc`` (dict)
+    - ``version`` (packaging.version.Version)
+    - ``commands`` (list[TruecellCommand])
+    - ``tools`` (dict)
+    """
+
+    __slots__ = (
+        "assays",
+        "meta_data",
+        "active_assay",
+        "_active_ident",
+        "graphs",
+        "neighbors",
+        "reductions",
+        "images",
+        "project_name",
+        "misc",
+        "version",
+        "commands",
+        "tools",
+    )
+
+    def __init__(
+        self,
+        assays: dict[str, AnyAssay],
+        meta_data: pd.DataFrame,
+        active_assay: str,
+        active_ident: Optional[pd.Categorical] = None,
+        graphs: Optional[dict[str, Graph]] = None,
+        neighbors: Optional[dict[str, Neighbor]] = None,
+        reductions: Optional[dict[str, DimReduc]] = None,
+        images: Optional[dict[str, FOV]] = None,
+        project_name: str = "SeuratProject",
+        misc: Optional[dict] = None,
+        version: Optional[Version] = None,
+        commands: Optional[list[TruecellCommand]] = None,
+        tools: Optional[dict] = None,
+    ) -> None:
+        self.assays = assays
+        self.meta_data = meta_data
+        self.active_assay = active_assay
+        self._active_ident = active_ident if active_ident is not None else pd.Categorical(
+            meta_data.index.tolist()
+        )
+        self.graphs = graphs or {}
+        self.neighbors = neighbors or {}
+        self.reductions = reductions or {}
+        self.images = images or {}
+        self.project_name = project_name
+        self.misc = misc or {}
+        self.version = version or _VERSION
+        self.commands = commands or []
+        self.tools = tools or {}
+
+    # ------------------------------------------------------------------
+    # Cell / feature names
+    # ------------------------------------------------------------------
+
+    def cell_names(self) -> list[str]:
+        return list(self.meta_data.index)
+
+    def feature_names(self, assay: Optional[str] = None) -> list[str]:
+        a = self.assays.get(assay or self.active_assay)
+        if a is None:
+            return []
+        return a.features()
+
+    # ------------------------------------------------------------------
+    # Spatial images
+    # ------------------------------------------------------------------
+
+    def image_names(self) -> list[str]:
+        """Names of the spatial images/FOVs (mirrors ``Images()``)."""
+        return list(self.images)
+
+    def get_tissue_coordinates(self, image: Optional[str] = None) -> pd.DataFrame:
+        """Centroid coordinates across images (mirrors ``GetTissueCoordinates``).
+
+        Returns a DataFrame with columns ``x, y, cell, image``.
+        """
+        from .spatial.analysis import get_tissue_coordinates as _gtc
+        return _gtc(self, image)
+
+    # ------------------------------------------------------------------
+    # Idents
+    # ------------------------------------------------------------------
+
+    @property
+    def idents(self) -> pd.Categorical:
+        return self._active_ident
+
+    @idents.setter
+    def idents(self, value) -> None:
+        cells = self.cell_names()
+        if isinstance(value, pd.Categorical):
+            if len(value) != len(cells):
+                raise ValueError("Idents length must match number of cells.")
+            self._active_ident = value
+        elif isinstance(value, (list, np.ndarray, pd.Series)):
+            self._active_ident = pd.Categorical(value)
+        elif isinstance(value, dict):
+            current = list(self._active_ident)
+            for cell, new_id in value.items():
+                if cell in cells:
+                    idx = cells.index(cell)
+                    current[idx] = new_id
+            self._active_ident = pd.Categorical(current)
+        else:
+            raise TypeError(f"Cannot assign idents from {type(value).__name__}.")
+
+    def set_ident(self, cells: list[str], ident: str) -> None:
+        current = list(self._active_ident)
+        all_cells = self.cell_names()
+        for c in cells:
+            idx = all_cells.index(c)
+            current[idx] = ident
+        self._active_ident = pd.Categorical(current)
+
+    def stash_ident(self, save_name: str) -> "Truecell":
+        self.meta_data[save_name] = list(self._active_ident)
+        return self
+
+    def rename_idents(self, mapping: dict[str, str]) -> "Truecell":
+        new_idents = [mapping.get(str(x), str(x)) for x in self._active_ident]
+        self._active_ident = pd.Categorical(new_idents)
+        return self
+
+    def reorder_ident(self, ident: str, order: list[str]) -> "Truecell":
+        self._active_ident = pd.Categorical(list(self._active_ident), categories=order)
+        return self
+
+    # ------------------------------------------------------------------
+    # Active assay
+    # ------------------------------------------------------------------
+
+    @property
+    def default_assay(self) -> str:
+        return self.active_assay
+
+    @default_assay.setter
+    def default_assay(self, value: str) -> None:
+        if value not in self.assays:
+            raise KeyError(f"Assay '{value}' not found.")
+        self.active_assay = value
+
+    def assay_names(self) -> list[str]:
+        return list(self.assays)
+
+    def get_assay(self, assay: Optional[str] = None) -> AnyAssay:
+        return self.assays[assay or self.active_assay]
+
+    # ------------------------------------------------------------------
+    # Reductions
+    # ------------------------------------------------------------------
+
+    def reduction_names(self) -> list[str]:
+        return list(self.reductions)
+
+    def embeddings(
+        self,
+        reduction: str,
+        dims: Optional[list[int]] = None,
+    ) -> np.ndarray:
+        dr = self.reductions.get(reduction)
+        if dr is None:
+            raise KeyError(f"Reduction '{reduction}' not found.")
+        emb = dr.cell_embeddings
+        if dims is not None:
+            emb = emb[:, dims]
+        return emb
+
+    # ------------------------------------------------------------------
+    # Metadata
+    # ------------------------------------------------------------------
+
+    def add_meta_data(
+        self,
+        metadata: Union[pd.DataFrame, pd.Series, dict],
+        col_name: Optional[str] = None,
+    ) -> "Truecell":
+        if isinstance(metadata, pd.Series):
+            if col_name is None:
+                col_name = metadata.name or "metadata"
+            self.meta_data[col_name] = metadata.reindex(self.meta_data.index)
+        elif isinstance(metadata, dict):
+            if col_name is None:
+                col_name = "metadata"
+            self.meta_data[col_name] = pd.Series(metadata).reindex(self.meta_data.index)
+        elif isinstance(metadata, pd.DataFrame):
+            for col in metadata.columns:
+                self.meta_data[col] = metadata[col].reindex(self.meta_data.index)
+        elif isinstance(metadata, (np.ndarray, list, tuple, pd.Index)):
+            # R's `AddMetaData` documents "a vector, list, or data.frame", and a
+            # bare vector with `col.name` is how the vignettes use it. Positional
+            # by construction — there are no names to align on — so it has to be
+            # one entry per cell, in the object's cell order.
+            values = np.asarray(metadata).ravel()
+            if len(values) != len(self.meta_data.index):
+                raise ValueError(
+                    f"Metadata vector has {len(values)} entries but the object "
+                    f"has {len(self.meta_data.index)} cells."
+                )
+            if col_name is None:
+                raise ValueError(
+                    "col_name is required when adding metadata from a vector."
+                )
+            self.meta_data[col_name] = pd.Series(values, index=self.meta_data.index)
+        else:
+            raise TypeError(f"Cannot add metadata from {type(metadata).__name__}.")
+        return self
+
+    # ------------------------------------------------------------------
+    # FetchData — mirrors R FetchData()
+    # ------------------------------------------------------------------
+
+    def fetch_data(
+        self,
+        vars: list[str],
+        cells: Optional[list[str]] = None,
+        layer: Optional[str] = None,
+    ) -> pd.DataFrame:
+        cells = cells or self.cell_names()
+        result = {}
+
+        assay = self.get_assay()
+        all_features = set(assay.features())
+
+        for v in vars:
+            if v in self.meta_data.columns:
+                result[v] = self.meta_data.loc[cells, v]
+            elif v in all_features:
+                mat = assay.layer_data(layer=layer or self._fetch_layer(assay),
+                                       features=[v], cells=cells)
+                # `np.asarray` on a sparse matrix yields a 0-d *object* array
+                # wrapping it rather than its contents, so the values have to be
+                # taken out explicitly. Getting this wrong is silent: the frame
+                # still has the right column name and row count, and every row
+                # holds a copy of the whole matrix.
+                if sp.issparse(mat):
+                    mat = mat.toarray()
+                result[v] = np.asarray(mat).ravel()
+            elif v in self.reductions:
+                # Columns are named by the reduction's Key, as R's `Embeddings`
+                # names them — `PC_1`, not `pca_1`. That is what `Key()` is for,
+                # and it is how the same columns are addressed one branch down.
+                dr = self.reductions[v]
+                emb = dr.cell_embeddings
+                cell_idx = self._cell_indices(cells)
+                key = getattr(dr, "key", None) or f"{v}_"
+                for d in range(emb.shape[1]):
+                    result[f"{key}{d + 1}"] = emb[cell_idx, d]
+            elif (found := self._reduction_column(v)) is not None:
+                dr, dim = found
+                result[v] = dr.cell_embeddings[self._cell_indices(cells), dim]
+            else:
+                raise KeyError(f"Variable '{v}' not found in metadata, features, or reductions.")
+
+        return pd.DataFrame(result, index=cells)
+
+    @staticmethod
+    def _fetch_layer(assay) -> str:
+        """Which layer an unqualified ``fetch_data`` should read.
+
+        ``data`` — normalized expression — which is what R's ``FetchData``
+        defaults to and what every vignette's output shows. Leaving this to the
+        layered assay's own default instead picked whichever layer happened to
+        be first, i.e. ``counts``, so a fetched gene came back as raw integers
+        and nothing said so.
+
+        When there is no ``data`` layer, R falls back to ``counts`` and warns.
+        The warning is the point: the fallback is easy to miss otherwise.
+        """
+        available = assay.layers_list() if hasattr(assay, "layers_list") else ["data"]
+        if "data" in available:
+            return "data"
+        if "counts" in available:
+            warnings.warn(
+                "data layer is not found and counts layer is used",
+                UserWarning, stacklevel=3,
+            )
+            return "counts"
+        return "data"
+
+    def _cell_indices(self, cells: list[str]) -> list[int]:
+        """Positions of ``cells`` in the object's cell vector."""
+        position = {c: i for i, c in enumerate(self.cell_names())}
+        return [position[c] for c in cells]
+
+    def _reduction_column(self, name: str):
+        """Resolve a single embedding column such as ``PC_1`` to (reduction, dim).
+
+        Seurat addresses embeddings by the reduction's ``Key`` plus a 1-based
+        dimension, which is how every vignette asks for one: ``FetchData(obj,
+        "PC_1")``. Returns ``None`` if the name does not resolve.
+        """
+        for dr in self.reductions.values():
+            key = getattr(dr, "key", None)
+            if not key or not name.startswith(key):
+                continue
+            suffix = name[len(key):]
+            if not suffix.isdigit():
+                continue
+            dim = int(suffix) - 1
+            if 0 <= dim < dr.cell_embeddings.shape[1]:
+                return dr, dim
+        return None
+
+    # ------------------------------------------------------------------
+    # WhichCells
+    # ------------------------------------------------------------------
+
+    def which_cells(
+        self,
+        ident: Optional[Union[str, list[str]]] = None,
+        cells: Optional[list[str]] = None,
+    ) -> list[str]:
+        all_cells = self.cell_names()
+        result = cells or all_cells
+
+        if ident is not None:
+            ident_set = {ident} if isinstance(ident, str) else set(ident)
+            ident_series = pd.Series(list(self._active_ident), index=all_cells)
+            result = [c for c in result if str(ident_series.get(c, "")) in ident_set]
+
+        return result
+
+    # ------------------------------------------------------------------
+    # Rename cells
+    # ------------------------------------------------------------------
+
+    def rename_cells(self, new_names: list[str]) -> "Truecell":
+        old_names = self.cell_names()
+        if len(new_names) != len(old_names):
+            raise ValueError("new_names must match number of cells.")
+
+        new_meta = self.meta_data.copy()
+        new_meta.index = new_names
+
+        new_assays = {
+            name: a.rename_cells(new_names) for name, a in self.assays.items()
+        }
+        new_graphs = {
+            name: Graph(g._matrix, new_names, g.assay_used)
+            for name, g in self.graphs.items()
+        }
+        new_neighbors = {
+            name: n.rename_cells(new_names=new_names)
+            for name, n in self.neighbors.items()
+        }
+        new_reductions = {
+            name: r.rename_cells(new_names)
+            for name, r in self.reductions.items()
+        }
+        new_ident = pd.Categorical(list(self._active_ident))
+
+        return Truecell(
+            assays=new_assays,
+            meta_data=new_meta,
+            active_assay=self.active_assay,
+            active_ident=new_ident,
+            graphs=new_graphs,
+            neighbors=new_neighbors,
+            reductions=new_reductions,
+            images=self.images,
+            project_name=self.project_name,
+            misc=dict(self.misc),
+            version=self.version,
+            commands=list(self.commands),
+            tools=dict(self.tools),
+        )
+
+    # ------------------------------------------------------------------
+    # Subset
+    # ------------------------------------------------------------------
+
+    def subset(
+        self,
+        cells: Optional[list[str]] = None,
+        features: Optional[list[str]] = None,
+        idents: Optional[Union[str, list[str]]] = None,
+    ) -> "Truecell":
+        if idents is not None:
+            cells = self.which_cells(ident=idents, cells=cells)
+        if cells is None:
+            cells = self.cell_names()
+
+        cell_set = set(cells)
+        new_meta = self.meta_data.loc[cells].copy()
+        new_assays = {name: a.subset(cells=cells, features=features) for name, a in self.assays.items()}
+        new_ident_vals = [
+            str(i) for c, i in zip(self.cell_names(), self._active_ident) if c in cell_set
+        ]
+        new_ident = pd.Categorical(new_ident_vals)
+        new_reductions = {name: r.subset(cells=cells) for name, r in self.reductions.items()}
+        new_images = {name: img.subset(cells) for name, img in self.images.items()}
+
+        # Subset each cell×cell graph to the retained cells. Mirrors Seurat,
+        # which subsets graphs rather than carrying the full-size matrix.
+        new_graphs = {name: g.subset(cells) for name, g in self.graphs.items()}
+        # Neighbor objects store integer KNN indices into the original cell
+        # ordering; those indices are invalidated by subsetting, so (as Seurat
+        # does) drop them — re-run find_neighbors() on the subset.
+        new_neighbors: dict[str, Neighbor] = {}
+
+        return Truecell(
+            assays=new_assays,
+            meta_data=new_meta,
+            active_assay=self.active_assay,
+            active_ident=new_ident,
+            graphs=new_graphs,
+            neighbors=new_neighbors,
+            reductions=new_reductions,
+            images=new_images,
+            project_name=self.project_name,
+            misc=dict(self.misc),
+            version=self.version,
+            commands=list(self.commands),
+            tools=dict(self.tools),
+        )
+
+    # ------------------------------------------------------------------
+    # Merge
+    # ------------------------------------------------------------------
+
+    def merge(
+        self,
+        y: Union["Truecell", list["Truecell"]],
+        add_cell_ids: Optional[list[str]] = None,
+        project: Optional[str] = None,
+    ) -> "Truecell":
+        others = [y] if isinstance(y, Truecell) else y
+        all_objects = [self] + others
+
+        if add_cell_ids is not None and len(add_cell_ids) != len(all_objects):
+            raise ValueError("add_cell_ids must have one entry per Truecell object.")
+
+        # Merge cell names
+        new_cell_names = []
+        for idx, obj in enumerate(all_objects):
+            prefix = add_cell_ids[idx] if add_cell_ids else None
+            for c in obj.cell_names():
+                new_cell_names.append(f"{prefix}_{c}" if prefix else c)
+
+        # Merge metadata
+        meta_frames = []
+        for idx, obj in enumerate(all_objects):
+            meta = obj.meta_data.copy()
+            if add_cell_ids:
+                meta.index = [f"{add_cell_ids[idx]}_{c}" for c in meta.index]
+            meta_frames.append(meta)
+        new_meta = pd.concat(meta_frames, axis=0, join="outer")
+
+        # Merge assays (only shared assay names)
+        shared_assay_names = set(all_objects[0].assays)
+        for obj in all_objects[1:]:
+            shared_assay_names &= set(obj.assays)
+
+        new_assays: dict[str, AnyAssay] = {}
+        for aname in shared_assay_names:
+            base = all_objects[0].assays[aname]
+            rest = [obj.assays[aname] for obj in all_objects[1:]]
+            # A v3 Assay and a v5 Assay5 keep their cells in different slots
+            # (`_cell_names` vs `_all_cell_names`), so merging across the two
+            # reaches for a slot the other does not have and dies partway
+            # through with a bare AttributeError naming a private attribute.
+            # Refuse it here, where the assay and both classes can be named.
+            wrong = {type(a).__name__ for a in rest} - {type(base).__name__}
+            if wrong:
+                raise TypeError(
+                    f"cannot merge assay {aname!r}: it is a "
+                    f"{type(base).__name__} in the first object and a "
+                    f"{'/'.join(sorted(wrong))} in another. The two assay "
+                    f"classes store cells differently and cannot be combined. "
+                    f"Rebuild one side so both match — the `use_v5=` argument "
+                    f"to `create_truecell_object` chooses the class."
+                )
+            # `rest` is now all `type(base)`, which only the check above makes
+            # true. mypy cannot carry that fact through a list, and filtering
+            # the list to prove it would read as a silent drop.
+            new_assays[aname] = base.merge(
+                cast(Any, rest), add_cell_ids=add_cell_ids
+            )
+
+        # Merged ident
+        ident_vals = []
+        for obj in all_objects:
+            ident_vals.extend([str(i) for i in obj._active_ident])
+        new_ident = pd.Categorical(ident_vals)
+
+        return Truecell(
+            assays=new_assays,
+            meta_data=new_meta,
+            active_assay=self.active_assay,
+            active_ident=new_ident,
+            project_name=project or self.project_name,
+            version=self.version,
+        )
+
+    # ------------------------------------------------------------------
+    # Tool storage (mirrors R Tool() / Tool<-())
+    # ------------------------------------------------------------------
+
+    def tool(self, key: str) -> object:
+        return self.tools.get(key)
+
+    def set_tool(self, key: str, value: object) -> None:
+        self.tools[key] = value
+
+    # ------------------------------------------------------------------
+    # Operators
+    # ------------------------------------------------------------------
+
+    def __getitem__(self, key):
+        if isinstance(key, tuple) and len(key) == 2:
+            cells, features = key
+        else:
+            cells, features = key, None
+        cells = list(cells) if not isinstance(cells, (list, type(None))) else cells
+        features = list(features) if not isinstance(features, (list, type(None))) else features
+        return self.subset(cells=cells, features=features)
+
+    def __getattr__(self, name: str):
+        # Mirrors R $ accessor — check metadata columns
+        if name.startswith("_"):
+            raise AttributeError(name)
+        try:
+            meta = object.__getattribute__(self, "meta_data")
+            if name in meta.columns:
+                return meta[name]
+        except AttributeError:
+            pass
+        raise AttributeError(f"'Truecell' object has no attribute '{name}'.")
+
+    def __repr__(self) -> str:
+        n_cells = len(self.meta_data)
+        assay = self.assays.get(self.active_assay)
+        n_feat = len(assay.features()) if assay is not None else 0
+        reds = list(self.reductions)
+        return (
+            f"Truecell object — {self.project_name}\n"
+            f"  {n_cells} cells × {n_feat} features\n"
+            f"  Active assay: {self.active_assay!r}\n"
+            f"  Reductions: {reds}\n"
+            f"  Version: {self.version}"
+        )
+
+    def __len__(self) -> int:
+        return len(self.meta_data)
+
+
+# ------------------------------------------------------------------
+# Factory
+# ------------------------------------------------------------------
+
+def create_truecell_object(
+    counts,
+    assay: str = "RNA",
+    min_cells: int = 0,
+    min_features: int = 0,
+    project: str = "SeuratProject",
+    feature_names: Optional[list[str]] = None,
+    cell_names: Optional[list[str]] = None,
+    meta_data: Optional[pd.DataFrame] = None,
+    use_v5: bool = True,
+) -> Truecell:
+    """Create a Truecell object from a counts matrix.
+
+    Mirrors R's CreateSeuratObject().
+
+    Parameters
+    ----------
+    counts       : sparse or dense matrix (features × cells)
+    assay        : assay name (default "RNA")
+    min_cells    : min cells a feature must be detected in to be kept
+    min_features : min features a cell must have to be kept
+    project      : project name
+    feature_names: optional list of feature (gene) names
+    cell_names   : optional list of cell barcodes
+    meta_data    : optional per-cell metadata DataFrame
+    use_v5       : if True, create Assay5 (v5); else Assay (v3)
+    """
+    key = f"{assay.lower()}_"
+
+    # Each branch keeps its own narrowly-typed name and widens once, at the
+    # end: the two classes hold their cells in differently-named slots, so a
+    # single `assay_obj` reused across both branches has no type under which
+    # both reads are valid.
+    assay_obj: AnyAssay
+    if use_v5:
+        v5 = create_assay5_object(
+            counts=counts,
+            min_cells=min_cells,
+            min_features=min_features,
+            feature_names=feature_names,
+            cell_names=cell_names,
+            key=key,
+        )
+        cells = v5._all_cell_names
+        assay_obj = v5
+    else:
+        v3 = create_assay_object(
+            counts=counts,
+            min_cells=min_cells,
+            min_features=min_features,
+            feature_names=feature_names,
+            cell_names=cell_names,
+            key=key,
+        )
+        cells = v3._cell_names
+        assay_obj = v3
+
+    # Build metadata. Both assay classes define `calc_n`, so the
+    # `hasattr(assay_obj, "calc_n")` fallback that used to stand here was
+    # unreachable — a second implementation of the same naming that nothing
+    # exercised, deriving the suffix from the assay's *key* rather than from
+    # the `assay` argument, and hardcoding `nCount_RNA` when the assay had no
+    # default layer. The two agree for an ordinary RNA object, which is why
+    # neither the tests nor the type checker had reason to look at it.
+    raw_meta = assay_obj.calc_n()
+    base_meta = raw_meta.rename(columns={"nCount": f"nCount_{assay}", "nFeature": f"nFeature_{assay}"})
+    # `orig.ident` is the first column of every Seurat object's metadata and the
+    # default identity class; scripts group and split on it. Seeded with the
+    # project name, as `CreateSeuratObject` does.
+    base_meta.insert(0, "orig.ident",
+                     pd.Categorical([project] * len(cells), categories=[project]))
+
+    if meta_data is not None:
+        # Align user-supplied metadata to filtered cells
+        supplied = meta_data.reindex(cells)
+        for col in supplied.columns:
+            base_meta[col] = supplied[col].values
+
+    active_ident = pd.Categorical([project] * len(cells), categories=[project])
+
+    obj = Truecell(
+        assays={assay: assay_obj},
+        meta_data=base_meta,
+        active_assay=assay,
+        active_ident=active_ident,
+        project_name=project,
+    )
+    return obj
+

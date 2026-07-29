@@ -15,15 +15,15 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import (  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import (  # noqa: E402
     normalize_data,
     find_variable_features,
     scale_data,
 )
-from shanuz.reduction import run_pca, run_ica, run_tsne  # noqa: E402
-from shanuz.neighbors import find_neighbors  # noqa: E402
-from shanuz.umap import run_umap  # noqa: E402
+from truecell.reduction import run_pca, run_ica, run_tsne  # noqa: E402
+from truecell.neighbors import find_neighbors  # noqa: E402
+from truecell.umap import run_umap  # noqa: E402
 
 pytest.importorskip("sklearn")
 pytest.importorskip("umap")
@@ -39,7 +39,7 @@ def _clustered_object(seed=0, per=30):
         k = ci // per
         mat[k * 40:(k + 1) * 40, ci] += 6.0   # cluster-specific gene block
         cells.append(f"c{ci}")
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rng.poisson(mat * 3000.0 / mat.sum(axis=0, keepdims=True)).astype(float)),
         assay="RNA", feature_names=[f"g{i}" for i in range(G)], cell_names=cells,
     )

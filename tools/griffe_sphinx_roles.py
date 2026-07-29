@@ -94,15 +94,15 @@ def _reflow_parameters(text: str) -> str:
 def _render_targets() -> dict[str, str]:
     """Map every name a docstring might use to the anchor this site publishes.
 
-    The anchors mkdocstrings emits are canonical paths — `shanuz.reduction.run_pca`,
-    not `shanuz.run_pca` — because that is what the `:::` directives on the API
+    The anchors mkdocstrings emits are canonical paths — `truecell.reduction.run_pca`,
+    not `truecell.run_pca` — because that is what the `:::` directives on the API
     pages name. So the index is built from the canonical path of each public
     export and of each public method on the exported classes, and a bare name
     resolves only when exactly one object answers to it.
     """
     import inspect
 
-    import shanuz
+    import truecell
 
     canonical: dict[str, str] = {}
     ambiguous: set[str] = set()
@@ -112,15 +112,15 @@ def _render_targets() -> dict[str, str]:
             ambiguous.add(alias)
         canonical.setdefault(alias, path)
 
-    for name in shanuz.__all__:
-        obj = getattr(shanuz, name, None)
+    for name in truecell.__all__:
+        obj = getattr(truecell, name, None)
         module = getattr(obj, "__module__", None)
-        if obj is None or not module or not module.startswith("shanuz"):
+        if obj is None or not module or not module.startswith("truecell"):
             continue
         path = f"{module}.{name}"
         offer(name, path)
         offer(path, path)
-        offer(f"shanuz.{name}", path)
+        offer(f"truecell.{name}", path)
         if inspect.isclass(obj):
             for attr, member in vars(obj).items():
                 if attr.startswith("_") or not callable(member):
@@ -141,7 +141,7 @@ class SphinxRolesExtension(Extension):
 
     @property
     def targets(self) -> dict[str, str]:
-        # Built on first use, not in __init__: importing shanuz while griffe is
+        # Built on first use, not in __init__: importing truecell while griffe is
         # still loading modules is a cycle waiting to happen.
         if self._targets is None:
             self._targets = _render_targets()

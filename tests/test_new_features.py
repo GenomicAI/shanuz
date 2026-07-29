@@ -17,12 +17,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
-from shanuz.preprocessing import normalize_data  # noqa: E402
-from shanuz.markers import find_markers  # noqa: E402
-from shanuz.module_score import add_module_score, cell_cycle_scoring, CC_GENES  # noqa: E402
-from shanuz.sctransform import sctransform  # noqa: E402
-from shanuz.reduction import run_pca  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
+from truecell.preprocessing import normalize_data  # noqa: E402
+from truecell.markers import find_markers  # noqa: E402
+from truecell.module_score import add_module_score, cell_cycle_scoring, CC_GENES  # noqa: E402
+from truecell.sctransform import sctransform  # noqa: E402
+from truecell.reduction import run_pca  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ def test_sctransform_creates_sct_assay_and_stabilizes_variance():
     base = rng.gamma(0.3, size=(G, 1))
     counts = rng.poisson(base * depth[None, :] / depth.mean()).astype(float)
     counts[:10, :200] += rng.poisson(8, size=(10, 200))  # structured genes
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)],
         cell_names=[f"c{i}" for i in range(N)],
@@ -75,7 +75,7 @@ def test_sctransform_vars_to_regress_removes_covariate_effect():
     base = rng.gamma(0.3, size=(G, 1))
     counts = rng.poisson(base * depth[None, :] / depth.mean()).astype(float)
     counts[:10, :150] += rng.poisson(8, size=(10, 150))
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)],
         cell_names=[f"c{i}" for i in range(N)],
@@ -96,7 +96,7 @@ def test_sctransform_vars_to_regress_removes_covariate_effect():
     )
 
     def _residuals(vars_to_regress):
-        o = create_shanuz_object(
+        o = create_truecell_object(
             counts=injected, assay="RNA",
             feature_names=[f"g{i}" for i in range(G)],
             cell_names=[f"c{i}" for i in range(N)],
@@ -126,7 +126,7 @@ def test_sctransform_drops_low_detection_genes():
     counts[0, :] = 0.0          # never detected
     counts[1, :2] = 1.0         # detected in 2 cells only
     counts[1, 2:] = 0.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA",
         feature_names=[f"g{i}" for i in range(60)],
         cell_names=[f"c{i}" for i in range(80)],
@@ -150,7 +150,7 @@ def test_add_module_score_higher_in_program_cells():
         base[gi, :50] += 12
     for gi in range(10, 80):                 # decoys: high uniformly (control bins)
         base[gi, :] += rng.poisson(6, size=N)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(base), assay="RNA",
         feature_names=[f"g{i}" for i in range(G)],
         cell_names=[f"c{i}" for i in range(N)],
@@ -164,7 +164,7 @@ def test_add_module_score_higher_in_program_cells():
 
 def test_add_module_score_dict_uses_keys_as_columns():
     rng = np.random.default_rng(2)
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(rng.poisson(1.0, size=(50, 40)).astype(float)),
         assay="RNA", feature_names=[f"g{i}" for i in range(50)],
         cell_names=[f"c{i}" for i in range(40)],
@@ -189,7 +189,7 @@ def test_cell_cycle_scoring_assigns_phases():
         m[gi[g], :30] += 10        # S cells
     for g in g2m_genes:
         m[gi[g], 30:60] += 10      # G2M cells
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(m), assay="RNA",
         feature_names=genes, cell_names=[f"c{i}" for i in range(90)],
     )
@@ -210,7 +210,7 @@ def test_cell_cycle_scoring_assigns_phases():
 def test_dot_plot_returns_figure():
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
-    from shanuz.plotting import dot_plot
+    from truecell.plotting import dot_plot
 
     rng = np.random.default_rng(0)
     genes = ["LYZ", "CD3D", "MS4A1"] + [f"g{i}" for i in range(10)]
@@ -220,7 +220,7 @@ def test_dot_plot_returns_figure():
                         ["LYZ", "CD3D", "MS4A1"]):
         for c in cells:
             base[gi[g], c] += 10
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(base), assay="RNA",
         feature_names=genes, cell_names=[f"c{i}" for i in range(90)],
     )
@@ -266,7 +266,7 @@ def _two_group_object():
     b = rng.negative_binomial(2, 0.4, size=(40, 40)).astype(float)
     a[0, :] += 12                      # g0 marks group A — the strong marker
     b[1, :] += 4                       # g1 marks group B — real, but weaker
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(np.hstack([a, b])), assay="RNA",
         feature_names=[f"g{i}" for i in range(40)],
         cell_names=[f"c{i}" for i in range(80)],

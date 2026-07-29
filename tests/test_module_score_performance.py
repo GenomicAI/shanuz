@@ -29,8 +29,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import create_shanuz_object, normalize_data
-from shanuz.module_score import _mean_over_rows, add_module_score
+from truecell import create_truecell_object, normalize_data
+from truecell.module_score import _mean_over_rows, add_module_score
 
 N_GENES, N_CELLS = 300, 200
 
@@ -58,7 +58,7 @@ def _wide_matrix(seed=0, density=0.3):
 
 
 def _obj(seed=0):
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(_matrix(seed)),
         assay="RNA",
         feature_names=[f"g{i}" for i in range(N_GENES)],
@@ -211,13 +211,13 @@ def test_scores_still_match_the_per_row_stack_end_to_end():
 _CHILD = textwrap.dedent(
     """
     import numpy as np, scipy.sparse as sp
-    from shanuz import create_shanuz_object, normalize_data
-    from shanuz.module_score import add_module_score
+    from truecell import create_truecell_object, normalize_data
+    from truecell.module_score import add_module_score
 
     rng = np.random.default_rng(0)
     dense = rng.poisson(2.0, size=(300, 200)).astype(float)
     dense[rng.random(dense.shape) > 0.3] = 0.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(dense), assay="RNA",
         feature_names=[f"g{i}" for i in range(300)],
         cell_names=[f"c{j}" for j in range(200)],

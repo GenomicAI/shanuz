@@ -18,10 +18,10 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz._clara import clara, clara_sampsize  # noqa: E402
-from shanuz.hto import hto_demux  # noqa: E402
-from shanuz.preprocessing import normalize_data  # noqa: E402
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell._clara import clara, clara_sampsize  # noqa: E402
+from truecell.hto import hto_demux  # noqa: E402
+from truecell.preprocessing import normalize_data  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 TAGS = ["HTO-A", "HTO-B", "HTO-C", "HTO-D"]
 DOUBLET_PAIRS = [(0, 1), (1, 2), (2, 3), (0, 2), (1, 3)]
@@ -62,7 +62,7 @@ def _hashing_counts(seed=0):
 def _hashing_object(seed=0):
     counts, truth = _hashing_counts(seed)
     cells = [f"c{i}" for i in range(counts.shape[1])]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="HTO",
         feature_names=TAGS, cell_names=cells,
         meta_data=pd.DataFrame(index=cells),
@@ -196,7 +196,7 @@ def test_requires_two_hashtags():
     rng = np.random.default_rng(0)
     counts = sp.csc_matrix(rng.poisson(5.0, size=(1, 20)).astype(float))
     cells = [f"c{i}" for i in range(20)]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="HTO",
         feature_names=["HTO-A"], cell_names=cells,
         meta_data=pd.DataFrame(index=cells),
@@ -227,7 +227,7 @@ def test_unsupported_kfunc_raises():
 #
 # Every value is a multiple of 1/4, so the squared-distance sums are exact and
 # the fixtures cannot drift with the floating-point rounding discussed in
-# shanuz/_clara.py. Verified identical from clara.c built for arm64 and x86_64.
+# truecell/_clara.py. Verified identical from clara.c built for arm64 and x86_64.
 _R_FULL_X = np.array([[2,1,1.5], [0.75,0.25,1.75], [1.5,2.25,1.25], [0,2,2.25], [0.25,2.75,1.5], [3,0,0.5], [1.5,0.75,2.25], [2.5,0.5,1.25], [0.25,1.25,1.75], [2.5,2.25,0.25], [0.5,2.25,3], [0,1.25,0.25], [1,0.75,1.25], [1,2.75,1.25], [2.25,0.75,0], [1.25,2.25,0.5], [2.25,2.75,0.5], [1.5,2,1.75], [2,1.5,1.25], [1,1.25,1.5], [1,2,2.75], [2,1.75,1.25], [2,2.75,1.75], [1,2,1.5]])
 _R_FULL_CL = np.array([1, 1, 2, 2, 2, 1, 1, 1, 2, 3, 2, 2, 1, 2, 1, 2, 3, 2, 1, 2, 2, 1, 2, 2])
 _R_LRG_X = np.array([[1,0.5,1.25], [1.25,2,2.75], [1.25,1.5,0.75], [1.75,1.75,2.75], [0,3,0.75], [3,3,2], [0,1.25,2.25], [2.75,0.25,0.25], [3,1.5,1.25], [2,0.25,1.25], [0.25,0.5,0.5], [2.5,0.75,3], [0,0.5,0.5], [0.5,0,1.75], [1.25,1.5,1.25], [0.25,2,3], [0.5,3,3], [1.5,0,0], [1.75,0.25,1], [1.5,1.75,1.25], [0,0.75,0], [1.25,3,2.25], [2,1,2], [0.75,2.75,1], [2.5,0.25,1.75], [1.25,1,0.75], [2,1.25,0], [1.75,3,0], [3,1.5,1], [1.25,0.25,2.5]])
@@ -394,7 +394,7 @@ def test_hto_demux_clara_stores_cutoffs():
 # its ISA, rounds twice. The two builds return materially different clusterings
 # for this input, so R disagrees with R across architectures.
 #
-# shanuz follows plain IEEE double arithmetic, which is what numpy gives on every
+# truecell follows plain IEEE double arithmetic, which is what numpy gives on every
 # platform and what clara.c gives on x86_64. The value below was checked against
 # clara.c compiled for x86_64. Its job is to fail if someone "simplifies" the
 # summation order -- swapping the cumsum in _selec for np.sum is enough to break
@@ -421,7 +421,7 @@ _IEEE_CL = np.array([
 def test_clara_summation_order_is_load_bearing():
     """Pins the IEEE reference on a rounding-sensitive input.
 
-    See the comment above: on inputs like this clara is chaotic, and shanuz
+    See the comment above: on inputs like this clara is chaotic, and truecell
     deliberately tracks plain IEEE arithmetic (== clara.c on x86_64) rather than
     drifting with whatever summation order numpy finds convenient.
     """

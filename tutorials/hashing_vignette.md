@@ -1,4 +1,4 @@
-# Cell Hashing — Demultiplexing pooled samples (R Seurat vs Shanuz)
+# Cell Hashing — Demultiplexing pooled samples (R Seurat vs Truecell)
 
 A side-by-side port of Seurat's [hashing vignette](https://satijalab.org/seurat/articles/hashing_vignette).
 **Cell Hashing** (Stoeckius et al. 2018) tags each *sample* with a distinct
@@ -8,7 +8,7 @@ hashtag counts saying which sample it came from. **Demultiplexing** turns that
 back into a per-cell call: a **singlet** from sample 3, a **doublet** of samples
 1 and 2, or a **negative** empty-ish droplet.
 
-Shanuz ships both of Seurat's demultiplexers, and this walkthrough runs them
+Truecell ships both of Seurat's demultiplexers, and this walkthrough runs them
 against their R references on byte-identical input:
 
 - **`hto_demux`** ↔ `HTODemux` — a negative-binomial cutoff per hashtag, learned
@@ -27,7 +27,7 @@ against their R references on byte-identical input:
 ## The data — a raw barnyard, not the vignette's filtered PBMC
 
 The vignette downloads a pre-filtered `pbmc_umi_mtx.rds` from Dropbox — an R
-binary with no clean cross-language form. So `shanuz.datasets.pbmc_hashing` uses
+binary with no clean cross-language form. So `truecell.datasets.pbmc_hashing` uses
 the **original GEO matrices** (GSE108313) instead, which both languages read
 identically. Two consequences worth stating up front:
 
@@ -51,7 +51,7 @@ normalised — margin 1 (per hashtag across cells), which is Seurat's default an
 what the hashing vignette uses. Both demultiplexers read that normalised layer.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -78,16 +78,16 @@ obj <- NormalizeData(obj, assay = "HTO",
 </td><td>
 
 ```python
-from shanuz.datasets import pbmc_hashing
-from shanuz.shanuz import create_shanuz_object
-from shanuz.assay5 import create_assay5_object
-from shanuz.preprocessing import normalize_data
+from truecell.datasets import pbmc_hashing
+from truecell.truecell import create_truecell_object
+from truecell.assay5 import create_assay5_object
+from truecell.preprocessing import normalize_data
 
 # downloads ~34 MB, drops the 3 QC rows, aligns
 # the RNA and HTO matrices on shared barcodes
 rna, genes, hto, hto_names, cells = pbmc_hashing()
 
-obj = create_shanuz_object(counts=rna, assay="RNA",
+obj = create_truecell_object(counts=rna, assay="RNA",
         min_cells=3, feature_names=genes, cell_names=cells)
 obj.assays["HTO"] = create_assay5_object(
         counts=hto, feature_names=hto_names,
@@ -109,7 +109,7 @@ memory — and the RNA has no bearing on the hashtag calls anyway.
 ## Step 2 · HTODemux — negative-binomial threshold per hashtag
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -123,7 +123,7 @@ table(obj$HTO_classification.global)
 </td><td>
 
 ```python
-from shanuz.hto import hto_demux
+from truecell.hto import hto_demux
 
 hto_demux(obj, assay="HTO",
           positive_quantile=0.99, normalize=False)
@@ -136,13 +136,13 @@ obj.meta_data["HTO_classification.global"].value_counts()
 </td></tr>
 </table>
 
-| Global class | Shanuz | R Seurat |
+| Global class | Truecell | R Seurat |
 |---|---:|---:|
 | Singlet  | 19,346 | 19,351 |
 | Doublet  |  3,895 |  3,916 |
 | Negative | 16,601 | 16,575 |
 
-The eight samples come out balanced (Shanuz `hash.ID`): BatchA 2,470 · BatchB
+The eight samples come out balanced (Truecell `hash.ID`): BatchA 2,470 · BatchB
 2,807 · BatchC 2,529 · BatchD 2,305 · BatchE 2,080 · BatchF 2,089 · BatchG
 2,465 · BatchH 2,601.
 
@@ -151,7 +151,7 @@ sample it was assigned to; the `Doublet` row shows elevated background, the
 `Negative` row sits at zero.
 
 <table>
-<tr><th>R — <code>RidgePlot</code></th><th>Shanuz — <code>ridge_plot</code></th></tr>
+<tr><th>R — <code>RidgePlot</code></th><th>Truecell — <code>ridge_plot</code></th></tr>
 <tr>
 <td><img src="figures_hashing/r_01_ridge.png" width="420"/></td>
 <td><img src="figures_hashing/py_01_ridge.png" width="420"/></td>
@@ -162,12 +162,12 @@ Two hashtags against each other separate the singlet arms (on the axes) from the
 doublet cloud (interior); total hashtag counts run higher for doublets.
 
 <table>
-<tr><th>R — <code>FeatureScatter</code></th><th>Shanuz — <code>feature_scatter</code></th></tr>
+<tr><th>R — <code>FeatureScatter</code></th><th>Truecell — <code>feature_scatter</code></th></tr>
 <tr>
 <td><img src="figures_hashing/r_02_scatter.png" width="400"/></td>
 <td><img src="figures_hashing/py_02_scatter.png" width="400"/></td>
 </tr>
-<tr><th>R — <code>VlnPlot(nCount_HTO)</code></th><th>Shanuz — <code>vln_plot("nCount_HTO")</code></th></tr>
+<tr><th>R — <code>VlnPlot(nCount_HTO)</code></th><th>Truecell — <code>vln_plot("nCount_HTO")</code></th></tr>
 <tr>
 <td><img src="figures_hashing/r_03_ncount_violin.png" width="400"/></td>
 <td><img src="figures_hashing/py_03_ncount_violin.png" width="400"/></td>
@@ -182,7 +182,7 @@ Same normalised input, a different rule for the cutoff: a Gaussian KDE over each
 barcode's values, thresholded between its background and positive modes.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -194,7 +194,7 @@ obj <- MULTIseqDemux(obj, assay = "HTO",
 </td><td>
 
 ```python
-from shanuz.multiseq import multiseq_demux
+from truecell.multiseq import multiseq_demux
 
 multiseq_demux(obj, assay="HTO",
                quantile=0.7, normalize=False)
@@ -245,7 +245,7 @@ input (`report_concordance()` reads the `r_calls.csv` the verify script writes):
 | **HTODemux** sample assignment (`hash.ID`)           | **99.81 %** |
 | **MULTIseqDemux** call (`MULTI_ID`)                  | **94.67 %** |
 
-HTODemux global — Shanuz (rows) × R (cols):
+HTODemux global — Truecell (rows) × R (cols):
 
 |          | R Doublet | R Negative | R Singlet |
 |---|---:|---:|---:|
@@ -256,7 +256,7 @@ HTODemux global — Shanuz (rows) × R (cols):
 **HTODemux reproduces Seurat to 99.81 %** — just 77 of 39,842 cells differ, for
 both the global class *and* the per-sample assignment. That residual is `clara`'s
 sampling nondeterminism (R and Python draw different sub-samples and neither can
-seed the other — see `shanuz._clara`), comfortably inside the ~1 % the docstring
+seed the other — see `truecell._clara`), comfortably inside the ~1 % the docstring
 promises. **This is the confirmation the initiative was built to get: the CLR fix
 (#32) and the `clara` default (#34) hold up against real Seurat.**
 
@@ -280,10 +280,10 @@ here rather than papered over.
 python tutorials/pbmc_hashing_tutorial.py     # downloads ~34 MB, prints the report
 Rscript tutorials/pbmc_hashing_verify.R       # Seurat reference → r_calls.csv + r_*.png
 python tutorials/pbmc_hashing_tutorial.py     # re-run: now prints the R-vs-Python concordance
-python tutorials/generate_hashing_plots.py    # Shanuz figures → figures_hashing/py_*.png
+python tutorials/generate_hashing_plots.py    # Truecell figures → figures_hashing/py_*.png
 ```
 
-**Figures** (`tutorials/figures_hashing/`, `r_*` = R Seurat, `py_*` = Shanuz):
+**Figures** (`tutorials/figures_hashing/`, `r_*` = R Seurat, `py_*` = Truecell):
 
 | Figure | Description |
 |---|---|
@@ -294,9 +294,9 @@ python tutorials/generate_hashing_plots.py    # Shanuz figures → figures_hashi
 
 ---
 
-## R Seurat → Shanuz API
+## R Seurat → Truecell API
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | CLR-normalise hashtags | `NormalizeData(obj, assay="HTO", method="CLR", margin=1)` | `normalize_data(obj, assay="HTO", normalization_method="CLR", margin=1)` |
 | Demultiplex (HTODemux) | `HTODemux(obj, assay="HTO", positive.quantile=0.99)` | `hto_demux(obj, assay="HTO", positive_quantile=0.99)` — both default `kfunc="clara"` |

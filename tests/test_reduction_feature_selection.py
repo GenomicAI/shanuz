@@ -24,16 +24,16 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import (
-    create_shanuz_object,
+from truecell import (
+    create_truecell_object,
     find_variable_features,
     normalize_data,
     run_ica,
     run_pca,
     scale_data,
 )
-from shanuz.assay import Assay
-from shanuz.jackstraw import _scaled_matrix_for_reduction
+from truecell.assay import Assay
+from truecell.jackstraw import _scaled_matrix_for_reduction
 
 N_GENES, N_CELLS, N_VAR = 60, 40, 20
 
@@ -41,7 +41,7 @@ N_GENES, N_CELLS, N_VAR = 60, 40, 20
 def _obj(use_v5=True, seed=0, tag="c"):
     rng = np.random.default_rng(seed)
     counts = sp.csc_matrix(rng.poisson(3.0, size=(N_GENES, N_CELLS)).astype(float))
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts,
         assay="RNA",
         feature_names=[f"g{i}" for i in range(N_GENES)],
@@ -215,7 +215,7 @@ def test_v3_and_v5_read_identical_rows_out_of_scale_data():
     rather than a recorded matrix: the two architectures scale the same numbers,
     so agreement is the property, and v5 was the one that already worked.
     """
-    from shanuz.reduction import _get_scaled_data
+    from truecell.reduction import _get_scaled_data
 
     v5, v3 = _obj(use_v5=True), _obj(use_v5=False)
     feats = list(v5.assays["RNA"]._scaled_features)
@@ -291,7 +291,7 @@ def test_integration_features_intersects_against_the_layer_not_the_assay():
     heights (a crash) or, with a compensating drop elsewhere, the same height and
     different genes.
     """
-    from shanuz.anchors import _anchor_feature_matrix, _integration_features
+    from truecell.anchors import _anchor_feature_matrix, _integration_features
 
     a, b = _obj(seed=1, tag="a"), _obj(seed=2, tag="b")
     # Force the objects to disagree: rescale `b` on a different feature set.
@@ -314,7 +314,7 @@ def test_integration_features_intersects_against_the_layer_not_the_assay():
 
 def test_anchor_matrix_refuses_a_partial_feature_set():
     """Where a reduction warns, anchors must raise — the rows are paired."""
-    from shanuz.anchors import _anchor_feature_matrix
+    from truecell.anchors import _anchor_feature_matrix
 
     a = _obj(seed=1, tag="a")
     scaled = list(a.assays["RNA"]._scaled_features)

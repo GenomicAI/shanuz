@@ -75,12 +75,12 @@ def test_macro_recall_is_unweighted_mean_of_classes():
 
 
 def test_build_scoreboard_column_order():
-    rows = [{"tool": "shanuz (pcaproject)", "n_query": 100, "n_anchors": 300,
+    rows = [{"tool": "truecell (pcaproject)", "n_query": 100, "n_anchors": 300,
              "accuracy": 0.98, "macro_recall": 0.8, "mean_score": 0.97}]
     board = build_scoreboard(rows)
     assert list(board.columns) == [
         "tool", "n_query", "n_anchors", "accuracy", "macro_recall", "mean_score"]
-    assert list(board["tool"]) == ["shanuz (pcaproject)"]
+    assert list(board["tool"]) == ["truecell (pcaproject)"]
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def _synthetic_panc8(seed=0):
     """A tiny panc8 stand-in: 3 cell types x 2 technologies + a query batch block.
 
     Returns the loader's 4-tuple (counts, genes, cells, meta) so it can be
-    substituted for shanuz.datasets.panc8. The reference tech is ``celseq2`` and
+    substituted for truecell.datasets.panc8. The reference tech is ``celseq2`` and
     the query tech ``smartseq2`` (the tutorial's defaults); the query carries a
     technology-specific gene block the reference never sees, so a naive nearest
     neighbour would fail and the projection has to earn the transfer.
@@ -169,7 +169,7 @@ def test_transfer_predicts_query_celltypes(mapped):
 def test_summary_scoreboard_and_perclass(mapped):
     _tut, _ref, query, _anchors, _pred, summary, _tmp = mapped
     board = summary["scoreboard"]
-    assert list(board["tool"]) == ["shanuz (pcaproject)"]
+    assert list(board["tool"]) == ["truecell (pcaproject)"]
     assert board["n_anchors"].iloc[0] > 0
     assert summary["n_celltypes"] == 3
     # Every true cell type appears in the per-class recall table.

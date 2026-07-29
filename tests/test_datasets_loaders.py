@@ -20,8 +20,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import datasets
-from shanuz.datasets import (
+from truecell import datasets
+from truecell.datasets import (
     _align_on_cells,
     _read_dense_table_sparse,
     _read_table_cached,
@@ -184,7 +184,7 @@ def offline(monkeypatch, tmp_path):
 
     Both halves are load-bearing. Redirecting home means a loader that ignored
     ``data_dir`` cannot quietly succeed off a developer's populated
-    ``~/.shanuz_data``; failing the download means it announces itself here
+    ``~/.truecell_data``; failing the download means it announces itself here
     instead of reaching the network in CI.
     """
     fake_home = tmp_path / "home"

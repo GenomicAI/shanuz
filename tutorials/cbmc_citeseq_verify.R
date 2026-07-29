@@ -27,7 +27,7 @@ set.seed(0)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_multimodal")
-DATA <- Sys.getenv("CBMC_DATA", path.expand("~/.shanuz_data/cbmc"))
+DATA <- Sys.getenv("CBMC_DATA", path.expand("~/.truecell_data/cbmc"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 RNA_CSV <- file.path(DATA, "GSE100866_CBMC_8K_13AB_10X-RNA_umi.csv.gz")
 ADT_CSV <- file.path(DATA, "GSE100866_CBMC_8K_13AB_10X-ADT_umi.csv.gz")
@@ -78,7 +78,7 @@ cat(sprintf("RNA clusters (res=0.6): %d\n", length(levels(obj))))
 # ---- 3. Annotate by surface protein (annotate_cells ported from Python) -----
 # Same protein-gated priority logic and the same CLR cut-offs as
 # cbmc_citeseq_tutorial.py. Seurat CLR (margin=2) puts T clusters at CD3~1.5-2.3
-# and non-T at ~0.3-0.75; Shanuz reproduces that transform exactly, so the
+# and non-T at ~0.3-0.75; Truecell reproduces that transform exactly, so the
 # thresholds are shared verbatim between the two scripts.
 RNA_FALLBACK <- list(Platelet = c("PPBP","PF4"), Erythroid = c("HBB","HBA1"),
                      pDC = c("IGJ","PLD4","SERPINF1"), Cycling = c("STMN1","MKI67","TUBB"))

@@ -4,28 +4,28 @@ The PBMC 3k guided-clustering workflow, end to end, next to the Seurat code it
 mirrors. Every Python line below was run to produce the output shown.
 
 ```bash
-pip install "shanuz[analysis]"
+pip install "truecell[analysis]"
 ```
 
 ## Load and build the object
 
-The dataset downloads on first call into `~/.shanuz_data/` (~24 MB). Loaders
+The dataset downloads on first call into `~/.truecell_data/` (~24 MB). Loaders
 return the raw pieces — a counts matrix, gene names, cell names — and
-`create_shanuz_object` assembles them, applying the same `min_cells` /
+`create_truecell_object` assembles them, applying the same `min_cells` /
 `min_features` prefilter `CreateSeuratObject` does.
 
 === "Python"
 
     ```python
-    import shanuz
-    from shanuz.datasets import pbmc3k
+    import truecell
+    from truecell.datasets import pbmc3k
 
     counts, genes, cells = pbmc3k()
-    pbmc = shanuz.create_shanuz_object(
+    pbmc = truecell.create_truecell_object(
         counts=counts, feature_names=genes, cell_names=cells,
         project="pbmc3k", min_cells=3, min_features=200,
     )
-    shanuz.percentage_feature_set(pbmc, pattern=r"^MT-", col_name="percent.mt")
+    truecell.percentage_feature_set(pbmc, pattern=r"^MT-", col_name="percent.mt")
     ```
 
 === "R"
@@ -63,9 +63,9 @@ same count.
 === "Python"
 
     ```python
-    shanuz.normalize_data(pbmc, normalization_method="LogNormalize", scale_factor=10000)
-    shanuz.find_variable_features(pbmc, selection_method="vst", nfeatures=2000)
-    shanuz.scale_data(pbmc, features=shanuz.generics.features(pbmc))
+    truecell.normalize_data(pbmc, normalization_method="LogNormalize", scale_factor=10000)
+    truecell.find_variable_features(pbmc, selection_method="vst", nfeatures=2000)
+    truecell.scale_data(pbmc, features=truecell.generics.features(pbmc))
     ```
 
 === "R"
@@ -78,8 +78,8 @@ same count.
     ```
 
 !!! note "`scale_data` mutates in place"
-    Seurat's functions return a modified object; shanuz's write into the one you
-    pass and return `None`. `pbmc = shanuz.normalize_data(pbmc)` will leave you
+    Seurat's functions return a modified object; truecell's write into the one you
+    pass and return `None`. `pbmc = truecell.normalize_data(pbmc)` will leave you
     holding `None` — a difference worth internalising early. `subset` is the
     exception: it returns a new object, as it must.
 
@@ -92,10 +92,10 @@ variances agree to three decimals; see [Fidelity](fidelity.md#what-actually-diff
 === "Python"
 
     ```python
-    shanuz.run_pca(pbmc, n_pcs=50)
-    shanuz.find_neighbors(pbmc, dims=range(10), k_param=20)
-    shanuz.find_clusters(pbmc, resolution=0.5, algorithm=1, random_seed=0)
-    shanuz.run_umap(pbmc, dims=range(10), seed=42)
+    truecell.run_pca(pbmc, n_pcs=50)
+    truecell.find_neighbors(pbmc, dims=range(10), k_param=20)
+    truecell.find_clusters(pbmc, resolution=0.5, algorithm=1, random_seed=0)
+    truecell.run_umap(pbmc, dims=range(10), seed=42)
     ```
 
 === "R"
@@ -112,7 +112,7 @@ variances agree to three decimals; see [Fidelity](fidelity.md#what-actually-diff
     difference in the API, and it follows Python rather than R on purpose.
 
 !!! tip "Use `nn.method = \"rann\"` when comparing against R"
-    Seurat's default neighbour search is `annoy`, which is approximate; shanuz's
+    Seurat's default neighbour search is `annoy`, which is approximate; truecell's
     is exact. Leaving the default in place compares two different neighbour
     tables and reports a difference that belongs to `annoy` rather than to
     either implementation. That trap cost one of the verify scripts a false
@@ -131,7 +131,7 @@ search separates.
 === "Python"
 
     ```python
-    markers = shanuz.find_all_markers(
+    markers = truecell.find_all_markers(
         pbmc, only_pos=True, min_pct=0.25, logfc_threshold=0.25,
     )
     ```
@@ -163,7 +163,7 @@ has the full table.
 Every plotting function returns a matplotlib `Figure`.
 
 ```python
-fig = shanuz.dim_plot(pbmc, reduction="umap", label=True)
+fig = truecell.dim_plot(pbmc, reduction="umap", label=True)
 fig.savefig("umap.png", dpi=150, bbox_inches="tight")
 ```
 

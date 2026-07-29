@@ -3,7 +3,7 @@
 Four things go stale on their own and none of them break anything at import
 time, which is exactly why they need asserting:
 
-* a new export lands in ``shanuz.__all__`` and nobody adds it to an API page;
+* a new export lands in ``truecell.__all__`` and nobody adds it to an API page;
 * a function is renamed and the ``:::`` directive pointing at it keeps its old
   name — mkdocstrings then renders an empty page section;
 * a nav entry outlives the file it names;
@@ -22,7 +22,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import shanuz  # noqa: E402
+import truecell  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -46,7 +46,7 @@ def image_sources(text: str):
 
 
 def api_targets() -> dict[str, Path]:
-    """Every ``::: shanuz.x.y`` on the API pages, mapped to the page it is on."""
+    """Every ``::: truecell.x.y`` on the API pages, mapped to the page it is on."""
     found: dict[str, Path] = {}
     for page in sorted(API.glob("*.md")):
         for match in _DIRECTIVE.finditer(page.read_text()):
@@ -76,11 +76,11 @@ def defining_module(name: str, obj: object) -> str:
     module = getattr(obj, "__module__", None)
     if module:
         return module
-    if isinstance(obj, type(shanuz)):  # a re-exported module
+    if isinstance(obj, type(truecell)):  # a re-exported module
         return obj.__name__
     import pkgutil
 
-    for info in pkgutil.walk_packages(shanuz.__path__, "shanuz."):
+    for info in pkgutil.walk_packages(truecell.__path__, "truecell."):
         try:
             candidate = importlib.import_module(info.name)
         except ImportError:
@@ -93,12 +93,12 @@ def defining_module(name: str, obj: object) -> str:
 def test_every_public_export_is_on_an_api_page():
     documented = set(api_targets())
     missing = []
-    for name in shanuz.__all__:
+    for name in truecell.__all__:
         if name == "__version__":
             continue
-        obj = getattr(shanuz, name)
+        obj = getattr(truecell, name)
         module = defining_module(name, obj)
-        if isinstance(obj, type(shanuz)):
+        if isinstance(obj, type(truecell)):
             # A re-exported module — `generics` is rendered whole, `plotting`
             # one function at a time. Either counts.
             covered = module in documented or any(t.startswith(f"{module}.") for t in documented)
@@ -238,23 +238,23 @@ def test_the_generics_exception_the_api_index_documents_is_real():
 
     Prose cannot be built into a link, so nothing else checks it. It said
     *everything* was top-level until an agent following it wrote
-    ``shanuz.features(obj)`` and got an ``AttributeError``. The counts in that
+    ``truecell.features(obj)`` and got an ``AttributeError``. The counts in that
     paragraph are asserted here so a re-export cannot quietly falsify them.
     """
-    from shanuz import generics
+    from truecell import generics
 
-    exported = set(shanuz.__all__)
+    exported = set(truecell.__all__)
     public = {n for n in dir(generics)
               if not n.startswith("_") and callable(getattr(generics, n))}
 
-    also_top_level = {"create_shanuz_object", "create_assay_object", "create_centroids",
+    also_top_level = {"create_truecell_object", "create_assay_object", "create_centroids",
                       "create_segmentation", "create_fov", "get_tissue_coordinates", "as_graph"}
     assert public & exported == also_top_level
     assert len(public - exported) == 66, (
         f"{len(public - exported)} generics are module-only; docs/api/index.md says 66"
     )
     # The specific call the paragraph warns about.
-    assert not hasattr(shanuz, "features")
+    assert not hasattr(truecell, "features")
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +275,7 @@ def roles():
 def test_a_role_pointing_at_a_documented_symbol_becomes_a_link(roles):
     ext = roles.SphinxRolesExtension()
     out = ext._substitute(roles._ROLE.search(":func:`run_pca`"))
-    assert out == "[`run_pca`][shanuz.reduction.run_pca]"
+    assert out == "[`run_pca`][truecell.reduction.run_pca]"
 
 
 def test_a_role_pointing_at_a_private_helper_degrades_to_code(roles):
@@ -293,8 +293,8 @@ def test_a_role_pointing_outside_the_package_degrades_to_code(roles):
 
 def test_the_tilde_prefix_shortens_the_link_text(roles):
     ext = roles.SphinxRolesExtension()
-    out = ext._substitute(roles._ROLE.search(":class:`~shanuz.spatial.visium.VisiumV2`"))
-    assert out == "[`VisiumV2`][shanuz.spatial.visium.VisiumV2]"
+    out = ext._substitute(roles._ROLE.search(":class:`~truecell.spatial.visium.VisiumV2`"))
+    assert out == "[`VisiumV2`][truecell.spatial.visium.VisiumV2]"
 
 
 def test_parameter_prose_moves_out_of_the_type_slot(roles):
@@ -322,7 +322,7 @@ def test_the_reflow_never_drops_a_word_from_any_docstring(roles):
     import pkgutil
 
     checked = 0
-    for info in pkgutil.walk_packages(shanuz.__path__, "shanuz."):
+    for info in pkgutil.walk_packages(truecell.__path__, "truecell."):
         try:
             module = importlib.import_module(info.name)
         except ImportError:

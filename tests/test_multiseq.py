@@ -19,9 +19,9 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz.multiseq import multiseq_demux  # noqa: E402
-from shanuz.preprocessing import normalize_data  # noqa: E402
-from shanuz.shanuz import create_shanuz_object  # noqa: E402
+from truecell.multiseq import multiseq_demux  # noqa: E402
+from truecell.preprocessing import normalize_data  # noqa: E402
+from truecell.truecell import create_truecell_object  # noqa: E402
 
 TAGS = ["HTO-A", "HTO-B", "HTO-C", "HTO-D"]
 DOUBLET_PAIRS = [(0, 1), (1, 2), (2, 3), (0, 2), (1, 3)]
@@ -60,7 +60,7 @@ def _hashing_counts(seed=0):
 def _hashing_object(seed=0):
     counts, truth = _hashing_counts(seed)
     cells = [f"c{i}" for i in range(counts.shape[1])]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(counts), assay="HTO",
         feature_names=TAGS, cell_names=cells,
         meta_data=pd.DataFrame(index=cells),
@@ -197,7 +197,7 @@ def test_requires_two_barcodes():
     rng = np.random.default_rng(0)
     counts = sp.csc_matrix(rng.poisson(5.0, size=(1, 20)).astype(float))
     cells = [f"c{i}" for i in range(20)]
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="HTO",
         feature_names=["HTO-A"], cell_names=cells,
         meta_data=pd.DataFrame(index=cells),

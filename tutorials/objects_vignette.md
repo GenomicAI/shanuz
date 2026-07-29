@@ -1,17 +1,17 @@
-# The Object Model Itself — R Seurat vs Shanuz (Python)
+# The Object Model Itself — R Seurat vs Truecell (Python)
 
 Every other tutorial in this series compares an *algorithm*: does `run_pca` land
 where `RunPCA` lands, does `hto_demux` call the same cells. This one compares
 the **container** — the accessors, the layer machinery and the bookkeeping that
 Seurat's own command cheat sheet is made of. Every R Seurat call is paired with
-the Shanuz equivalent and both outputs are shown side by side.
+the Truecell equivalent and both outputs are shown side by side.
 
 > **Dataset:** PBMC 3k — 2,700 cells × 13,714 genes (10x Genomics), the same
 > object used in [the guided tutorial](pbmc3k_tutorial.md) and
 > [Tutorial T-dr](dimreduc_vignette.md). Auto-downloads (~24 MB).
-> **R reference:** Seurat 5.5.1 / SeuratObject 5.4.0 · **Python:** Shanuz
+> **R reference:** Seurat 5.5.1 / SeuratObject 5.4.0 · **Python:** Truecell
 
-| Seurat | Shanuz |
+| Seurat | Truecell |
 |---|---|
 | `Cells(obj)` / `Features(obj)` | `cells(obj)` / `features(obj)` |
 | `Layers(obj)` / `LayerData(obj, "data")` | `layers(obj)` / `layer_data(assay, "data")` |
@@ -80,7 +80,7 @@ basis. If the two disagree about which cells or genes are in play, nothing below
 is interpretable.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -105,11 +105,11 @@ obj <- FindNeighbors(obj, dims = 1:10, verbose = FALSE)
 <td>
 
 ```python
-from shanuz.shanuz import create_shanuz_object
-from shanuz.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.datasets import pbmc3k
 
 counts, genes, cells = pbmc3k()
-obj = create_shanuz_object(
+obj = create_truecell_object(
     counts=counts, assay="RNA", project="pbmc3k_objects",
     min_cells=3, min_features=200,
     feature_names=list(genes), cell_names=list(cells))
@@ -126,9 +126,9 @@ find_neighbors(obj, dims=list(range(10)))
 </tr>
 </table>
 
-> **Gotcha, and it is not shanuz's.** `Read10X` rewrites `_` to `-` in gene
+> **Gotcha, and it is not truecell's.** `Read10X` rewrites `_` to `-` in gene
 > symbols — pbmc3k carries `Y_RNA` and a long tail of `RP11-*_*` — while
-> shanuz's loader leaves them alone. That belongs to the two file readers, not
+> truecell's loader leaves them alone. That belongs to the two file readers, not
 > to the object model, so feature names are compared in R's spelling on both
 > sides rather than failing every field that mentions a gene.
 
@@ -137,7 +137,7 @@ find_neighbors(obj, dims=list(range(10)))
 ## Who is in the object
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -176,7 +176,7 @@ vector with an order-sensitive md5, and both sides return `e9278a0983c2`.
 The single biggest change from Seurat v4, and the part that had never been run.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -243,7 +243,7 @@ comparison was `False`, and nothing said so:
 ## Reductions, graphs and FetchData
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -291,7 +291,7 @@ G.fetch_data(obj, ["nCount_RNA", "CD3E", "PC_1"]).head(2)
 2,700 cells.
 
 `PC_1` does **not** agree, and should not: a principal component's sign is
-arbitrary, so R's `+4.563726` and shanuz's `−4.549421` are the same axis pointed
+arbitrary, so R's `+4.563726` and truecell's `−4.549421` are the same axis pointed
 opposite ways. That is why the tutorial compares the *absolute* column sum
 across tools, and pins the exact value only *within* one tool — a fetched
 embedding column must be the object's own embedding column, whatever the two
@@ -303,7 +303,7 @@ against `irlba`, which is [T-dr's subject](dimreduc_vignette.md), not this one's
 ## Identities and the command log
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td>
 
@@ -394,12 +394,12 @@ both of which a column of identical sparse matrices satisfies perfectly.
 Two smaller gaps came with it: embedding columns could not be addressed by their
 `Key` (`PC_1` raised `KeyError`), and an unqualified fetch read `counts` where R
 reads `data`, returning raw integers where every vignette shows normalized
-values. When there is no `data` layer, shanuz now falls back to `counts` and
+values. When there is no `data` layer, truecell now falls back to `counts` and
 warns, exactly as Seurat does.
 
 ### 9–11. The bookkeeping
 
-`log_shanuz_command` was a public export with **zero call sites**, so
+`log_truecell_command` was a public export with **zero call sites**, so
 `obj.commands` was always empty. Seurat logs five entries for this pipeline.
 The log now records R's names (`RunPCA.RNA`, not `run_pca.RNA`) on the same
 reasoning that keeps layer names `scale.data` and reduction keys `PC_`: it is a
@@ -426,9 +426,9 @@ model. Both were investigated and fixed in **PR #55**, and both are now exact:
 
 One wrinkle is worth keeping, because it made the comparison lie for a while
 after the fix had landed. `FindNeighbors` defaults to `nn.method = "annoy"`,
-which is *approximate*, while shanuz's neighbour search is exact — so the two
+which is *approximate*, while truecell's neighbour search is exact — so the two
 sides were building their graphs from different neighbour tables. That cost 182
-SNN edges (199,434 against 199,616) and read as a shanuz defect. This tutorial's
+SNN edges (199,434 against 199,616) and read as a truecell defect. This tutorial's
 R script now pins `nn.method = "rann"` so both sides use exact neighbours, and
 the graphs agree. If you change the neighbour method on one side only, expect
 this anchor to move.

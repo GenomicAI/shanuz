@@ -28,7 +28,7 @@ def test_match_partitions_is_blind_to_relabelling():
     """Cluster ids are arbitrary, so a pure renaming must score perfectly.
 
     This is the whole reason the matching exists. Comparing the label columns
-    directly, shanuz's cluster 3 against Seurat's cluster 3, answers a question
+    directly, truecell's cluster 3 against Seurat's cluster 3, answers a question
     neither tool makes a promise about; on PBMC 3k the two runs agree about
     2,554 of 2,638 cells while numbering one of the clusters differently.
     """
@@ -79,7 +79,7 @@ def test_match_partitions_rejects_mismatched_inputs():
 # ---------------------------------------------------------------------------
 
 def test_gene_symbols_are_mapped_to_reads10x_spelling():
-    """R's Read10X() rewrites underscores to dashes; shanuz's loader does not.
+    """R's Read10X() rewrites underscores to dashes; truecell's loader does not.
 
     Without this the two per-gene tables join on ~30 fewer genes than they
     have, and every gene whose symbol contains an underscore silently drops out
@@ -108,7 +108,7 @@ def test_r_references_pin_exact_neighbours(script):
     while this port's neighbour search is exact. With the default, the two
     sides build their graphs from different neighbour tables and report a
     difference that belongs to annoy — 182 SNN edges on pbmc3k — which reads as
-    a shanuz defect and cost a real investigation once already. On PBMC 8k it
+    a truecell defect and cost a real investigation once already. On PBMC 8k it
     is worse than cosmetic: the graph decides the global clusters, which decide
     which cells enter the subclustering stage.
 

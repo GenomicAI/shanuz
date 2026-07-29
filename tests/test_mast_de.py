@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz import create_shanuz_object, find_markers
-from shanuz.preprocessing import normalize_data
+from truecell import create_truecell_object, find_markers
+from truecell.preprocessing import normalize_data
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def hurdle_obj():
     B[1] += 8                                    # g1 magnitude ↑ in B
     A[2], B[2] = rng.poisson(3.0, n), rng.poisson(0.1, n)      # g2 detection ↑ in A (non-perfect)
     A[3], B[3] = rng.poisson(5.0, n) + 5, rng.poisson(5.0, n)  # g3 always-detected, ↑ in A
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(np.hstack([A, B])),
         feature_names=[f"g{i}" for i in range(G)],
         cell_names=[f"c{i}" for i in range(2 * n)],

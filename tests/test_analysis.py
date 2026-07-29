@@ -1,6 +1,6 @@
 """Regression tests for analysis-pipeline fidelity to Seurat.
 
-Each test guards against a specific bug that previously caused shanuz to
+Each test guards against a specific bug that previously caused truecell to
 deviate from Seurat's behaviour:
 
   * avg_log2FC averaging order (markers.py)
@@ -12,10 +12,10 @@ import numpy as np
 import scipy.sparse as sp
 import pytest
 
-from shanuz.preprocessing import (
+from truecell.preprocessing import (
     normalize_data, find_variable_features, _vst_hvg, _clr_normalize,
 )
-from shanuz.markers import find_markers
+from truecell.markers import find_markers
 
 
 # ---------------------------------------------------------------------------
@@ -236,8 +236,8 @@ def test_clr_matches_seurat_formula():
 def test_clr_margin_routed_through_normalize_data():
     rng = np.random.default_rng(0)
     counts = sp.csc_matrix(rng.poisson(3.0, size=(6, 12)).astype(float))
-    from shanuz.shanuz import create_shanuz_object
-    obj = create_shanuz_object(
+    from truecell.truecell import create_truecell_object
+    obj = create_truecell_object(
         counts=counts, assay="ADT",
         feature_names=[f"p{i}" for i in range(6)],
         cell_names=[f"c{i}" for i in range(12)],
@@ -259,13 +259,13 @@ def test_clr_margin_routed_through_normalize_data():
 # ---------------------------------------------------------------------------
 
 def test_scale_data_default_subset_features_then_pca():
-    from shanuz.shanuz import create_shanuz_object
-    from shanuz.preprocessing import scale_data
-    from shanuz.reduction import run_pca
+    from truecell.truecell import create_truecell_object
+    from truecell.preprocessing import scale_data
+    from truecell.reduction import run_pca
 
     rng = np.random.default_rng(0)
     counts = sp.csc_matrix(rng.poisson(0.5, size=(200, 80)).astype(float))
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA",
         feature_names=[f"g{i}" for i in range(200)],
         cell_names=[f"c{i}" for i in range(80)],
@@ -282,12 +282,12 @@ def test_scale_data_default_subset_features_then_pca():
 
 
 def test_subset_resizes_graphs_and_drops_neighbors():
-    from shanuz.shanuz import create_shanuz_object
-    from shanuz.graph import Graph
+    from truecell.truecell import create_truecell_object
+    from truecell.graph import Graph
 
     rng = np.random.default_rng(0)
     counts = sp.csc_matrix(rng.poisson(0.5, size=(40, 30)).astype(float))
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA",
         feature_names=[f"g{i}" for i in range(40)],
         cell_names=[f"c{i}" for i in range(30)],
@@ -312,15 +312,15 @@ def test_subset_resizes_graphs_and_drops_neighbors():
 # ---------------------------------------------------------------------------
 
 def test_jackstraw_separates_signal_from_noise():
-    from shanuz.shanuz import create_shanuz_object
-    from shanuz.preprocessing import scale_data
-    from shanuz.reduction import run_pca
-    from shanuz.jackstraw import jack_straw, score_jackstraw
+    from truecell.truecell import create_truecell_object
+    from truecell.preprocessing import scale_data
+    from truecell.reduction import run_pca
+    from truecell.jackstraw import jack_straw, score_jackstraw
 
     rng = np.random.default_rng(0)
     base = rng.poisson(0.5, size=(150, 120)).astype(float)
     base[:10, :60] += 6.0  # genes 0-9 carry strong structure across two groups
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(base), assay="RNA",
         feature_names=[f"g{i}" for i in range(150)],
         cell_names=[f"c{i}" for i in range(120)],
@@ -349,14 +349,14 @@ def test_jackstraw_separates_signal_from_noise():
 
 def _jackstraw_fixture():
     """A small object with structure in PC1 only — the rest is noise."""
-    from shanuz.shanuz import create_shanuz_object
-    from shanuz.preprocessing import scale_data
-    from shanuz.reduction import run_pca
+    from truecell.truecell import create_truecell_object
+    from truecell.preprocessing import scale_data
+    from truecell.reduction import run_pca
 
     rng = np.random.default_rng(0)
     base = rng.poisson(0.5, size=(150, 120)).astype(float)
     base[:10, :60] += 6.0
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=sp.csc_matrix(base), assay="RNA",
         feature_names=[f"g{i}" for i in range(150)],
         cell_names=[f"c{i}" for i in range(120)],
@@ -384,7 +384,7 @@ def test_jackstraw_null_is_calibrated_on_noise_pcs():
     the same defect put 109-203 features below threshold on PCs 14-20, where R
     finds 0-5.
     """
-    from shanuz.jackstraw import jack_straw
+    from truecell.jackstraw import jack_straw
 
     obj = _jackstraw_fixture()
     emp = jack_straw(obj, dims=10, num_replicate=100, seed=0).empirical_p_values
@@ -398,7 +398,7 @@ def test_jackstraw_null_is_calibrated_on_noise_pcs():
 
 def test_jackstraw_stores_the_null_scores():
     """``fake_reduction_scores`` was declared but never populated; R stores it."""
-    from shanuz.jackstraw import jack_straw
+    from truecell.jackstraw import jack_straw
 
     obj = _jackstraw_fixture()
     js = jack_straw(obj, dims=5, num_replicate=10, seed=0)
@@ -417,7 +417,7 @@ def test_score_jackstraw_does_not_flag_every_pc():
     do the one job it exists for. Here only PC1 carries structure, so most of
     the ten tested PCs must come back insignificant.
     """
-    from shanuz.jackstraw import jack_straw, score_jackstraw
+    from truecell.jackstraw import jack_straw, score_jackstraw
 
     obj = _jackstraw_fixture()
     jack_straw(obj, dims=10, num_replicate=100, seed=0)
@@ -443,7 +443,7 @@ def test_prop_test_matches_r(count, expected_p):
     ``ScoreJackStraw``'s output *is* this p-value, so an approximation would
     silently shift every PC cutoff.
     """
-    from shanuz.jackstraw import _prop_test
+    from truecell.jackstraw import _prop_test
 
     assert _prop_test(count, 0, 2000, 2000) == pytest.approx(expected_p, rel=1e-9)
 
@@ -451,7 +451,7 @@ def test_prop_test_matches_r(count, expected_p):
 def test_ridge_plot_labels_align_with_rows(small_seurat):
     matplotlib = pytest.importorskip("matplotlib")
     matplotlib.use("Agg")
-    from shanuz.plotting import ridge_plot
+    from truecell.plotting import ridge_plot
 
     normalize_data(small_seurat)
     small_seurat.idents = ["A"] * 7 + ["B"] * 7 + ["C"] * 6

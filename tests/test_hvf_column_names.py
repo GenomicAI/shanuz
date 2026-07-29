@@ -2,15 +2,15 @@
 
 SeuratObject keeps per-feature HVF statistics in the assay's meta.data behind a
 method-and-layer prefix (`vf_vst_counts_mean`) and strips it on the way out, so
-the names a Seurat user actually sees are `HVFInfo()`'s. shanuz has no prefix
+the names a Seurat user actually sees are `HVFInfo()`'s. truecell has no prefix
 layer — `assay.meta_data` *is* the user-facing table — which makes matching
 `HVFInfo()` the only way a column can read the same in either language.
 
-It did not. shanuz wrote `means` / `variances` / `variances.standardized`
+It did not. truecell wrote `means` / `variances` / `variances.standardized`
 against Seurat's `mean` / `variance` / `variance.standardized`, dropped
 `variance.expected` entirely, and wrote scaled *dispersions* from the mvp path
 into a column named `variances.standardized`. Nothing failed: every consumer was
-in-tree and used shanuz's spelling, so the divergence only surfaced where the
+in-tree and used truecell's spelling, so the divergence only surfaced where the
 two tools met — the pbmc3k handoff renamed all three columns on the way out to
 make the join work, and carried a comment saying the divergence was real.
 
@@ -22,20 +22,20 @@ Measured against Seurat 5.5.1 / SeuratObject 5.4.0 on an Assay5:
     HVFInfo(o2[["RNA"]], "mvp")         mvp.mean, mvp.dispersion,
                                         mvp.dispersion.scaled
 
-`variable`/`rank` are deliberately not mirrored: shanuz spells the first
+`variable`/`rank` are deliberately not mirrored: truecell spells the first
 `highly_variable` and keeps rank as the order of `assay.variable_features`.
 """
 import numpy as np
 import pytest
 import scipy.sparse as sp
 
-from shanuz.preprocessing import find_variable_features, normalize_data
+from truecell.preprocessing import find_variable_features, normalize_data
 
 # Verbatim from `HVFInfo()` under Seurat 5.5.1 — see the module docstring.
 VST_COLUMNS = ["mean", "variance", "variance.expected", "variance.standardized"]
 MVP_COLUMNS = ["mvp.mean", "mvp.dispersion", "mvp.dispersion.scaled"]
 
-# The spellings shanuz used before. Listed so a partial revert fails loudly
+# The spellings truecell used before. Listed so a partial revert fails loudly
 # rather than leaving one method writing the old names beside the new ones.
 RETIRED_COLUMNS = ["means", "variances", "variances.standardized"]
 
@@ -77,7 +77,7 @@ def test_no_method_writes_the_retired_column_names(small_seurat, method):
     md = _fitted(small_seurat, method)
     survivors = [c for c in RETIRED_COLUMNS if c in md.columns]
     assert not survivors, (
-        f"{method} still writes {survivors}; these are shanuz's old spellings "
+        f"{method} still writes {survivors}; these are truecell's old spellings "
         f"and have no counterpart in Seurat's HVFInfo()"
     )
 
@@ -101,12 +101,12 @@ def test_variance_expected_column_holds_the_loess_fit_not_a_placeholder():
     that `_vst_hvg` returns the right five arrays while the wrong one gets
     written to the column.
     """
-    from shanuz import create_shanuz_object
+    from truecell import create_truecell_object
 
     rng = np.random.default_rng(0)
     n_genes, n_cells = 60, 40
     counts = sp.csc_matrix(rng.poisson(4.0, size=(n_genes, n_cells)).astype(float))
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts,
         assay="RNA",
         feature_names=[f"gene{i}" for i in range(n_genes)],
@@ -142,7 +142,7 @@ def test_variable_feature_plot_reads_the_stored_stats(small_seurat):
     axis label is what distinguishes the two branches.
     """
     pytest.importorskip("matplotlib")
-    from shanuz.plotting import variable_feature_plot
+    from truecell.plotting import variable_feature_plot
 
     _fitted(small_seurat, "vst")
     fig = variable_feature_plot(small_seurat, label=False)

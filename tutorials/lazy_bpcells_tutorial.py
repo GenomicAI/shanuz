@@ -1,4 +1,4 @@
-"""shanuz's on-disk layer against Seurat's, on the same pbmc3k matrix.
+"""truecell's on-disk layer against Seurat's, on the same pbmc3k matrix.
 
 What this compares
 ==================
@@ -8,7 +8,7 @@ queued rather than executed and nothing is materialised until a reduction asks
 for it. Seurat ships dedicated ``IterableMatrix`` methods for exactly the
 functions that touch the matrix.
 
-shanuz's ``LazyMatrix`` is a different design with the same goal: three
+truecell's ``LazyMatrix`` is a different design with the same goal: three
 memory-mapped ``.npy`` arrays in CSC layout, with the analysis functions
 streaming over them in cell-blocks. It is lazy in *storage*, not in operations.
 
@@ -27,9 +27,9 @@ The headline
 Seurat's two paths **do not agree**: BPCells computes in single precision, so
 normalised values sit ~1e-6 apart, ``variance.standardized`` ~2e-2 apart, and
 the out-of-core run selects a different variable feature from the in-memory
-run. shanuz's two paths are **bit-identical** — one implementation serves both,
+run. truecell's two paths are **bit-identical** — one implementation serves both,
 which is a deliberate choice made after the alternative was measured (see
-``test_lazy_pipeline.py``). shanuz pays for that in disk: no bitpacking, so its
+``test_lazy_pipeline.py``). truecell pays for that in disk: no bitpacking, so its
 store is ~6x a BPCells integer store.
 
 Usage
@@ -52,16 +52,16 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz import (  # noqa: E402
-    create_shanuz_object,
+from truecell import (  # noqa: E402
+    create_truecell_object,
     find_markers,
     find_variable_features,
     normalize_data,
     percentage_feature_set,
     scale_data,
 )
-from shanuz.datasets import pbmc3k  # noqa: E402
-from shanuz.lazy import (  # noqa: E402
+from truecell.datasets import pbmc3k  # noqa: E402
+from truecell.lazy import (  # noqa: E402
     LazyMatrix,
     open_lazy_matrix,
     write_lazy_matrix,
@@ -75,7 +75,7 @@ NFEATURES = 2000
 # Every tolerance is the measured residual rounded up one decade, and every one
 # has a reason. They are set against R's *in-memory* series: BPCells computes in
 # single precision, so Seurat's own out-of-core numbers sit ~1e-6 from its
-# in-memory ones, while shanuz stays in float64 throughout.
+# in-memory ones, while truecell stays in float64 throughout.
 FLOAT_TOLERANCES = {
     # Summation order only. Measured 2.9e-15 / 3.8e-15 / 3.7e-15 / 2.5e-14.
     "mem.normalize_head": 1e-13,
@@ -86,7 +86,7 @@ FLOAT_TOLERANCES = {
     "mem.normalize_sum": 1e-11,
     "mem.scale_abs_sum": 1e-5,
     # The one real residual: `variance.standardized` is proportional to
-    # 1/variance.expected, and variance.expected is `10^loess_fitted`. shanuz's
+    # 1/variance.expected, and variance.expected is `10^loess_fitted`. truecell's
     # `_loess2` is a NumPy local-quadratic fit; R's `loess` is the cloess
     # Fortran with kd-tree interpolation, and the two differ by up to 2.5e-2 on
     # the expected variance. The inputs are not in question -- mean and
@@ -129,7 +129,7 @@ def build(data_dir=None):
     """pbmc3k through the standard filter — the same cells as every other
     tutorial in this series."""
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    obj = create_shanuz_object(counts=counts, assay=ASSAY, min_cells=3,
+    obj = create_truecell_object(counts=counts, assay=ASSAY, min_cells=3,
                                min_features=200, project="pbmc3k_lazy",
                                feature_names=genes, cell_names=cells)
     percentage_feature_set(obj, pattern=r"^MT-", col_name="percent.mt")
@@ -142,13 +142,13 @@ def build(data_dir=None):
 def persist(obj, path=None):
     """Write the counts layer to an on-disk store and return it."""
     assay = obj.assays[ASSAY]
-    target = Path(path or (FIGURES / "shanuz_store"))
+    target = Path(path or (FIGURES / "truecell_store"))
     return write_lazy_matrix(assay.layers["counts"], target, overwrite=True)
 
 
 def run_pipeline(counts, genes, cells):
     """Normalise, select variable features, scale — on whatever `counts` is."""
-    obj = create_shanuz_object(counts=counts, assay=ASSAY, min_cells=0,
+    obj = create_truecell_object(counts=counts, assay=ASSAY, min_cells=0,
                                min_features=0, project="p",
                                feature_names=genes, cell_names=cells)
     normalize_data(obj)
@@ -197,7 +197,7 @@ def collect_anchors(obj_mem, obj_lazy, store, counts):
     csc = sp.csc_matrix(counts)
     anchors["store.dgc_bytes"] = int(csc.data.nbytes + csc.indices.nbytes
                                      + csc.indptr.nbytes)
-    anchors["store.shanuz_bytes"] = int(
+    anchors["store.truecell_bytes"] = int(
         sum(f.stat().st_size for f in store.path.iterdir())
     )
     anchors["store.storage_order"] = "col"
@@ -223,7 +223,7 @@ def collect_anchors(obj_mem, obj_lazy, store, counts):
         anchors[f"{tag}.scale_head"] = scaled[0, :HEAD].tolist()
         anchors[f"{tag}.scale_abs_sum"] = float(np.abs(scaled).sum())
 
-    # shanuz against itself — the property the tutorial is really about.
+    # truecell against itself — the property the tutorial is really about.
     d_mem, d_lazy = _layer(obj_mem, "data"), _layer(obj_lazy, "data")
     d_mem.sort_indices()
     d_lazy.sort_indices()
@@ -255,7 +255,7 @@ def markers_anchors(obj):
     return {
         "markers.wilcox_top10": list(table.index[:10]),
         "markers.n_genes": int(len(table)),
-        # Every test shanuz offers works on a lazy layer; Seurat's out-of-core
+        # Every test truecell offers works on a lazy layer; Seurat's out-of-core
         # path takes only wilcox, and warns that column-major storage is the
         # wrong orientation for DE at that.
         "markers.supported_tests": _supported_tests(obj),
@@ -320,7 +320,7 @@ def report_concordance(py_anchors=None, r_anchors=None):
                          "`Rscript tutorials/lazy_bpcells_verify.R` first.")
     r_anchors = r_anchors or json.loads(r_path.read_text())
 
-    # R names its two runs bp./mem.; shanuz's out-of-core run is `lazy.`, and
+    # R names its two runs bp./mem.; truecell's out-of-core run is `lazy.`, and
     # it is compared against R's in-memory series (see the module docstring).
     remapped = dict(py_anchors)
     for key, value in py_anchors.items():
@@ -329,12 +329,12 @@ def report_concordance(py_anchors=None, r_anchors=None):
 
     matched, differed, reported = compare(remapped, r_anchors)
     total = len(matched) + len(differed)
-    print(f"\n{'=' * 74}\nshanuz vs Seurat — out of core\n{'=' * 74}")
+    print(f"\n{'=' * 74}\ntruecell vs Seurat — out of core\n{'=' * 74}")
     print(f"  {len(matched)} of {total} compared anchors match "
           f"({len([m for m, t in matched if t == 0.0])} exactly)\n")
     for name, py, r, tol in differed:
         print(f"  DIFFERS  {name}  (tol {tol:g})")
-        print(f"           shanuz {np.asarray(py).ravel()[:4]}")
+        print(f"           truecell {np.asarray(py).ravel()[:4]}")
         print(f"           Seurat {np.asarray(r).ravel()[:4]}")
 
     # The selected *set*, which the head-of-list ordering cannot speak to.
@@ -352,7 +352,7 @@ def report_concordance(py_anchors=None, r_anchors=None):
     print(f"\n{'-' * 74}\nReported, not matched — the two designs differ here on "
           f"purpose\n{'-' * 74}")
     for name, py, r in reported:
-        print(f"  {name:<38} shanuz {str(py)[:22]:<24} Seurat {str(r)[:22]}")
+        print(f"  {name:<38} truecell {str(py)[:22]:<24} Seurat {str(r)[:22]}")
     return matched, differed, reported, overlap
 
 

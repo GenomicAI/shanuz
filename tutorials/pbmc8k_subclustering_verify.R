@@ -34,7 +34,7 @@ set.seed(0)
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_advanced")
 DATA <- Sys.getenv("PBMC8K_DATA",
-                   path.expand("~/.shanuz_data/pbmc8k/filtered_gene_bc_matrices/GRCh38"))
+                   path.expand("~/.truecell_data/pbmc8k/filtered_gene_bc_matrices/GRCh38"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 if (!file.exists(file.path(DATA, "matrix.mtx")) &&
     !file.exists(file.path(DATA, "matrix.mtx.gz")))
@@ -139,7 +139,7 @@ pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000, v
 pbmc <- ScaleData(pbmc, features = rownames(pbmc), verbose = FALSE)
 pbmc <- RunPCA(pbmc, npcs = 50, verbose = FALSE)
 # nn.method = "rann" gives exact neighbours. Seurat's default is approximate
-# (annoy) while shanuz's neighbour search is exact, so the default would compare
+# (annoy) while truecell's neighbour search is exact, so the default would compare
 # two different neighbour tables — and here the graph decides the clusters,
 # which decide which cells enter the subclustering stage. Same pin as
 # pbmc3k_verify.R and pbmc3k_objects_verify.R.

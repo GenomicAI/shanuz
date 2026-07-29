@@ -1,4 +1,4 @@
-"""Every annotation in `shanuz/` must name something the module actually binds.
+"""Every annotation in `truecell/` must name something the module actually binds.
 
 `from __future__ import annotations` turns every signature into a string that is
 never evaluated, so an annotation may name a symbol that exists nowhere and
@@ -8,7 +8,7 @@ generator resolving `-> "plt.Figure"` when no `plt` exists at module scope.
 
 That is not hypothetical. Twenty-one annotations across four modules named
 symbols bound only inside function bodies (`plt = _mpl()`) or imported only at
-call time to dodge a circular import (`Graph`/`Neighbor`/`Shanuz`). The fix is a
+call time to dodge a circular import (`Graph`/`Neighbor`/`Truecell`). The fix is a
 `if TYPE_CHECKING:` block, which type checkers and static doc tools read and the
 interpreter never executes — and which is easy to delete later while every other
 test stays green. This module is the thing that would notice.
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PKG = REPO_ROOT / "shanuz"
+PKG = REPO_ROOT / "truecell"
 
 # Modules whose annotations depend on a `TYPE_CHECKING` block, and the symbol
 # each one defers. Listed explicitly so deleting a block is a failure with a
@@ -31,7 +31,7 @@ DEFERRED = {
     "plotting.py": "Figure",
     "graph.py": "Neighbor",
     "neighbor.py": "Graph",
-    "compat/anndata.py": "Shanuz",
+    "compat/anndata.py": "Truecell",
 }
 
 
@@ -79,7 +79,7 @@ def _roots(expr: ast.expr) -> list:
     """Identifiers an annotation depends on, unwrapping strings and generics.
 
     `Optional[Graph]` depends on both `Optional` and `Graph`; `plt.Figure`
-    depends on `plt`, not on `Figure`; `"Shanuz"` is parsed and then treated
+    depends on `plt`, not on `Figure`; `"Truecell"` is parsed and then treated
     like the expression it spells.
     """
     if isinstance(expr, ast.Constant):
@@ -139,7 +139,7 @@ def test_no_source_file_starts_with_a_byte_order_mark():
 
     CPython's import machinery decodes source as `utf-8-sig`, so a BOM never
     shows up as a runtime failure — `import`, `inspect.getsource`, ruff and mypy
-    all handle `shanuz/command.py` without complaint, which is why one survived
+    all handle `truecell/command.py` without complaint, which is why one survived
     in it unnoticed. What breaks is the ordinary idiom for reading source back:
 
         ast.parse(Path(mod.__file__).read_text())
@@ -213,12 +213,12 @@ def test_deferred_symbols_stay_inside_type_checking(relpath, symbol):
     )
 
 
-def test_importing_shanuz_still_does_not_import_matplotlib():
-    """`shanuz/__init__.py` imports `plotting` eagerly, so this is load-bearing.
+def test_importing_truecell_still_does_not_import_matplotlib():
+    """`truecell/__init__.py` imports `plotting` eagerly, so this is load-bearing.
 
     matplotlib is optional — `_mpl()` raises a pip-install message when it is
     absent. Moving `from matplotlib.figure import Figure` out of the
-    `TYPE_CHECKING` block would turn `import shanuz` into a hard requirement for
+    `TYPE_CHECKING` block would turn `import truecell` into a hard requirement for
     it on every install, and no other test in the suite would notice, because
     CI has matplotlib installed.
 
@@ -226,13 +226,13 @@ def test_importing_shanuz_still_does_not_import_matplotlib():
     has long since put matplotlib in `sys.modules`.
     """
     code = (
-        "import sys; import shanuz; "
-        "assert 'shanuz.plotting' in sys.modules, 'plotting no longer imported eagerly'; "
+        "import sys; import truecell; "
+        "assert 'truecell.plotting' in sys.modules, 'plotting no longer imported eagerly'; "
         "sys.exit(1 if 'matplotlib' in sys.modules else 0)"
     )
     proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert proc.returncode == 0, (
-        "importing shanuz now pulls in matplotlib, making an optional "
+        "importing truecell now pulls in matplotlib, making an optional "
         f"dependency mandatory.\n{proc.stdout}{proc.stderr}"
     )
 
@@ -247,7 +247,7 @@ def test_deferred_symbols_are_absent_at_runtime(relpath, symbol):
     """
     import importlib
 
-    name = "shanuz." + relpath[:-3].replace("/", ".")
+    name = "truecell." + relpath[:-3].replace("/", ".")
     module = importlib.import_module(name)
     assert not hasattr(module, symbol), (
         f"{name}.{symbol} exists at runtime; the TYPE_CHECKING block is executing"

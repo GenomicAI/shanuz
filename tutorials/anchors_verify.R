@@ -8,7 +8,7 @@
 # nn.method = "rann" gives exact nearest neighbours. Seurat's default is annoy,
 # which is approximate: re-running the same data with annoy moves ~0.3% of the
 # anchors, and that noise would otherwise be indistinguishable from a real
-# disagreement with shanuz.
+# disagreement with truecell.
 #
 # Run order:
 #   Rscript tutorials/export_seuratdata.R ifnb    # one-time counts export
@@ -27,7 +27,7 @@ options(future.globals.maxSize = 3 * 1024^3)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_anchors")
-DATA <- Sys.getenv("IFNB_DATA", path.expand("~/.shanuz_data/ifnb"))
+DATA <- Sys.getenv("IFNB_DATA", path.expand("~/.truecell_data/ifnb"))
 
 DIMS <- 1:30
 

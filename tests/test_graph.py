@@ -1,7 +1,7 @@
 import pytest
 import scipy.sparse as sp
-from shanuz import Graph, Neighbor
-from shanuz.graph import as_graph
+from truecell import Graph, Neighbor
+from truecell.graph import as_graph
 
 
 @pytest.fixture

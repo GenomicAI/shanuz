@@ -1,4 +1,4 @@
-"""SCTransform Tutorial — PBMC 3k with Shanuz.
+"""SCTransform Tutorial — PBMC 3k with Truecell.
 
 A Python port of Seurat's sctransform vignette
 (https://satijalab.org/seurat/articles/sctransform_vignette) on the PBMC 3k
@@ -18,7 +18,7 @@ Usage
 -----
     python tutorials/pbmc3k_sctransform_tutorial.py [--data-dir PATH]
 
-The PBMC 3k dataset (~24 MB) downloads automatically to ~/.shanuz_data/pbmc3k.
+The PBMC 3k dataset (~24 MB) downloads automatically to ~/.truecell_data/pbmc3k.
 
 References
 ----------
@@ -39,18 +39,18 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import pbmc3k
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import pbmc3k
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data, percentage_feature_set,
 )
-from shanuz.sctransform import sctransform
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
-from shanuz.markers import find_all_markers
-from shanuz.plotting import _get_expression
+from truecell.sctransform import sctransform
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
+from truecell.markers import find_all_markers
+from truecell.plotting import _get_expression
 
 
 # Markers shown in the vignette's FeaturePlots — these define the fine subsets
@@ -86,7 +86,7 @@ T_SUBSETS = {"Naive CD4 T", "Memory CD4 T", "CD8 Naive/Mem", "CD8 Effector"}
 
 def load_object(data_dir=None):
     counts, genes, cells = pbmc3k(data_dir=data_dir)
-    pbmc = create_shanuz_object(
+    pbmc = create_truecell_object(
         counts=counts, assay="RNA", min_cells=3, min_features=200,
         project="pbmc3k", feature_names=genes, cell_names=cells,
     )
@@ -245,7 +245,7 @@ def run_full(data_dir=None, verbose=True):
 
 FIGURES = Path(__file__).parent / "figures_sctransform"
 
-# Seurat's SCTModel feature.attributes columns, in its order. shanuz stores the
+# Seurat's SCTModel feature.attributes columns, in its order. truecell stores the
 # same names on the SCT assay's meta_data, so the two tables line up directly.
 _MODEL_COLS = ["detection_rate", "gmean", "residual_mean",
                "residual_variance", "theta", "(Intercept)", "log_umi"]
@@ -308,7 +308,7 @@ def report():
     # tokens that pandas would otherwise read as missing.
     py = pd.read_csv(FIGURES / "py_sct_model.csv", keep_default_na=False)
     r = pd.read_csv(FIGURES / "r_sct_model.csv", keep_default_na=False)
-    # `Read10X` rewrites "_" to "-" in gene symbols and shanuz's loader does
+    # `Read10X` rewrites "_" to "-" in gene symbols and truecell's loader does
     # not, so one gene (RP11-442N24__B.1) spells differently on the two sides.
     # That belongs to the two file readers, not to SCTransform — normalise to
     # R's spelling rather than silently dropping the gene from the comparison.
@@ -318,9 +318,9 @@ def report():
     py, r = py.loc[shared], r.loc[shared]
 
     print("=" * 74)
-    print("shanuz vs Seurat 5.5.1 — the SCTransform model, per gene")
+    print("truecell vs Seurat 5.5.1 — the SCTransform model, per gene")
     print("=" * 74)
-    print(f"  genes modelled: shanuz {len(py)}  R {len(r)}  shared {len(shared)}\n")
+    print(f"  genes modelled: truecell {len(py)}  R {len(r)}  shared {len(shared)}\n")
 
     print(f"  {'quantity':<20}{'spearman':>10}{'pearson':>10}"
           f"{'max|diff|':>12}{'note':>18}")
@@ -335,7 +335,7 @@ def report():
         # A correlation is undefined when either side is constant, which is not
         # a failure — `log_umi` is pinned at log(10) for every gene under v2, so
         # it is *supposed* to be constant. Say so instead of printing nan.
-        # Tested on the range, not on `std() == 0`: shanuz's column is exactly
+        # Tested on the range, not on `std() == 0`: truecell's column is exactly
         # constant yet numpy's std of it is 4e-16, and R's varies by 3e-14 from
         # write.csv's 15-digit rounding, so neither side is ever exactly flat.
         def _flat(v):
@@ -361,7 +361,7 @@ def report():
     poisson_r = set(shared[np.isinf(r["theta"].to_numpy(float))])
     inter = len(poisson_py & poisson_r)
     union = len(poisson_py | poisson_r)
-    print(f"\n  Poisson genes (theta = Inf): shanuz {len(poisson_py)}  "
+    print(f"\n  Poisson genes (theta = Inf): truecell {len(poisson_py)}  "
           f"R {len(poisson_r)}  Jaccard {inter / max(union, 1):.4f}")
 
     py_vf = (FIGURES / "py_variable_features.txt").read_text().split()
@@ -373,7 +373,7 @@ def report():
 
     pa = json.loads((FIGURES / "py_anchors.json").read_text())
     ra = json.loads((FIGURES / "r_anchors.json").read_text())
-    print(f"\n  {'anchor':<26}{'shanuz':>20}{'R Seurat':>20}   verdict")
+    print(f"\n  {'anchor':<26}{'truecell':>20}{'R Seurat':>20}   verdict")
     print(f"  {'-' * 70}")
     for k in sorted(set(pa) & set(ra)):
         a, b = pa[k], ra[k]

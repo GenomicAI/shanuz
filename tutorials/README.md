@@ -1,7 +1,7 @@
-# Shanuz Tutorials
+# Truecell Tutorials
 
 Eighteen end-to-end tutorials covering increasingly complex single-cell analysis workflows,
-each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz** code.
+each pairing **R Seurat** code side-by-side with the equivalent **Python Truecell** code.
 
 ---
 
@@ -16,7 +16,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 5 | [Xenium — Spatial (R vs Python)](xenium_spatial_tutorial.md) | 36,602 cells · 10x Xenium mouse brain (CTX+HP) | `load_xenium` · `ImageDimPlot`/`ImageFeaturePlot` · nearest-neighbour distance · local density · `BuildNicheAssay` · `composition_test` — verified to 8 s.f. vs R Seurat | Spatial |
 | 6 | [Cell Hashing — Demultiplexing](hashing_vignette.md) | 39,842 cells · 8 HTOs · GSE108313 (human+mouse) | Hashtag assay · CLR (margin 1) · `HTODemux` ↔ `hto_demux` · `MULTIseqDemux` ↔ `multiseq_demux` · cross-species doublet ground truth — **99.81 %** call-concordant with R | Advanced |
 | 7 | [Mixscape — Pooled CRISPR Screen](mixscape_vignette.md) | 20,729 cells · 25 guides + NT · GSE153056 (THP-1 ECCITE-seq) | Perturbation signature (`CalcPerturbSig`) · KO-vs-escaper mixture (`RunMixscape`) · guide-separating LDA (`MixscapeLDA`) · `PlotPerturbScore` / `MixscapeHeatmap` — **97.45 %** per-cell call-concordant with R | Advanced |
-| 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA/RPCA all reach **batch-mix 0.991**; **caught eight bugs, all fixed** (a crash, an under-integration, and — found chasing what looked like the remaining implementation gap — `IntegrateLayers` silently running the v4 algorithm, a randomized-SVD PC drift in `run_pca`, and four in the neighbour graphs). The last gap standing turned out **not** to be a defect: Seurat's deeper modularity search buys 0.17 % by splitting CD14 Mono on batch, so shanuz's coarser partition scores **ARI 0.92 to the annotations against Seurat's 0.74** | Advanced |
+| 8 | [Batch Integration — Harmony/CCA/RPCA](integration_vignette.md) | 13,999 cells · CTRL/STIM · ifnb (Kang 2018) | Batch correction (`RunHarmony` ↔ `run_harmony`) · CCA/RPCA anchors (`IntegrateLayers` ↔ `integrate_layers`) · silhouette + cluster-ARI scoring — Harmony/CCA/RPCA all reach **batch-mix 0.991**; **caught eight bugs, all fixed** (a crash, an under-integration, and — found chasing what looked like the remaining implementation gap — `IntegrateLayers` silently running the v4 algorithm, a randomized-SVD PC drift in `run_pca`, and four in the neighbour graphs). The last gap standing turned out **not** to be a defect: Seurat's deeper modularity search buys 0.17 % by splitting CD14 Mono on batch, so truecell's coarser partition scores **ARI 0.92 to the annotations against Seurat's 0.74** | Advanced |
 | 9 | [Reference Mapping — Label Transfer](refmap_vignette.md) | 4,679 cells · celseq2→smartseq2 · panc8 (Baron 2016) | Cross-technology annotation transfer (`FindTransferAnchors` ↔ `find_transfer_anchors`) · `TransferData` ↔ `transfer_data` · `MapQuery`/`ProjectUMAP` ↔ `map_query`/`project_umap` — **98.71 %** per-cell label-concordant with R, both ~98.5 % accurate vs ground truth | Advanced |
 | 10 | [Cell-cycle & Module Scoring](cellcycle_vignette.md) | 20,729 cells · THP-1 · GSE153056 (Papalexi 2021) | Gene-program scoring (`AddModuleScore` ↔ `add_module_score`) · cell-cycle phase (`CellCycleScoring` ↔ `cell_cycle_scoring`) · S/G2M scores + discrete phase — **96.6 %** per-cell Phase-concordant with R, scores correlate at Pearson ≥ 0.998 | Advanced |
 | 11 | [Dimensional-Reduction Extras](dimreduc_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | PC significance (`JackStraw`/`ScoreJackStraw` ↔ `jack_straw`/`score_jackstraw`) · `RunICA` ↔ `run_ica` · `RunTSNE` ↔ `run_tsne` — both tools keep **13 PCs**; ICA matched \|r\| **0.982**; **caught two JackStraw bugs, both fixed** (a too-tight null + the wrong aggregation test) | Advanced |
@@ -24,8 +24,8 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 | 13 | [The Object Model Itself](objects_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | The **container**, not an algorithm: `Cells`/`Features` · the v5 layered assay (`Layers`/`LayerData`/`split`/`JoinLayers`) · `Key` · `Embeddings`/`Loadings`/`Stdev` · `Graphs` · `FetchData` · `Idents`/`WhichCells`/`RenameIdents`/`subset` · `Command` — **91 of 91 anchors match exactly**, no tolerance (the two neighbour-graph anchors closed by PR #55); **caught eleven bugs, all fixed** (a split/join round trip that silently misordered columns, `FetchData` returning sparse objects instead of numbers, an inert command log) | Advanced |
 | 14 | [Spatial Statistics & the Spatial Container](svf_vignette.md) | 36,602 cells · 248 genes · 10x Xenium mouse brain | The spatial **container** and the one spatial **statistic** never checked against R: `LoadXenium` ↔ `load_xenium` · `CreateFOV`/`CreateCentroids`/`CreateSegmentation` ↔ `create_fov`/`create_centroids`/`create_segmentation` · `GetTissueCoordinates` · `Radius` · `FindSpatiallyVariableFeatures` ↔ `find_spatially_variable_features` — **38 of 39 anchors match exactly**; Moran's I to **1.6e-14** and 10/10 of Seurat's top genes, on a slide R cannot hold in memory; **caught three bugs, all fixed** (Moran's I on a kNN graph instead of R's inverse-square weights, centroids with no radius, unclosed polygons) | Advanced |
 | 15 | [The Differential-Expression Test Suite](de_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | All **eight** `find_markers` tests against `FindMarkers` — `wilcox` · `t` · `bimod` · `LR` · `negbinom` · `roc` · `MAST` · `DESeq2` — on a shared cell assignment so no clustering difference can pose as a DE difference. **All seven per-cell tests reproduce Seurat's top 50 exactly**; `avg_log2FC` to **7.1e-15**; **caught two bugs, both fixed** (Seurat's pseudocount on the group mean instead of the sum, which also changed which genes `logfc_threshold` returned; and a moment-dispersion LRT where Seurat runs an ML-dispersion Wald test) | Advanced |
-| 16 | [Out of Core — `LazyMatrix` vs BPCells](lazy_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | shanuz's on-disk layer against **BPCells**, Seurat's: `write_lazy_matrix`/`open_lazy_matrix` ↔ `write_matrix_dir`/`open_matrix_dir` · streaming `LogNormalize`/`VST`/`ScaleData` ↔ Seurat's `IterableMatrix` methods · `.CalcN` · storage formats. **14 of 14 anchors match**, 1998/2000 variable features shared with Seurat. The finding is each tool against *itself*: shanuz's on-disk and in-memory paths are **bit-identical**, Seurat's differ by 1.0e-06 and pick a different variable feature. **Caught seven bugs, all fixed** (five functions that densified the whole store — so going on disk *raised* peak memory 4.6× — a constructor that ended laziness before analysis began, and a LOESS whose fit moved 28.8 % under a 1e-15 nudge) | Advanced |
-| 17 | [Visium — the Spatial Container](visium_vignette.md) | 2,695 spots · 10x V1_Mouse_Brain_Sagittal_Anterior | The Visium loader and container: `Load10X_Spatial`/`Read10X_Image` ↔ `load_visium` · `VisiumV2` · `ScaleFactors` · `Radius` · `GetTissueCoordinates` · `SpatialDimPlot` ↔ `spatial_dim_plot` — **24 of 24 anchors match**, 17 exactly, coordinates to `max\|dx\| = 0`. **The first tutorial where Seurat is the one that's wrong**: it stores `spot_diameter_fullres` in the FOV's `radius`, which the slide's fixed 100 µm pitch shows is a diameter, and `Radius()` on its own `VisiumV2` returns `NULL`. **Caught one shanuz bug** (the tissue image came back 255× apart depending on whether matplotlib or Pillow was installed) and **aligned three defaults** to Seurat | Spatial |
+| 16 | [Out of Core — `LazyMatrix` vs BPCells](lazy_vignette.md) | 2,700 PBMCs · 10x Genomics (2016) | truecell's on-disk layer against **BPCells**, Seurat's: `write_lazy_matrix`/`open_lazy_matrix` ↔ `write_matrix_dir`/`open_matrix_dir` · streaming `LogNormalize`/`VST`/`ScaleData` ↔ Seurat's `IterableMatrix` methods · `.CalcN` · storage formats. **14 of 14 anchors match**, 1998/2000 variable features shared with Seurat. The finding is each tool against *itself*: truecell's on-disk and in-memory paths are **bit-identical**, Seurat's differ by 1.0e-06 and pick a different variable feature. **Caught seven bugs, all fixed** (five functions that densified the whole store — so going on disk *raised* peak memory 4.6× — a constructor that ended laziness before analysis began, and a LOESS whose fit moved 28.8 % under a 1e-15 nudge) | Advanced |
+| 17 | [Visium — the Spatial Container](visium_vignette.md) | 2,695 spots · 10x V1_Mouse_Brain_Sagittal_Anterior | The Visium loader and container: `Load10X_Spatial`/`Read10X_Image` ↔ `load_visium` · `VisiumV2` · `ScaleFactors` · `Radius` · `GetTissueCoordinates` · `SpatialDimPlot` ↔ `spatial_dim_plot` — **24 of 24 anchors match**, 17 exactly, coordinates to `max\|dx\| = 0`. **The first tutorial where Seurat is the one that's wrong**: it stores `spot_diameter_fullres` in the FOV's `radius`, which the slide's fixed 100 µm pitch shows is a diameter, and `Radius()` on its own `VisiumV2` returns `NULL`. **Caught one truecell bug** (the tissue image came back 255× apart depending on whether matplotlib or Pillow was installed) and **aligned three defaults** to Seurat | Spatial |
 | 18 | [Anchor Internals — CCA & RPCA](anchors_vignette.md) | 2,400 cells · CTRL/STIM · ifnb (Kang 2018) | Both anchor paths at the level of the anchors and embeddings themselves, not the clustering they produce: v4 `FindIntegrationAnchors` ↔ `find_integration_anchors` · `IntegrateData` ↔ `integrate_data` · `RunCCA` · `ReciprocalProject` · `ScoreAnchors` · `FilterAnchors` · `FindWeights`; v5 `IntegrateLayers` ↔ `integrate_layers` · `IntegrateEmbeddings` — **RPCA agrees on 100 % of Seurat's v4 anchors** (649/649) and **30/30 PCs** on the v5 embedding, up from 1/30; CCA v4 anchors **99.9 %**, up from 70.0 %. **Caught eighteen bugs, all fixed** — CCA standardizing vs L2-normalizing, sklearn's randomized SVD drifting reciprocal-PCA's trailing PCs, `integrate_layers` silently running v4's `IntegrateData` behind the v5 `IntegrateEmbeddings` name, and a symmetrized KNN graph plus a missing SNN diagonal | Advanced |
 
 ---
@@ -35,8 +35,8 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Shanuz*
 Clone the repo and install dependencies once, then pick any tutorial script:
 
 ```bash
-git clone https://github.com/GenomicAI/shanuz.git
-cd shanuz
+git clone https://github.com/GenomicAI/truecell.git
+cd truecell
 uv venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 uv pip install -e ".[analysis]"
 ```
@@ -44,7 +44,7 @@ uv pip install -e ".[analysis]"
 Each tutorial has a **Python script** that runs the analysis and prints validation output,
 and a **figure-generation script** that writes plots to a `figures_*/` subfolder.
 
-The datasets download automatically on first run, to `~/.shanuz_data/` (~200 MB
+The datasets download automatically on first run, to `~/.truecell_data/` (~200 MB
 ~770 MB with every dataset cached).
 
 ### Checking the tutorials still run
@@ -53,7 +53,7 @@ Two layers, because the fast one cannot reach everything:
 
 ```bash
 pytest tests/test_tutorial_marker_tables.py      # fast, no data, runs in CI
-SHANUZ_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v   # real runs, needs the cached data
+TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -v   # real runs, needs the cached data
 ```
 
 The first covers the presentation helpers with synthetic frames. The second
@@ -66,11 +66,11 @@ suite passing tells you nothing about whether these scripts still work end to en
 
 Every tutorial pairs R and Python on the **same counts**. Two ways that happens:
 
-- **Original public files** — `shanuz.datasets` downloads the dataset's own
+- **Original public files** — `truecell.datasets` downloads the dataset's own
   GEO/10x files, which R and Python both read directly. This covers `pbmc3k`,
   `pbmc8k`, `cbmc_citeseq`, `xenium_mouse_brain`, and the two hashing/perturbation
   datasets, `pbmc_hashing` (GSE108313) and `thp1_eccite` (GSE153056). Nothing extra
-  to run — they cache to `~/.shanuz_data/` on first use.
+  to run — they cache to `~/.truecell_data/` on first use.
 
 - **The R bridge** — a few datasets exist only as curated SeuratData `.rda`
   objects with no clean cross-language raw source (`ifnb`, `panc8`). For those,
@@ -82,7 +82,7 @@ Every tutorial pairs R and Python on the **same counts**. Two ways that happens:
   Rscript tutorials/export_seuratdata.R panc8    # ~117 MB
   ```
 
-  Then `shanuz.datasets.ifnb()` / `panc8()` load that export in Python. (This is
+  Then `truecell.datasets.ifnb()` / `panc8()` load that export in Python. (This is
   the mirror of the `*_verify.R` scripts, where R instead depends on the Python
   download.) Needs R with `Seurat` + `SeuratData`.
 
@@ -102,7 +102,7 @@ python tutorials/generate_plots.py     # writes tutorials/figures/
 ```
 
 **What you'll learn:**
-- Load 10x Genomics data and create a Shanuz object
+- Load 10x Genomics data and create a Truecell object
 - Compute QC metrics (percent mitochondrial reads) and filter low-quality cells
 - Normalize counts (`LogNormalize`), select highly variable genes (VST), and scale data
 - Run PCA, build the KNN/SNN neighbor graph, and cluster with Louvain
@@ -124,20 +124,20 @@ python tutorials/generate_plots.py     # writes tutorials/figures/
 then `python tutorials/pbmc3k_tutorial.py --report`. Both sides run their own
 pipeline from the same 10x bytes; nothing is pinned across them.
 
-| Step | shanuz vs Seurat |
+| Step | truecell vs Seurat |
 |------|------------------|
 | Cells surviving QC | **the same 2,638 barcodes**, nCount/nFeature exact, percent.mt to 5.3e-15 |
 | VST per gene, all 13,714 | mean 4.8e-14, variance 1.6e-11, `variance.expected` 2.5e-2 and `variance.standardized` 2.6e-2 relative — the whole gap is the LOESS fit |
 | The 2,000 variable features | **1,998 shared**; the two swaps are genes 0.03 apart in a LOESS fit, at ranks 1,982–2,000 |
 | PCA, the 10 dims clustering uses | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
 | kNN graph | **52,760 = 2,638 × 20 on both** |
-| Clusters at resolution 0.5 | shanuz **8**, Seurat **9** — ARI **0.938**, 2,554/2,638 cells agree |
-| The one cluster Seurat has and shanuz does not | its 32 DC cells land, **all 32**, in shanuz's CD14+ Mono cluster |
+| Clusters at resolution 0.5 | truecell **8**, Seurat **9** — ARI **0.938**, 2,554/2,638 cells agree |
+| The one cluster Seurat has and truecell does not | its 32 DC cells land, **all 32**, in truecell's CD14+ Mono cluster |
 | Markers on the two clusters whose cells match exactly | **identical gene sets** (151/151 and 242/242), `avg_log2FC` to 4.9e-15 |
 
 The DC split is the honest caveat: at resolution 0.5 a 32-cell dendritic-cell
 population sits on the boundary, and the two runs land on opposite sides of it.
-Tutorial 2 shows the same boundary going the other way — there shanuz resolves
+Tutorial 2 shows the same boundary going the other way — there truecell resolves
 DC from Platelet and Seurat merges them.
 
 ---
@@ -179,13 +179,13 @@ python tutorials/generate_advanced_plots.py         # writes tutorials/figures_a
 tutorials/pbmc8k_subclustering_verify.R` then
 `python tutorials/pbmc8k_subclustering_tutorial.py --report`.
 
-| Step | shanuz vs Seurat |
+| Step | truecell vs Seurat |
 |------|------------------|
 | Cells surviving QC | **the same 7,475 barcodes**, metrics exact to 5.8e-15 |
-| Stage 1 — global clusters | shanuz **13**, Seurat **12**; ARI **0.977**, 7,341/7,475 cells agree |
+| Stage 1 — global clusters | truecell **13**, Seurat **12**; ARI **0.977**, 7,341/7,475 cells agree |
 | Broad lineage label, per cell | **0.9858** |
 | **The compartment handed to stage 2** | **Jaccard 0.9991** — 4,631 of 4,635 T/NK cells are the same barcodes |
-| Stage 2 — T/NK subclusters | shanuz **12**, Seurat **11**; ARI **0.916** on the shared cells |
+| Stage 2 — T/NK subclusters | truecell **12**, Seurat **11**; ARI **0.916** on the shared cells |
 | T/NK subset label, per cell | **0.9821**; subset sizes agree within 25 cells of 4,631 |
 | kNN graph | **149,500 = 7,475 × 20 on both** |
 
@@ -195,9 +195,9 @@ wrong global clusters would still produce a compartment, still produce
 subclusters, and still pass a count check — which is why the handoff compares
 barcodes rather than sizes.
 
-The extra shanuz cluster is the mirror image of Tutorial 1's caveat: Seurat's
-100-cell cluster 11 holds both Platelet and DC, and shanuz splits it in two
-(54 DC + 53 Platelet). Here shanuz resolves what Seurat merges; on PBMC 3k it
+The extra truecell cluster is the mirror image of Tutorial 1's caveat: Seurat's
+100-cell cluster 11 holds both Platelet and DC, and truecell splits it in two
+(54 DC + 53 Platelet). Here truecell resolves what Seurat merges; on PBMC 3k it
 is the other way round. Neither run is uniformly finer than the other.
 
 ---
@@ -218,7 +218,7 @@ python tutorials/generate_multimodal_plots.py # writes tutorials/figures_multimo
 
 **What you'll learn:**
 - Load and align RNA + ADT matrices (handles the mouse spike-in gene prefix)
-- Attach a second `ADT` assay to the Shanuz object
+- Attach a second `ADT` assay to the Truecell object
 - CLR-normalize the surface protein counts (`margin=2` centers each cell across the
   protein panel, matching Seurat's flag exactly — axis included)
 - Overlay protein expression on the RNA UMAP — protein gives smooth, high-SNR signal
@@ -286,7 +286,7 @@ on the same cells — the regularized intercept matches at Spearman 1.0000, thet
 at 0.96, residual variance at 0.9986, and **2,913 of the 3,000 variable
 features** agree. Like Seurat 5, `sctransform` defaults to `vst_flavor="v2"`;
 under `vst_flavor="v1"` Python and R land on 13 clusters each. At the v2 default
-Shanuz resolves 13 where R resolves 12 — a genuine one-cluster difference (R is
+Truecell resolves 13 where R resolves 12 — a genuine one-cluster difference (R is
 stable at 12 across seeds) from `vst`'s random step-1 gene sample and the
 different clustering libraries, the same ±1 caveat as the other tutorials.
 
@@ -298,7 +298,7 @@ different clustering libraries, the same ±1 caveat as the other tutorials.
 
 The spatial counterpart to the others: a 10x **Xenium** section (mouse brain
 coronal CTX+HP subset — the dataset in Seurat's spatial vignette, **36,602 cells
-× 248 genes**) analysed side by side in R Seurat and Shanuz. It reproduces the
+× 248 genes**) analysed side by side in R Seurat and Truecell. It reproduces the
 style of an internal Xenium mast-cell/neighbourhood workflow on fully public
 data, exercising the spatial Seurat-parity layer end to end.
 
@@ -341,7 +341,7 @@ same caveat as the other tutorials.
 
 A port of Seurat's [hashing vignette](https://satijalab.org/seurat/articles/hashing_vignette):
 eight samples, each tagged with an antibody **hashtag** (HTO), pooled on one
-lane. Both of Shanuz's demultiplexers run against their R references on
+lane. Both of Truecell's demultiplexers run against their R references on
 byte-identical GEO input (**GSE108313**, Stoeckius et al. 2018 — the original
 plain-text matrices, **not** the vignette's binary `.rds`). It is the first
 real-data check of the CLR-margin fix (#32) and the `clara` default (#34).
@@ -350,7 +350,7 @@ real-data check of the CLR-margin fix (#32) and the `clara` default (#34).
 python tutorials/pbmc_hashing_tutorial.py     # downloads ~34 MB, prints the report
 Rscript tutorials/pbmc_hashing_verify.R       # Seurat reference → r_calls.csv + r_*.png
 python tutorials/pbmc_hashing_tutorial.py     # re-run → prints the R-vs-Python concordance
-python tutorials/generate_hashing_plots.py    # Shanuz figures → figures_hashing/py_*.png
+python tutorials/generate_hashing_plots.py    # Truecell figures → figures_hashing/py_*.png
 ```
 
 **What you'll learn:**
@@ -404,7 +404,7 @@ variable-feature basis.
 python tutorials/thp1_mixscape_tutorial.py    # downloads ~66 MB, writes HVGs, prints the report
 Rscript tutorials/thp1_mixscape_verify.R      # Seurat reference → r_calls.csv + r_*.png
 python tutorials/thp1_mixscape_tutorial.py    # re-run → prints the R-vs-Python concordance
-python tutorials/generate_mixscape_plots.py   # Shanuz figures → figures_mixscape/py_*.png
+python tutorials/generate_mixscape_plots.py   # Truecell figures → figures_mixscape/py_*.png
 ```
 
 **What you'll learn:**
@@ -449,7 +449,7 @@ A port of Seurat's [integration vignette](https://satijalab.org/seurat/articles/
 the **ifnb** dataset (Kang et al. 2018), ~14,000 PBMCs split CTRL vs
 interferon-β-stimulated. Interferon drives a global response, so uncorrected the
 cells cluster by *condition* rather than *cell type* — the standard batch-effect
-benchmark. Runs all three of Shanuz's integration paths against Seurat on identical
+benchmark. Runs all three of Truecell's integration paths against Seurat on identical
 counts and a shared variable-feature basis.
 
 ```bash
@@ -457,7 +457,7 @@ Rscript tutorials/export_seuratdata.R ifnb        # one-time counts export (~394
 python  tutorials/ifnb_integration_tutorial.py    # writes HVGs, prints the scoreboard
 Rscript tutorials/ifnb_integration_verify.R       # Seurat reference → r_calls.csv + r_*.png
 python  tutorials/ifnb_integration_tutorial.py    # re-run → prints the R-vs-Python concordance
-python  tutorials/generate_integration_plots.py   # Shanuz figures → figures_integration/py_*.png
+python  tutorials/generate_integration_plots.py   # Truecell figures → figures_integration/py_*.png
 ```
 
 **What you'll learn:**
@@ -514,7 +514,7 @@ Rscript tutorials/export_seuratdata.R panc8            # one-time counts export 
 python  tutorials/panc8_reference_mapping_tutorial.py  # writes HVGs, prints accuracy + per-class recall
 Rscript tutorials/panc8_reference_mapping_verify.R     # Seurat reference → r_calls.csv + r_*.png
 python  tutorials/panc8_reference_mapping_tutorial.py  # re-run → prints the R-vs-Python concordance
-python  tutorials/generate_refmap_plots.py             # Shanuz figures → figures_refmap/py_*.png
+python  tutorials/generate_refmap_plots.py             # Truecell figures → figures_refmap/py_*.png
 ```
 
 **What you'll learn:**
@@ -541,8 +541,8 @@ python  tutorials/generate_refmap_plots.py             # Shanuz figures → figu
 
 | Comparison | Agreement |
 |---|---:|
-| Same `predicted.id` per cell (shanuz vs Seurat) | **98.71 %** (31 cells differ) |
-| shanuz accuracy vs ground-truth `celltype` | **98.45 %** |
+| Same `predicted.id` per cell (truecell vs Seurat) | **98.71 %** (31 cells differ) |
+| truecell accuracy vs ground-truth `celltype` | **98.45 %** |
 | Seurat accuracy vs ground-truth `celltype` | **98.79 %** |
 
 Both tools annotate the query almost identically — 2,363 of 2,394 cells get the
@@ -569,7 +569,7 @@ for cell-cycle scoring). Reuses the Mixscape counts; only the raw RNA matters.
 python  tutorials/thp1_cellcycle_tutorial.py    # downloads ~66 MB (shared with Mixscape), writes gene lists
 Rscript tutorials/thp1_cellcycle_verify.R       # Seurat reference → r_calls.csv + r_*.png
 python  tutorials/thp1_cellcycle_tutorial.py    # re-run → prints the R-vs-Python concordance
-python  tutorials/generate_cellcycle_plots.py   # Shanuz figures → figures_cellcycle/py_*.png
+python  tutorials/generate_cellcycle_plots.py   # Truecell figures → figures_cellcycle/py_*.png
 ```
 
 **What you'll learn:**
@@ -593,7 +593,7 @@ python  tutorials/generate_cellcycle_plots.py   # Shanuz figures → figures_cel
 
 | Comparison | Agreement |
 |---|---:|
-| Per-cell `Phase` concordance (shanuz vs Seurat) | **96.62 %** (701 cells differ) |
+| Per-cell `Phase` concordance (truecell vs Seurat) | **96.62 %** (701 cells differ) |
 | `S.Score` / `G2M.Score` correlation (Pearson) | **0.998 / 0.999** |
 | `IFN.Response` module score correlation (Pearson) | **0.9995** |
 
@@ -637,7 +637,7 @@ python  tutorials/generate_dimreduc_plots.py    # figures + the side-by-side num
 | Figure | Description |
 |--------|-------------|
 | `py_01_jackstraw_scores.png` | JackStraw significance score per PC |
-| `py_02_nsig_compare.png` | Features below threshold per PC, shanuz vs R |
+| `py_02_nsig_compare.png` | Features below threshold per PC, truecell vs R |
 | `py_03_elbow.png` | The cheap first-look elbow plot |
 | `py_04_tsne.png` | t-SNE embedding, coloured by *LYZ* |
 | `py_05_ica.png` | ICA embedding, coloured by *LYZ* |
@@ -646,9 +646,9 @@ python  tutorials/generate_dimreduc_plots.py    # figures + the side-by-side num
 
 | Comparison | Agreement |
 |---|---:|
-| PCs kept (shanuz vs R's 13) | **14**, band \|Δ\| ≤ 2 (modal answer over 60 seeds: 13) |
+| PCs kept (truecell vs R's 13) | **14**, band \|Δ\| ≤ 2 (modal answer over 60 seeds: 13) |
 | ICA, mean matched \|Pearson r\| over 20 components | **0.9991** (worst pair 0.9960) |
-| t-SNE, 30-NN retained from PCA (shanuz / R) | 0.474 / 0.477 |
+| t-SNE, 30-NN retained from PCA (truecell / R) | 0.474 / 0.477 |
 | t-SNE, 30-NN shared between the two tools | 0.862 |
 
 **Found and fixed two defects** — `jack_straw` built its permutation null
@@ -692,7 +692,7 @@ python  tutorials/generate_sketch_plots.py
 |--------|-------------|
 | `py_01_leverage_by_type.png` | Mean leverage per cell type, rarest to most common |
 | `py_02_sketch_enrichment.png` | Leverage sketch vs uniform draw, enrichment by type |
-| `py_03_leverage_vs_r.png` | Per-cell leverage score, shanuz vs R |
+| `py_03_leverage_vs_r.png` | Per-cell leverage score, truecell vs R |
 | `py_04_rarity.png` | Leverage vs cell-type abundance |
 | `py_05_projected_umap.png` | The sketch's UMAP and labels, projected onto all 13,999 cells |
 
@@ -701,9 +701,9 @@ python  tutorials/generate_sketch_plots.py
 | Comparison | Agreement |
 |---|---:|
 | Leverage, exact regime — per-cell Spearman vs R | **1.000000** (max abs diff 3.4e-6) |
-| Does leverage track rarity? Spearman(mean leverage, type size) | shanuz −0.929 · R −0.929 |
+| Does leverage track rarity? Spearman(mean leverage, type size) | truecell −0.929 · R −0.929 |
 | `project_data` labels — per-cell agreement with R | **94.9 %** (98.1 % on a shared sketch) |
-| `project_data` accuracy vs held-out annotations | shanuz 0.9050 · R 0.9050 |
+| `project_data` accuracy vs held-out annotations | truecell 0.9050 · R 0.9050 |
 
 **Found and fixed two defects** — `leverage_score` whitened against the full
 matrix rank instead of Seurat's rank-50 truncation, which flattened the
@@ -749,7 +749,7 @@ python tutorials/generate_objects_plots.py      # figures
 |--------|-------------|
 | `py_01_split_join.png` | The `split` → `JoinLayers` round trip, before and after |
 | `py_02_concordance.png` | Anchors matching R, by section |
-| `py_03_nn_degree.png` | kNN graph degree distribution, shanuz vs R |
+| `py_03_nn_degree.png` | kNN graph degree distribution, truecell vs R |
 
 **Accuracy vs R** (2,700 cells × 13,714 genes, 91 anchors total):
 
@@ -857,7 +857,7 @@ python  tutorials/generate_de_plots.py
 | Figure | Description |
 |--------|-------------|
 | `py_01_log2fc_vs_r.png` | `avg_log2FC`, before and after, vs R |
-| `py_02_threshold_impact.png` | Genes returned at each `logfc_threshold`, shanuz vs R |
+| `py_02_threshold_impact.png` | Genes returned at each `logfc_threshold`, truecell vs R |
 | `py_03_test_concordance.png` | All eight tests against Seurat |
 
 **Accuracy vs R** (13,712 shared genes):
@@ -894,13 +894,13 @@ python tutorials/generate_lazy_plots.py
 ```
 
 **What you'll learn:**
-- `write_lazy_matrix` / `open_lazy_matrix` — shanuz's on-disk backend,
+- `write_lazy_matrix` / `open_lazy_matrix` — truecell's on-disk backend,
   against Seurat's BPCells (`write_matrix_dir`/`open_matrix_dir`)
 - Streaming `LogNormalize` / `VST` / `ScaleData` over an on-disk layer without
   ever densifying the whole matrix
 - Why "agrees with R to 1e-14" is not the same claim as "agrees with itself" —
   BPCells computes in single precision, so **Seurat's own** on-disk and
-  in-memory runs disagree and select a different variable feature; shanuz's
+  in-memory runs disagree and select a different variable feature; truecell's
   two paths are bit-identical
 
 **Key output figures** (in `tutorials/figures_lazy/`):
@@ -909,7 +909,7 @@ python tutorials/generate_lazy_plots.py
 |--------|-------------|
 | `py_01_self_consistency.png` | Each tool's on-disk run against its own in-memory run |
 | `py_02_memory.png` | Peak memory, sparse vs lazy, before and after the fix |
-| `py_03_storage.png` | On-disk size: shanuz `LazyMatrix` vs BPCells |
+| `py_03_storage.png` | On-disk size: truecell `LazyMatrix` vs BPCells |
 
 **Accuracy vs R** (13,714 genes × 2,638 cells):
 
@@ -917,8 +917,8 @@ python tutorials/generate_lazy_plots.py
 |---|---:|
 | Anchors matching Seurat | **14 / 14** (7 exact) |
 | Variable features shared with Seurat's in-memory run | 1998 / 2000 |
-| shanuz on-disk vs in-memory, normalised values | **0 — bit-identical** (Seurat's own: 1.02e-06) |
-| shanuz on-disk vs in-memory, variable features agreeing | **2000 / 2000** (Seurat's own: 1999 / 2000) |
+| truecell on-disk vs in-memory, normalised values | **0 — bit-identical** (Seurat's own: 1.02e-06) |
+| truecell on-disk vs in-memory, variable features agreeing | **2000 / 2000** (Seurat's own: 1999 / 2000) |
 | DE tests supported out of core | **all 8** (Seurat's IterableMatrix: `wilcox` only) |
 
 **Found and fixed seven defects** — five functions densified an entire
@@ -952,7 +952,7 @@ python  tutorials/generate_visium_plots.py
   on its current-generation Visium class
 - Why the Visium slide's fixed 100 µm spot pitch settles, from geometry alone
   and without consulting either tool, that Seurat stores a **diameter** in a
-  slot named **radius** — and why shanuz deliberately does not match that
+  slot named **radius** — and why truecell deliberately does not match that
 
 **Key output figures** (in `tutorials/figures_visium/`):
 
@@ -970,9 +970,9 @@ python  tutorials/generate_visium_plots.py
 | Spot coordinates | max\|dx\| = max\|dy\| = **0** across all 2,695 spots |
 | Tissue image, both backends vs R | **1.68e-08** (float32 epsilon) |
 | PCA stdev, on Seurat's own 2,000 features | max relative diff **2.49e-05** |
-| `radius()` ratio, shanuz vs Seurat (deliberate) | **2.000000** |
+| `radius()` ratio, truecell vs Seurat (deliberate) | **2.000000** |
 
-**Found one shanuz bug and aligned three defaults to Seurat** — the tissue
+**Found one truecell bug and aligned three defaults to Seurat** — the tissue
 image came back 255× apart depending on whether matplotlib or Pillow was
 installed, from the same file; and the in-tissue filter, image resolution and
 image key defaults were changed to match Seurat's (`filter_by_tissue=True`,
@@ -1016,12 +1016,12 @@ python  tutorials/generate_anchors_plots.py
 
 | Figure | Description |
 |--------|-------------|
-| `py_01_anchor_agreement.png` | Anchor recall and precision, shanuz vs Seurat |
-| `py_02_correction.png` | Corrected expression over the query half, shanuz vs Seurat |
+| `py_01_anchor_agreement.png` | Anchor recall and precision, truecell vs Seurat |
+| `py_02_correction.png` | Corrected expression over the query half, truecell vs Seurat |
 
 **Accuracy vs R** (v4 path, 2,400-cell subsample, 2,000 shared anchor features):
 
-| Comparison | shanuz | Seurat |
+| Comparison | truecell | Seurat |
 |---|---:|---:|
 | RPCA anchors recovered | **100.0 %** (649/649) | — |
 | RPCA anchor score, Pearson *r* | **0.99997** | — |
@@ -1029,7 +1029,7 @@ python  tutorials/generate_anchors_plots.py
 | RPCA embedding, v5 path, dims \|r\| > 0.99 (full 13,999 cells) | **30 / 30** | — |
 
 **Found and fixed eighteen defects across two rounds** — the dominant one was
-`RunCCA` standardizing each cell where shanuz L2-normalized it, which rotates
+`RunCCA` standardizing each cell where truecell L2-normalized it, which rotates
 the whole anchor space; on the v5 path, `integrate_layers` was silently
 running v4's `IntegrateData` behind the v5 `IntegrateEmbeddings` name, and
 `run_pca`'s randomized SVD drifted enough in its trailing components to
@@ -1039,11 +1039,11 @@ embedding dimensions, up from 1 of 30.
 
 ---
 
-## R Seurat → Shanuz API Quick Reference
+## R Seurat → Truecell API Quick Reference
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
-| Create object | `CreateSeuratObject(counts, min.cells, min.features)` | `create_shanuz_object(counts, min_cells, min_features)` |
+| Create object | `CreateSeuratObject(counts, min.cells, min.features)` | `create_truecell_object(counts, min_cells, min_features)` |
 | % mito genes | `PercentageFeatureSet(pbmc, pattern="^MT-")` | `percentage_feature_set(pbmc, pattern=r"^MT-")` |
 | Normalize | `NormalizeData(pbmc, method, scale.factor)` | `normalize_data(pbmc, normalization_method, scale_factor)` |
 | CLR (ADT) | `NormalizeData(pbmc, method="CLR", margin=2)` | `normalize_data(pbmc, normalization_method="CLR", margin=2)` |
@@ -1098,7 +1098,7 @@ as `run_pca` does, so `find_neighbors`, `find_clusters` and `run_umap` take them
 with a `reduction=` argument and nothing else changes.
 
 ```python
-from shanuz import run_spca, glm_pca, find_neighbors, run_umap
+from truecell import run_spca, glm_pca, find_neighbors, run_umap
 
 # Supervised PCA: the gene axes that best explain a graph you already trust.
 find_multi_modal_neighbors(cbmc, reduction_list=["pca", "apca"])   # builds "wsnn"
@@ -1152,7 +1152,7 @@ more forgivingly. The fitted `θ` lands in `misc["theta"]`.
 
 Two batches of the same tissue rarely line up: a shared cell type sits in a
 different place in each dataset's PCA, so cells cluster by batch before they
-cluster by biology. Shanuz offers two remedies.
+cluster by biology. Truecell offers two remedies.
 
 **Harmony** (`run_harmony`) corrects an embedding you already have — it takes the
 joint PCA and iteratively pulls the batches together while keeping cell types
@@ -1169,7 +1169,7 @@ against the raw expression, and then used to pull every query dataset onto the
 reference.
 
 ```python
-from shanuz import (
+from truecell import (
     find_integration_anchors, integrate_data, integrate_layers,
     run_harmony, scale_data, run_pca, find_clusters, run_umap,
 )
@@ -1210,7 +1210,7 @@ space, find mutual nearest neighbours, score and filter them — but the referen
 is never moved and the anchors carry information *reference → query*.
 
 ```python
-from shanuz import find_transfer_anchors, transfer_data
+from truecell import find_transfer_anchors, transfer_data
 
 # reference: annotated atlas (has a "celltype" column). query: new, unlabelled.
 # Both normalized + find_variable_features + scale_data, as usual.
@@ -1249,7 +1249,7 @@ embedding rather than in a fresh, unrelated one. `map_query` composes the whole
 workflow — transfer the labels *and* project the UMAP — in a single call.
 
 ```python
-from shanuz import run_pca, run_umap, find_transfer_anchors, map_query, project_umap
+from truecell import run_pca, run_umap, find_transfer_anchors, map_query, project_umap
 
 # The reference needs a fitted PCA + UMAP; run_umap stashes the umap-learn model
 # in reference.reductions["umap"].misc["umap_model"] for transform-only projection.
@@ -1286,9 +1286,9 @@ sparse distinctive corner has high leverage (it is the only evidence that corner
 exists) — so leverage sampling keeps the rare states a uniform sample would lose.
 
 ```python
-from shanuz import sketch_data, project_data, run_pca, run_umap
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
+from truecell import sketch_data, project_data, run_pca, run_umap
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
 
 # full: a large, normalized + scaled object. Draw a leverage-weighted sketch.
 sketch = sketch_data(full, ncells=5000)   # a standalone object; assay -> "sketch"
@@ -1326,7 +1326,7 @@ Sketching shrinks *how many cells you analyse*; a **lazy matrix** shrinks *how m
 of the matrix is in memory at once*. A dense million-by-twenty-thousand `float64`
 matrix is 160 GB; even the sparse counts leave no room for the copies each step
 makes. Seurat's answer is the `BPCells` package, which keeps the matrix on disk and
-streams over it. `LazyMatrix` is the shanuz analogue, built on NumPy's
+streams over it. `LazyMatrix` is the truecell analogue, built on NumPy's
 memory-mapping — **no new dependency**.
 
 A matrix is written to a directory as the three memory-mapped arrays of a
@@ -1336,7 +1336,7 @@ and hands back an ordinary `scipy.sparse` block, so it drops straight into an as
 layer:
 
 ```python
-from shanuz import write_lazy_matrix, open_lazy_matrix
+from truecell import write_lazy_matrix, open_lazy_matrix
 
 assay = obj.get_assay()
 
@@ -1380,7 +1380,7 @@ cells into `k = n_hashtags + 1` groups, fits a negative binomial to each tag's
 0.99 quantile:
 
 ```python
-from shanuz import hto_demux
+from truecell import hto_demux
 
 # `obj` has an "HTO" assay of hashtag counts (features = hashtags, columns = cells).
 hto_demux(obj, assay="HTO")                    # positive_quantile=0.99 by default
@@ -1413,7 +1413,7 @@ binomial — not a fixed threshold — is what makes the call robust to each
 antibody's own staining background and each run's own depth.
 
 **Choosing the clustering.** The clustering only decides which cluster is each
-tag's background, so it rarely changes the calls. shanuz ships both and defaults
+tag's background, so it rarely changes the calls. truecell ships both and defaults
 to `clara` (k-medoids), matching Seurat:
 
 ```python
@@ -1430,7 +1430,7 @@ cells), so pick on fidelity, not speed.
 reach either, so it is deterministic in the data alone. One caveat worth knowing
 if you diff against R: clara accepts a swap on any improvement below zero (R
 really does take swaps worth `-2.2e-16`), so its answer is decided at the last
-bit, and R's own clara returns different clusterings on arm64 vs x86_64. shanuz
+bit, and R's own clara returns different clusterings on arm64 vs x86_64. truecell
 follows plain IEEE arithmetic — identical to R's on x86_64, and to R everywhere
 the two agree. See `ROADMAP.md` for the measurements.
 
@@ -1442,7 +1442,7 @@ alternative that often disagrees with `hto_demux` at the margins, so it is handy
 as a second opinion:
 
 ```python
-from shanuz import multiseq_demux
+from truecell import multiseq_demux
 
 # Same "HTO" assay of barcode counts. For each barcode a Gaussian KDE exposes its
 # background and positive modes; the cutoff sits a fraction `quantile` between them.
@@ -1473,7 +1473,7 @@ signature**, then classify against it — mirroring Seurat's `CalcPerturbSig` +
 the controls labelled `"NT"`) and a computed reduction (`pca`):
 
 ```python
-from shanuz import calc_perturb_sig, run_mixscape
+from truecell import calc_perturb_sig, run_mixscape
 
 # 1. Local perturbation signature: subtract each cell's 20 nearest NT controls
 #    (in PCA space) to cancel cell-cycle / depth / batch variation. Stored as a
@@ -1507,7 +1507,7 @@ their raw guide label, so the KO/NP calls are not used and it can follow
 `calc_perturb_sig` directly:
 
 ```python
-from shanuz import mixscape_lda
+from truecell import mixscape_lda
 
 # Per guide: DE vs NT picks its response genes, a PCA is fit on that guide's cells
 # plus the NT cells, and every cell is projected onto the guide's npcs-dim subspace.
@@ -1536,7 +1536,7 @@ score, each cell's projection onto its guide's response axis. `plot_perturb_scor
 against the guide's own — the single most useful check that a guide worked.
 
 ```python
-from shanuz import plot_perturb_score, mixscape_heatmap
+from truecell import plot_perturb_score, mixscape_heatmap
 
 fig = plot_perturb_score(obj, target_gene_ident="IFNGR2")
 fig.savefig("perturb_score.png", dpi=150, bbox_inches="tight")
@@ -1580,10 +1580,10 @@ Two multi-sample DE helpers (mirroring Seurat's `AggregateExpression` and
 `FindConservedMarkers`):
 
 ```python
-from shanuz import aggregate_expression, find_conserved_markers
+from truecell import aggregate_expression, find_conserved_markers
 
 # Pseudobulk: sum raw counts per (cell type × donor) → features × groups DataFrame.
-# Pass return_object=True to get a Shanuz object with one "cell" per group instead
+# Pass return_object=True to get a Truecell object with one "cell" per group instead
 # (the standard input for pyDESeq2-style sample-level testing).
 pb = aggregate_expression(obj, group_by=["cell_type", "donor"])
 
@@ -1599,7 +1599,7 @@ cons.head()   # per-condition stats + max_pval + combined_p_val, sorted by combi
 Pseudobulk DESeq2 (`find_markers(test_use="deseq2")`) tests **between conditions**
 rather than between clusters: set `obj.idents` to the two conditions, aggregate to
 one profile per replicate (`sample_col`), and run DESeq2 on those samples. Needs
-`pip install shanuz[deseq2]`:
+`pip install truecell[deseq2]`:
 
 ```python
 obj.idents = obj.meta_data["condition"]              # e.g. "stim" vs "ctrl"
@@ -1610,7 +1610,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 
 ### Plotting
 
-| R (Seurat) | Python (Shanuz) |
+| R (Seurat) | Python (Truecell) |
 |-----------|-----------------|
 | `VlnPlot(pbmc, features, slot)` | `vln_plot(pbmc, features, layer)` |
 | `FeaturePlot(pbmc, features)` | `feature_plot(pbmc, features, assay)` |
@@ -1629,7 +1629,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 
 ### Spatial
 
-| R (Seurat) | Python (Shanuz) |
+| R (Seurat) | Python (Truecell) |
 |-----------|-----------------|
 | `LoadXenium(dir)` / `Load10X_Spatial` / `LoadNanostring` | `load_xenium(dir)` / `load_visium(dir)` / `load_cosmx(dir)` |
 | `LoadVizgen(dir)` (MERSCOPE) | `load_merscope(dir)` — drops `Blank-*` controls by default |
@@ -1646,7 +1646,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 | `SpatialDimPlot(obj)` | `spatial_dim_plot(obj)` |
 | `SpatialFeaturePlot(obj, features)` | `spatial_feature_plot(obj, feature)` |
 
-> **Plot output:** R renders to the graphics device automatically. Shanuz functions return a
+> **Plot output:** R renders to the graphics device automatically. Truecell functions return a
 > `matplotlib.Figure` — call `fig.savefig("out.png")` to save or display inline in Jupyter.
 
 #### Visium tissue images
@@ -1655,7 +1655,7 @@ de.head()   # p_val / avg_log2FC (DESeq2 log2FoldChange, +ve = up in stim) / pct
 giving each image slot a `VisiumV2` (Seurat v5's class) instead of a bare `FOV`:
 
 ```python
-from shanuz import load_visium
+from truecell import load_visium
 
 obj = load_visium("visium_out/")            # image=True by default
 fov = obj.images["spatial"]
@@ -1682,7 +1682,7 @@ draw the H&E photo and overlay the spots on top of it — the scaling above happ
 for you:
 
 ```python
-from shanuz import spatial_dim_plot, spatial_feature_plot
+from truecell import spatial_dim_plot, spatial_feature_plot
 
 fig = spatial_dim_plot(obj, group_by="seurat_clusters")
 fig = spatial_feature_plot(obj, "Gad1", image_alpha=0.4)   # fade the tissue
@@ -1705,7 +1705,7 @@ Visium bundle whose PNG is missing.
 how strongly their expression is organised in space. Both of R's methods are here:
 
 ```python
-from shanuz import find_spatially_variable_features
+from truecell import find_spatially_variable_features
 
 # Moran's I — is this gene autocorrelated at all? Comes with a p-value.
 svf = find_spatially_variable_features(obj, k=10)

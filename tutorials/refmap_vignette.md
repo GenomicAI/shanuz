@@ -1,4 +1,4 @@
-# Reference mapping — label transfer (R Seurat vs Shanuz)
+# Reference mapping — label transfer (R Seurat vs Truecell)
 
 A side-by-side port of Seurat's [reference mapping vignette](https://satijalab.org/seurat/articles/integration_mapping)
 on the pancreatic-islet dataset (`panc8`): ~14,900 human islet cells profiled
@@ -13,7 +13,7 @@ to annotate the query — without ever moving or re-clustering the reference.**
 Unlike [integration](integration_vignette.md), which corrects several datasets
 *onto each other*, mapping is deliberately asymmetric: the reference is fixed,
 the query is projected into the reference's own PCA, and labels are carried
-across scored mutual-nearest-neighbour anchors. Shanuz ships the whole workflow,
+across scored mutual-nearest-neighbour anchors. Truecell ships the whole workflow,
 and this walkthrough runs it against its Seurat reference on identical counts:
 
 - **`find_transfer_anchors`** ↔ `FindTransferAnchors(reduction="pcaproject")` —
@@ -32,7 +32,7 @@ and this walkthrough runs it against its Seurat reference on identical counts:
 > batch structure, and a Seurat reference to match. The projected embedding is not
 > coordinate-comparable across tools (irlba-vs-scikit-learn PCA sign,
 > uwot-vs-umap-learn transform) — but the transferred *labels* are a robust
-> weighted argmax, so they compare **per cell**: does shanuz assign each query
+> weighted argmax, so they compare **per cell**: does truecell assign each query
 > cell the same `predicted.id` as Seurat, and does each tool recover the query's
 > true cell type.
 
@@ -76,12 +76,12 @@ method-level ones (PCA numerics, the anchor/weight kernels, kNN ties). The query
 is scaled on the *reference's* HVGs so the projection lines up gene-for-gene.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
 # same exported counts Python reads
-counts <- Read10X("~/.shanuz_data/panc8")
+counts <- Read10X("~/.truecell_data/panc8")
 full <- CreateSeuratObject(counts, min.cells = 3,
                            meta.data = meta)
 reference <- subset(full, subset = tech == "celseq2")
@@ -100,14 +100,14 @@ query <- ScaleData(query, features = hvg)
 </td><td>
 
 ```python
-from shanuz.datasets import panc8
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import (
+from truecell.datasets import panc8
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import (
     normalize_data, find_variable_features, scale_data)
-from shanuz.reduction import run_pca
+from truecell.reduction import run_pca
 
 counts, genes, cells, meta = panc8()
-full = create_shanuz_object(counts=counts, assay="RNA",
+full = create_truecell_object(counts=counts, assay="RNA",
         min_cells=3, feature_names=genes,
         cell_names=cells, meta_data=meta)
 reference = full.subset(cells=celseq2_cells)
@@ -136,7 +136,7 @@ reference never saw simply lands nowhere. `TransferData` then turns the scored
 anchors into a per-query-cell weighted vote over the reference's `celltype`.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -154,7 +154,7 @@ predictions <- TransferData(
 </td><td>
 
 ```python
-from shanuz.transfer import find_transfer_anchors, transfer_data
+from truecell.transfer import find_transfer_anchors, transfer_data
 
 anchors = find_transfer_anchors(
     reference, query, anchor_features=hvg,
@@ -168,9 +168,9 @@ predictions = transfer_data(anchors, refdata="celltype",
 </td></tr>
 </table>
 
-Both tools find a healthy anchor set on the shared HVG basis (shanuz **3,551**
+Both tools find a healthy anchor set on the shared HVG basis (truecell **3,551**
 anchors) and transfer with high confidence — mean `prediction.score.max` 0.986
-(shanuz) vs 0.988 (Seurat).
+(truecell) vs 0.988 (Seurat).
 
 ---
 
@@ -178,7 +178,7 @@ anchors) and transfer with high confidence — mean `prediction.score.max` 0.986
 
 Because the query's true `celltype` is known, the headline metric is plain
 **accuracy** — the fraction of query cells whose transferred `predicted.id`
-matches the truth — read per cell type. The Shanuz result:
+matches the truth — read per cell type. The Truecell result:
 
 | cell type | support | recall ↑ |
 |-----------|---:|---:|
@@ -206,7 +206,7 @@ exposes that tail. This is the honest limit of a small single-tech reference, no
 a defect: Seurat's transfer stumbles on exactly the same rare types.
 
 <table>
-<tr><th>R — reference atlas (celseq2)</th><th>Shanuz — reference atlas (celseq2)</th></tr>
+<tr><th>R — reference atlas (celseq2)</th><th>Truecell — reference atlas (celseq2)</th></tr>
 <tr>
 <td><img src="figures_refmap/r_01_reference_umap_celltype.png" width="420"/></td>
 <td><img src="figures_refmap/py_01_reference_umap_celltype.png" width="420"/></td>
@@ -219,7 +219,7 @@ the SMART-seq2 cells land on the CEL-seq2 atlas. Coloured by the transferred lab
 succeeded — the projection is a visual read of the accuracy above:
 
 <table>
-<tr><th>Shanuz — query projected, predicted label</th><th>Shanuz — query projected, true label</th></tr>
+<tr><th>Truecell — query projected, predicted label</th><th>Truecell — query projected, true label</th></tr>
 <tr>
 <td><img src="figures_refmap/py_02_query_projected_predicted.png" width="420"/></td>
 <td><img src="figures_refmap/py_03_query_projected_truth.png" width="420"/></td>
@@ -238,14 +238,14 @@ a `predicted.id` from the same reference label set — the concordance is a plai
 
 | tool | accuracy vs truth ↑ | mean score |
 |------|---:|---:|
-| **shanuz** | **0.9845** | 0.9857 |
+| **truecell** | **0.9845** | 0.9857 |
 | **Seurat R** | **0.9879** | 0.9875 |
 
 > **Label concordance — same `predicted.id` per cell: 0.9871 (2,363 / 2,394 query cells).**
 
-**shanuz and Seurat annotate the query almost identically.** 2,363 of 2,394 query
+**truecell and Seurat annotate the query almost identically.** 2,363 of 2,394 query
 cells (98.71%) receive the *same* label from both tools, and each tool is ~98.5%
-accurate against the held-out truth — shanuz 0.9845, Seurat 0.9879, a 0.3-point
+accurate against the held-out truth — truecell 0.9845, Seurat 0.9879, a 0.3-point
 gap that is entirely the rare-type tail where a few cells tip between neighbours.
 The two tools even fail *together*: both recover epsilon poorly, both nearly
 perfect on the abundant types. This is the confirmation the initiative was built
@@ -269,10 +269,10 @@ Rscript tutorials/export_seuratdata.R panc8            # one-time counts export 
 python  tutorials/panc8_reference_mapping_tutorial.py  # writes HVGs, prints accuracy + per-class recall
 Rscript tutorials/panc8_reference_mapping_verify.R     # Seurat reference → r_calls.csv + r_*.png
 python  tutorials/panc8_reference_mapping_tutorial.py  # re-run → prints the R-vs-Python concordance
-python  tutorials/generate_refmap_plots.py             # Shanuz figures → figures_refmap/py_*.png
+python  tutorials/generate_refmap_plots.py             # Truecell figures → figures_refmap/py_*.png
 ```
 
-**Figures** (`tutorials/figures_refmap/`, `r_*` = R Seurat, `py_*` = Shanuz):
+**Figures** (`tutorials/figures_refmap/`, `r_*` = R Seurat, `py_*` = Truecell):
 
 | Figure | Description |
 |---|---|
@@ -283,9 +283,9 @@ python  tutorials/generate_refmap_plots.py             # Shanuz figures → figu
 
 ---
 
-## R Seurat → Shanuz API
+## R Seurat → Truecell API
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | Transfer anchors | `FindTransferAnchors(reference, query, reduction="pcaproject", dims=1:30)` | `find_transfer_anchors(reference, query, reduction="pcaproject", dims=30)` |
 | Transfer labels | `TransferData(anchors, refdata=reference$celltype)` | `transfer_data(anchors, refdata="celltype")` |

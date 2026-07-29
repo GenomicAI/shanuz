@@ -8,7 +8,7 @@ Renders to tutorials/figures_visium/:
 01 is the tutorial's finding, drawn: Seurat passes `spot_diameter_fullres` into
 `CreateFOV`'s `radius`, and read that way the capture spots overlap. 02 is the
 container working end to end — coordinates, scale factors and image agreeing
-well enough to land 2,695 spots on the tissue. 03 separates shanuz's PCA from
+well enough to land 2,695 spots on the tissue. 03 separates truecell's PCA from
 the feature selection feeding it.
 
 R-side numbers are constants read off a live Seurat 5.5.1 session, so these
@@ -36,7 +36,7 @@ if str(_ROOT) not in sys.path:
 
 FIGURES = Path(__file__).parent / "figures_visium"
 
-_SHANUZ = "#48a9a6"
+_TRUECELL = "#48a9a6"
 _SEURAT = "#c1666b"
 _GREY = "0.35"
 
@@ -76,7 +76,7 @@ def radius_geometry():
 
     fig, axes = plt.subplots(1, 2, figsize=(10.4, 5.0))
     for ax, dia, label, colour in (
-        (axes[0], as_diameter, "read as a DIAMETER — shanuz", _SHANUZ),
+        (axes[0], as_diameter, "read as a DIAMETER — truecell", _TRUECELL),
         (axes[1], as_radius, "read as a RADIUS — Seurat", _SEURAT),
     ):
         for cx, cy in centres:
@@ -94,7 +94,7 @@ def radius_geometry():
             s.set_visible(False)
 
     axes[0].text(0.5, -0.06, f"fits — {as_diameter / PITCH_UM * 100:.0f}% of the pitch",
-                 transform=axes[0].transAxes, ha="center", fontsize=9.5, color=_SHANUZ)
+                 transform=axes[0].transAxes, ha="center", fontsize=9.5, color=_TRUECELL)
     axes[1].text(0.5, -0.06,
                  f"overlaps by {as_radius - PITCH_UM:.0f} µm — physically impossible",
                  transform=axes[1].transAxes, ha="center", fontsize=9.5, color=_SEURAT)
@@ -115,8 +115,8 @@ def spots_on_tissue(data_dir=None):
     """2,695 spots placed on the H&E image, straight out of load_visium."""
     import matplotlib.pyplot as plt
 
-    from shanuz import load_visium
-    from shanuz.datasets import visium_mouse_brain
+    from truecell import load_visium
+    from truecell.datasets import visium_mouse_brain
 
     obj = load_visium(data_dir or visium_mouse_brain())
     fov = obj.images["slice1"]
@@ -128,7 +128,7 @@ def spots_on_tissue(data_dir=None):
     axes[0].set_title(f"tissue_lowres_image.png\n{img.shape[1]}×{img.shape[0]}, "
                       f"float {img.min():.2f}–{img.max():.2f}", fontsize=10)
     axes[1].imshow(img, alpha=0.55)
-    axes[1].scatter(coords["x"], coords["y"], s=3.0, c=_SHANUZ, linewidths=0)
+    axes[1].scatter(coords["x"], coords["y"], s=3.0, c=_TRUECELL, linewidths=0)
     axes[1].set_title(f"{len(coords):,} in-tissue spots, scaled by "
                       f"tissue_lowres_scalef", fontsize=10)
     for ax in axes:
@@ -150,12 +150,12 @@ def pca_isolation():
     """Is the PCA gap the PCA, or the features feeding it?"""
     import matplotlib.pyplot as plt
 
-    labels = [f"shanuz's own\n{HVG_TOTAL} features",
+    labels = [f"truecell's own\n{HVG_TOTAL} features",
               f"Seurat's\n{HVG_TOTAL} features"]
     values = [PCA_REL_OWN, PCA_REL_SHARED]
 
     fig, ax = plt.subplots(figsize=(7.4, 3.9))
-    bars = ax.bar(range(2), values, color=[_SEURAT, _SHANUZ], width=0.5)
+    bars = ax.bar(range(2), values, color=[_SEURAT, _TRUECELL], width=0.5)
     ax.set_yscale("log")
     ax.set_xticks(range(2))
     ax.set_xticklabels(labels, fontsize=9.5)
@@ -164,7 +164,7 @@ def pca_isolation():
     for bar, v in zip(bars, values):
         ax.text(bar.get_x() + bar.get_width() / 2, v * 1.35, f"{v:.3g}",
                 ha="center", fontsize=10)
-    ax.set_title("Running shanuz's PCA on Seurat's feature list closes the gap "
+    ax.set_title("Running truecell's PCA on Seurat's feature list closes the gap "
                  f"{values[0] / values[1]:.0f}×", fontsize=11)
     ax.spines[["top", "right"]].set_visible(False)
     fig.text(0.5, -0.10,

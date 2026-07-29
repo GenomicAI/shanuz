@@ -1,17 +1,17 @@
 """Generate all figures for the leverage-score sketching tutorial.
 
-Runs ifnb_sketch_tutorial.run_full() and renders the shanuz-side figures to
+Runs ifnb_sketch_tutorial.run_full() and renders the truecell-side figures to
 tutorials/figures_sketch/, alongside the r_*.png the R verify script writes:
   * py_01_leverage_by_type.png   leverage per cell type, commonest first
   * py_02_sketch_enrichment.png  cell-type share in the sketch vs uniform
-  * py_03_leverage_vs_r.png      shanuz against R, both regimes
+  * py_03_leverage_vs_r.png      truecell against R, both regimes
   * py_04_rarity.png             mean leverage against population size
   * py_05_projected_umap.png     the sketch's UMAP, extended to every cell
 
 01 and 02 are the point of the tutorial: 01 shows leverage rising as a
 population gets rarer, 02 shows the sketch acting on it against a same-size
 uniform control. 03 is the fidelity check that caught the defect — before the
-fix the shanuz series was a flat band with no relationship to R's.
+fix the truecell series was a flat band with no relationship to R's.
 
 Usage
 -----
@@ -35,7 +35,7 @@ if str(_ROOT) not in sys.path:
 from tutorials.ifnb_sketch_tutorial import (
     run_full, FIGURES, SKETCH_CELLS, _read_r_scores,
 )
-from shanuz.plotting import _palette
+from truecell.plotting import _palette
 
 FIGURES.mkdir(exist_ok=True)
 
@@ -85,7 +85,7 @@ def leverage_by_type(summary):
     ax.set_yscale("log")
     ax.axhline(scores.mean(), color="grey", lw=0.8, ls=":", label="overall mean")
     ax.set_ylabel("leverage (log scale)")
-    ax.set_title("Shanuz — leverage by cell type (commonest first)")
+    ax.set_title("Truecell — leverage by cell type (commonest first)")
     ax.tick_params(axis="x", rotation=45)
     for label in ax.get_xticklabels():
         label.set_ha("right")
@@ -117,17 +117,17 @@ def sketch_enrichment(summary):
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=45, ha="right")
     ax.set_ylabel("fold enrichment in the sketch")
-    ax.set_title(f"Shanuz — cell-type share, {SKETCH_CELLS}-cell sketch vs full data")
+    ax.set_title(f"Truecell — cell-type share, {SKETCH_CELLS}-cell sketch vs full data")
     ax.legend(fontsize=8, frameon=False)
     fig.tight_layout()
     return fig
 
 
 def leverage_vs_r(summary):
-    """shanuz against R, per cell, in both regimes.
+    """truecell against R, per cell, in both regimes.
 
     The exact regime is the fidelity check the defect failed: it should be a
-    clean diagonal. Before the fix shanuz's scores were a flat band spanning a
+    clean diagonal. Before the fix truecell's scores were a flat band spanning a
     third of a decade with essentially no relationship to R's (Spearman 0.24).
     """
     import matplotlib.pyplot as plt
@@ -149,9 +149,9 @@ def leverage_vs_r(summary):
         from scipy.stats import spearmanr
         ax.set_title(f"{regime} regime — Spearman {spearmanr(r, py).statistic:.3f}")
         ax.set_xlabel("R Seurat leverage")
-        ax.set_ylabel("shanuz leverage")
+        ax.set_ylabel("truecell leverage")
         ax.legend(fontsize=8, frameon=False)
-    fig.suptitle("Per-cell leverage, shanuz vs R Seurat", y=1.02)
+    fig.suptitle("Per-cell leverage, truecell vs R Seurat", y=1.02)
     fig.tight_layout()
     return fig
 
@@ -195,7 +195,7 @@ def projected_umap(obj, summary):
                    edgecolors="none", label=f"{name} ({int(mask.sum())})")
     ax.set_xlabel("refUMAP_1")
     ax.set_ylabel("refUMAP_2")
-    ax.set_title(f"Shanuz — {SKETCH_CELLS}-cell sketch's UMAP, projected to all "
+    ax.set_title(f"Truecell — {SKETCH_CELLS}-cell sketch's UMAP, projected to all "
                  f"{len(obj)} cells")
     ax.legend(fontsize=6, frameon=False, markerscale=3, loc="center left",
               bbox_to_anchor=(1.0, 0.5))
@@ -216,7 +216,7 @@ def main(data_dir=None):
 
     if not (FIGURES / "r_leverage.csv").exists():
         print("\n  NOTE: r_leverage.csv absent — the comparison panel shows")
-        print("  only the shanuz series. Run ifnb_sketch_verify.R for both.")
+        print("  only the truecell series. Run ifnb_sketch_verify.R for both.")
     print(f"\n  Wrote figures to {FIGURES}")
 
 

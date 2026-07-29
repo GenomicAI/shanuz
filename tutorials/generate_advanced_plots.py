@@ -1,7 +1,7 @@
 """Generate all figures for the advanced PBMC 8k subclustering tutorial.
 
 Runs the full workflow from pbmc8k_subclustering_tutorial.run_full() and renders
-the shanuz-side figures to tutorials/figures_advanced/.
+the truecell-side figures to tutorials/figures_advanced/.
 
 Usage
 -----
@@ -21,7 +21,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from tutorials.pbmc8k_subclustering_tutorial import run_full
-from shanuz.plotting import (
+from truecell.plotting import (
     vln_plot, feature_plot, dim_plot, elbow_plot, do_heatmap,
 )
 

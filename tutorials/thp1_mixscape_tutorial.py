@@ -1,4 +1,4 @@
-"""Pooled CRISPR screen tutorial — Mixscape with Shanuz (CalcPerturbSig + RunMixscape).
+"""Pooled CRISPR screen tutorial — Mixscape with Truecell (CalcPerturbSig + RunMixscape).
 
 A Python port of Seurat's Mixscape vignette
 (https://satijalab.org/seurat/articles/mixscape_vignette) on the THP-1 ECCITE-seq
@@ -14,15 +14,15 @@ like controls. Averaging over that mixture dilutes, and can entirely mask, the
 phenotype. Mixscape separates the two so downstream analysis runs on genuinely
 perturbed cells.
 
-It demonstrates Shanuz's three Mixscape functions side by side with Seurat's:
-  * :func:`shanuz.calc_perturb_sig` — Seurat's ``CalcPerturbSig``: subtract from
+It demonstrates Truecell's three Mixscape functions side by side with Seurat's:
+  * :func:`truecell.calc_perturb_sig` — Seurat's ``CalcPerturbSig``: subtract from
     each cell the mean of its nearest non-targeting (NT) neighbours, cancelling
     the technical variation guide assignment is confounded by, and leaving the
     **local perturbation signature**,
-  * :func:`shanuz.run_mixscape` — Seurat's ``RunMixscape``: per target gene, an
+  * :func:`truecell.run_mixscape` — Seurat's ``RunMixscape``: per target gene, an
     iterative two-component Gaussian mixture over the perturbation score splits
     KO from NP, so each guide gets a KO *rate* rather than an assumption,
-  * :func:`shanuz.mixscape_lda` — Seurat's ``MixscapeLDA``: one supervised map on
+  * :func:`truecell.mixscape_lda` — Seurat's ``MixscapeLDA``: one supervised map on
     which each guide population forms its own cloud, the classic Mixscape LDA plot.
 
 Why this tutorial exists
@@ -40,7 +40,7 @@ per-cell class concordance, all reported by :func:`report_concordance` once
 Note on the data and the R comparison
 -------------------------------------
 These are the raw GEO count matrices (cDNA + ADT + the published per-cell
-metadata), the same bytes Shanuz and Seurat both read — *not* SeuratData's
+metadata), the same bytes Truecell and Seurat both read — *not* SeuratData's
 pre-built ``thp1.eccite`` object, whose internal processing has no clean
 cross-language form. The metadata already carries each cell's guide assignment
 (``gene`` = target or ``NT``, ``guide_ID``, ``replicate``, cell-cycle ``Phase``),
@@ -53,7 +53,7 @@ Usage
 -----
     python tutorials/thp1_mixscape_tutorial.py [--data-dir PATH]
 
-The dataset (~66 MB) downloads automatically to ~/.shanuz_data/thp1_eccite.
+The dataset (~66 MB) downloads automatically to ~/.truecell_data/thp1_eccite.
 Then, for the side-by-side numbers and figures:
 
     Rscript tutorials/thp1_mixscape_verify.R
@@ -80,12 +80,12 @@ _ROOT = Path(__file__).parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from shanuz.datasets import thp1_eccite
-from shanuz.shanuz import create_shanuz_object
-from shanuz.assay5 import create_assay5_object
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.mixscape import calc_perturb_sig, run_mixscape, mixscape_lda
+from truecell.datasets import thp1_eccite
+from truecell.truecell import create_truecell_object
+from truecell.assay5 import create_assay5_object
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.mixscape import calc_perturb_sig, run_mixscape, mixscape_lda
 
 FIGURES = Path(__file__).parent / "figures_mixscape"
 
@@ -169,14 +169,14 @@ def variable_feature_list(obj, assay: str = "RNA") -> list[str]:
 def load_screen_object(data_dir=None, min_cells=3):
     """Load GSE153056, build the RNA object, attach ADT and the guide metadata.
 
-    Returns the :class:`~shanuz.Shanuz` object carrying the ``gene`` / ``guide_ID``
+    Returns the :class:`~truecell.Truecell` object carrying the ``gene`` / ``guide_ID``
     / ``replicate`` / ``Phase`` metadata mixscape reads, plus an ``ADT`` assay of
     the four surface proteins (the screen is CITE-seq) and ``nCount_ADT``.
     """
     rna, genes, adt, adt_names, meta, cells = thp1_eccite(data_dir=data_dir)
 
     keep_meta = meta[[c for c in _META_COLS if c in meta.columns]].copy()
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=rna, assay="RNA", min_cells=min_cells, min_features=0,
         project="thp1_eccite", feature_names=genes, cell_names=cells,
         meta_data=keep_meta,

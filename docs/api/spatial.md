@@ -18,52 +18,52 @@ version was the bug.
 
 ## Loading
 
-::: shanuz.spatial.loaders.load_xenium
+::: truecell.spatial.loaders.load_xenium
 
-::: shanuz.spatial.loaders.load_visium
+::: truecell.spatial.loaders.load_visium
 
-::: shanuz.spatial.loaders.load_cosmx
+::: truecell.spatial.loaders.load_cosmx
 
-::: shanuz.spatial.loaders.load_merscope
+::: truecell.spatial.loaders.load_merscope
 
 ## Containers
 
-::: shanuz.spatial.fov.FOV
+::: truecell.spatial.fov.FOV
 
-::: shanuz.spatial.fov.create_fov
+::: truecell.spatial.fov.create_fov
 
-::: shanuz.spatial.fov.create_fovs
+::: truecell.spatial.fov.create_fovs
 
-::: shanuz.spatial.centroids.Centroids
+::: truecell.spatial.centroids.Centroids
 
-::: shanuz.spatial.centroids.create_centroids
+::: truecell.spatial.centroids.create_centroids
 
-::: shanuz.spatial.segmentation.Segmentation
+::: truecell.spatial.segmentation.Segmentation
 
-::: shanuz.spatial.segmentation.create_segmentation
+::: truecell.spatial.segmentation.create_segmentation
 
-::: shanuz.spatial.molecules.Molecules
+::: truecell.spatial.molecules.Molecules
 
-::: shanuz.spatial.molecules.create_molecules
+::: truecell.spatial.molecules.create_molecules
 
-::: shanuz.spatial.base.SpatialImage
+::: truecell.spatial.base.SpatialImage
 
-::: shanuz.spatial.visium.VisiumV2
+::: truecell.spatial.visium.VisiumV2
 
-::: shanuz.spatial.visium.ScaleFactors
+::: truecell.spatial.visium.ScaleFactors
 
 ## Spatial analysis
 
-::: shanuz.spatial.analysis.get_tissue_coordinates
+::: truecell.spatial.analysis.get_tissue_coordinates
 
-::: shanuz.spatial.analysis.spatial_knn
+::: truecell.spatial.analysis.spatial_knn
 
-::: shanuz.spatial.analysis.nearest_neighbor_distance
+::: truecell.spatial.analysis.nearest_neighbor_distance
 
-::: shanuz.spatial.analysis.local_neighborhood
+::: truecell.spatial.analysis.local_neighborhood
 
-::: shanuz.spatial.analysis.build_niche_assay
+::: truecell.spatial.analysis.build_niche_assay
 
-::: shanuz.spatial.variable_features.find_spatially_variable_features
+::: truecell.spatial.variable_features.find_spatially_variable_features
 
-::: shanuz.composition.composition_test
+::: truecell.composition.composition_test

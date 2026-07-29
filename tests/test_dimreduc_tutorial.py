@@ -7,7 +7,7 @@ with planted structure, never touching the network or the real PBMC download.
 
 The helpers here carry more weight than usual: JackStraw's per-PC scores are not
 comparable across the two tools by construction (R aggregates with ``prop.test``,
-shanuz with a KS test), so the *derived* readings — which PCs clear alpha, how
+truecell with a KS test), so the *derived* readings — which PCs clear alpha, how
 many to keep — are what the comparison actually rests on. They need to be right.
 """
 import sys
@@ -248,7 +248,7 @@ def _synthetic_object(n_cells=300, n_genes=400, n_programs=3, seed=0):
     something to find *and* something to reject — the shape the tutorial's real
     run has, at a size that runs in a second.
     """
-    from shanuz.shanuz import create_shanuz_object
+    from truecell.truecell import create_truecell_object
 
     rng = np.random.default_rng(seed)
     counts = rng.poisson(0.3, size=(n_genes, n_cells)).astype(float)
@@ -259,7 +259,7 @@ def _synthetic_object(n_cells=300, n_genes=400, n_programs=3, seed=0):
         counts[genes, cells] += rng.poisson(8.0, size=(block, n_cells // n_programs))
     genes = [f"GENE{i}" for i in range(n_genes)]
     cells = [f"CELL{i}" for i in range(n_cells)]
-    return create_shanuz_object(
+    return create_truecell_object(
         counts=sp.csc_matrix(counts), assay="RNA", min_cells=0, min_features=0,
         project="synthetic", feature_names=genes, cell_names=cells,
     )
@@ -300,7 +300,7 @@ def test_jackstraw_p_values_are_probabilities(scored):
 def test_leading_pcs_beat_the_trailing_ones(scored):
     """The planted programs must load more significantly than the noise PCs.
 
-    Deliberately *not* an assertion about the absolute scores: shanuz's
+    Deliberately *not* an assertion about the absolute scores: truecell's
     aggregation saturates at 0.0 on real data, which is the finding the tutorial
     reports rather than something to bake in here. What must hold either way is
     the ordering — the leading PCs carry more sub-threshold features than the
@@ -431,7 +431,7 @@ def test_prep_leaves_the_real_handoff_alone_when_given_an_out_dir(tmp_path):
 
 
 def test_the_jackstraw_band_admits_the_measured_spread():
-    """R is deterministic at 13; shanuz spans 12-15 over a 60-seed sweep.
+    """R is deterministic at 13; truecell spans 12-15 over a 60-seed sweep.
 
     Both ends of that measurement have to sit inside the band, or the tutorial
     fails on a good run. A gap of 3 has to sit outside, or it fails on nothing.

@@ -9,7 +9,7 @@
 ## What this compares, and why the method changed
 
 The sixteen tutorials before this one shared a rule: Seurat is the reference, and
-a difference is shanuz's defect until proved otherwise. That rule was right. It
+a difference is truecell's defect until proved otherwise. That rule was right. It
 found 29 real defects and it never once cost anything.
 
 Here it would have introduced one.
@@ -64,10 +64,10 @@ reference spot to **1.0047×**.
 | | radius |
 |---|---|
 | Seurat 5.5.1 | 89.47199235723474 |
-| **shanuz** | **44.73599617861737** |
+| **truecell** | **44.73599617861737** |
 
-Ratio **2.000000**. shanuz keeps its value, and
-`test_shanuz_radius_is_half_seurats_on_purpose` pins the divergence so a later
+Ratio **2.000000**. truecell keeps its value, and
+`test_truecell_radius_is_half_seurats_on_purpose` pins the divergence so a later
 "parity fix" cannot quietly introduce the bug.
 
 ### 2. `Radius()` returns `NULL` on a `VisiumV2`
@@ -82,11 +82,11 @@ NULL
 `methods("Radius")` lists Centroids, STARmap, SlideSeq, SpatialImage and
 **VisiumV1** — there is no `Radius.VisiumV2`. The value is stored and reachable
 one level down, but the accessor on Seurat 5's own current-generation Visium
-class returns nothing. shanuz's `VisiumV2.radius()` answers.
+class returns nothing. truecell's `VisiumV2.radius()` answers.
 
 ---
 
-## What the work found on shanuz's side
+## What the work found on truecell's side
 
 ### The tissue image depended on which package you had installed
 
@@ -99,7 +99,7 @@ class returns nothing. shanuz's `VisiumV2.radius()` answers.
 | R `png::readPNG` | double | 0.0667 – 0.7490 |
 
 **255× apart, with different dtypes, from the same file** — and neither
-matplotlib nor Pillow is a declared dependency of shanuz, so which branch ran
+matplotlib nor Pillow is a declared dependency of truecell, so which branch ran
 was environment luck. Plotting hid it completely, because `imshow` accepts both.
 
 Normalised to float in [0, 1]. Both backends now return bit-identical arrays
@@ -123,7 +123,7 @@ Seurat script writes — used to raise `KeyError`.
 
 The filter default was invisible on this bundle, because
 `filtered_feature_bc_matrix` already excludes off-tissue spots, so both tools
-answered 2,695 for different reasons. Point shanuz at `raw_feature_bc_matrix`
+answered 2,695 for different reasons. Point truecell at `raw_feature_bc_matrix`
 and they part, 4,992 against 2,695.
 
 The old behaviour is still reachable:
@@ -135,7 +135,7 @@ load_visium(path, image_resolution="hires", filter_by_tissue=False,
 
 ### `GetTissueCoordinates` now returns Seurat's frame
 
-R returns `x, y, cell` *and* sets the rownames to the cells. shanuz returned
+R returns `x, y, cell` *and* sets the rownames to the cells. truecell returned
 `x, y` with cell on the index — the pandas idiom, no information lost, but not
 the same frame, and `coords$cell` ported from R would fail on it. Both now.
 
@@ -145,7 +145,7 @@ the same frame, and `coords$cell` ported from R would fail on it. Both now.
 
 `variance.standardized` differs, the two tools select **1995 of the same 2000**
 variable features, and the PCA that follows differs by 1.9e-3. That chain is
-unchanged from the out-of-core tutorial: shanuz's `_loess2` is a NumPy
+unchanged from the out-of-core tutorial: truecell's `_loess2` is a NumPy
 local-quadratic fit and R's `loess` is the cloess Fortran with kd-tree
 interpolation.
 
@@ -155,7 +155,7 @@ The question worth answering is whether the PCA is *also* wrong. It is not:
 
 | PCA stdev, max relative difference vs Seurat | |
 |---|---|
-| on shanuz's own 2000 features | 0.00194 |
+| on truecell's own 2000 features | 0.00194 |
 | **on Seurat's 2000 features** | **2.49e-05** |
 
 **78× closer** given the same input. The decomposition is fine; the gap is the

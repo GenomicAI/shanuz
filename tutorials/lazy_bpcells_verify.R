@@ -35,7 +35,7 @@ set.seed(42)
 TUT <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG <- file.path(TUT, "figures_lazy")
 dir.create(FIG, showWarnings = FALSE)
-DATA <- path.expand("~/.shanuz_data/pbmc3k")
+DATA <- path.expand("~/.truecell_data/pbmc3k")
 STORE <- file.path(FIG, "bpcells_store")
 
 HEAD <- 20L
@@ -118,7 +118,7 @@ d_mem <- sparse_x(o_mem); d_bp <- sparse_x(o_bp)
 h_mem <- HVFInfo(o_mem);  h_bp <- HVFInfo(o_bp)
 
 # Both runs are emitted. BPCells computes in single precision, so Seurat's
-# out-of-core numbers sit ~1e-6 from its own in-memory ones; shanuz stays in
+# out-of-core numbers sit ~1e-6 from its own in-memory ones; truecell stays in
 # float64 throughout, so `mem.*` is the series it should be judged against and
 # `bp.*` is the series that shows what the precision change costs.
 s_bp <- as.matrix(GetAssayData(o_bp, layer = "scale.data"))

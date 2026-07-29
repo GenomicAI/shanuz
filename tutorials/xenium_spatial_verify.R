@@ -23,7 +23,7 @@ set.seed(42)
 .script <- sub("^--file=", "", .args[grep("^--file=", .args)])
 HERE <- if (length(.script)) dirname(normalizePath(.script)) else getwd()
 FIG  <- file.path(HERE, "figures_spatial")
-DATA <- Sys.getenv("XENIUM_DATA", path.expand("~/.shanuz_data/xenium_mouse_brain"))
+DATA <- Sys.getenv("XENIUM_DATA", path.expand("~/.truecell_data/xenium_mouse_brain"))
 dir.create(FIG, recursive = TRUE, showWarnings = FALSE)
 if (!file.exists(file.path(DATA, "cell_feature_matrix", "matrix.mtx.gz")))
   stop("Xenium data not found at ", DATA,
@@ -88,7 +88,7 @@ obj <- RunUMAP(obj, dims = 1:20, verbose = FALSE)
 n_clusters <- length(unique(obj$seurat_clusters))
 cat(sprintf("clusters (res=0.3): %d\n", n_clusters))
 
-# ---- 6. Spatial statistics on focal type (FNN == shanuz idiom) -------------
+# ---- 6. Spatial statistics on focal type (FNN == truecell idiom) -------------
 xy <- as.matrix(obj@meta.data[, c("x","y")])
 is_focal <- obj$cell_type == FOCAL
 foc_xy <- xy[is_focal, , drop = FALSE]

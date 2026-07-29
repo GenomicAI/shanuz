@@ -1,6 +1,6 @@
 """Generate all figures for the cell-cycle & module-score tutorial.
 
-Runs thp1_cellcycle_tutorial.run_full() and renders the shanuz-side figures to
+Runs thp1_cellcycle_tutorial.run_full() and renders the truecell-side figures to
 tutorials/figures_cellcycle/, alongside the r_*.png the R verify script writes:
   * py_01_score_scatter.png   S.Score vs G2M.Score, coloured by assigned phase
   * py_02_phase_bar.png       cell count per phase (G1/S/G2M)
@@ -28,7 +28,7 @@ if str(_ROOT) not in sys.path:
 from tutorials.thp1_cellcycle_tutorial import (
     run_full, PHASE_COL, S_COL, G2M_COL, PHASES, IFN_NAME,
 )
-from shanuz.plotting import _palette
+from truecell.plotting import _palette
 
 FIGURES = Path(__file__).parent / "figures_cellcycle"
 FIGURES.mkdir(exist_ok=True)
@@ -62,7 +62,7 @@ def score_scatter(meta):
     ax.axvline(0, color="grey", lw=0.6)
     ax.set_xlabel("S.Score")
     ax.set_ylabel("G2M.Score")
-    ax.set_title("Shanuz — cell-cycle scores by phase")
+    ax.set_title("Truecell — cell-cycle scores by phase")
     ax.legend(fontsize=8, frameon=False, markerscale=2)
     fig.tight_layout()
     return fig
@@ -77,7 +77,7 @@ def phase_bar(summary):
     bars = ax.bar(dist["phase"], dist["n"],
                   color=[_PHASE_COLOR[p] for p in dist["phase"]])
     ax.set_ylabel("cells")
-    ax.set_title("Shanuz — phase distribution")
+    ax.set_title("Truecell — phase distribution")
     ax.bar_label(bars, fmt="%d", fontsize=8, padding=2)
     fig.tight_layout()
     return fig
@@ -93,7 +93,7 @@ def ifn_hist(meta):
     ax.axvline(0, color="grey", lw=0.8, ls="--")
     ax.set_xlabel(f"{IFN_NAME} module score")
     ax.set_ylabel("cells")
-    ax.set_title("Shanuz — add_module_score: interferon-response program")
+    ax.set_title("Truecell — add_module_score: interferon-response program")
     fig.tight_layout()
     return fig
 

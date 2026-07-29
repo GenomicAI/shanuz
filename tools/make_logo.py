@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the shanuz logo into ``docs/assets/logo/``.
+"""Generate the truecell logo into ``docs/assets/logo/``.
 
 The mark is a point cloud whose density traces a lowercase ``s``. Every dot is a
 cell, and pointillism is the nod to Georges Seurat -- the painter the R package
@@ -95,20 +95,36 @@ def catmull_rom(pts, n_per_seg: int = 60, alpha: float = 0.5):
     return out
 
 
+# The `s` skeleton outlived the name it was drawn for. The mark is a `c` now and
+# `truecell` has no `s` in it, so this survives for one reason: `letter("s")`
+# still needs it, and `wordmark(word=...)` will draw any word it is given.
 UNIT_S = catmull_rom(S_SKELETON)
 
 
-def spine(x0: float, y0: float, w: float, h: float):
-    """The skeleton mapped into a box, as (x, y, t) with t the arc fraction."""
-    pts = [(x0 + u * w, y0 + v * h) for u, v in UNIT_S]
+# --- the mark ----------------------------------------------------------------
+# The mark is a `c`, for `cell` and for the initial of the name. It is a single
+# circular arc, which is the one property that mattered when it replaced the
+# earlier `s`: the two-lobe colour split is placed at half the arc length, and on
+# a constant-radius arc that point is exactly the left extremity, so the split
+# lands on the axis of symmetry without a fudge factor. The `s` earned that the
+# hard way, through a hand-placed skeleton with imposed 180-degree symmetry; an
+# arc gets it for free.
+C_OPEN = 55.0                              # where the terminals stop, in degrees
+
+
+def arc_spine(cx: float, cy: float, r: float, n: int = 160):
+    """A `c` skeleton as (x, y, t), t the arc fraction. Angles run clockwise on
+    screen from the upper terminal, so the aperture faces right."""
+    a0, a1 = -C_OPEN, -(360.0 - C_OPEN)
+    pts = [(cx + r * math.cos(math.radians(a)), cy + r * math.sin(math.radians(a)))
+           for a in (a0 + (a1 - a0) * i / (n - 1) for i in range(n))]
     acc = [0.0]
     for i in range(1, len(pts)):
         acc.append(acc[-1] + math.dist(pts[i], pts[i - 1]))
     return [(x, y, s / acc[-1]) for (x, y), s in zip(pts, acc)]
 
 
-# --- the mark ----------------------------------------------------------------
-SPINE = spine(28.0, 20.0, 44.0, 60.0)      # the `s`, inside the 100-unit box
+SPINE = arc_spine(52.0, 50.0, 30.0)        # the `c`, inside the 100-unit box
 CROSS_LO, CROSS_HI = 0.43, 0.57            # the waist is t = 0.5, by symmetry
 
 
@@ -189,7 +205,7 @@ def mark_parts(shape="tile", on_dark=False, n=190, seed=5, ambient=12, sigma=2.5
     return _ground(shape, on_dark), "\n    ".join(body)
 
 
-def _svg(view: str, body: str, label: str = "shanuz") -> str:
+def _svg(view: str, body: str, label: str = "truecell") -> str:
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view}" role="img"'
             f' aria-label="{label}">\n  {body}\n</svg>\n')
 
@@ -201,7 +217,7 @@ def mark(shape="tile", on_dark=False, **kw) -> str:
 
 def glyph(on_dark=False, shape="tile", stroke=13.0) -> str:
     """The same skeleton as one stroke. This is what survives at 16px."""
-    pts = spine(26.0, 17.0, 48.0, 66.0)
+    pts = arc_spine(50.0, 50.0, 32.0)
     half = len(pts) // 2
     hi = PINE if on_dark else CREAM
     lo = AMBER if on_dark else AMBER_SOFT
@@ -249,6 +265,38 @@ def letter(ch: str):
     if ch == "z":
         w = 70.0
         return ([([(0, XTOP), (w, XTOP), (0, BASE), (w, BASE)], "")], w)
+    if ch == "c":
+        # The full round letter with its right side opened. The terminals stop at
+        # 55 and 305 rather than 90 and 270, so the aperture reads as a gap
+        # rather than as a half circle.
+        #
+        # The wordmark's two-colour split lives here, as it lived on the `s` when
+        # the package was called `shanuz`. The `c` is the only letter in the name
+        # that is one unbroken arc, so it is the only one whose midpoint is a
+        # place the colour can change without the join looking arbitrary -- and
+        # it is the letter the mark itself draws.
+        pts = _semi(RAD, mid, RAD, 55, 305)
+        half = len(pts) // 2
+        return ([(pts[:half + 1], "hi"), (pts[half:], "lo")], ROUND_W)
+    if ch == "e":
+        # One continuous stroke: the crossbar runs left to right at the shoulder
+        # line and the bowl picks it up at 0 degrees, which is exactly where the
+        # bar ends, so the two never have to be joined by hand.
+        return ([([(0, mid)] + _semi(RAD, mid, RAD, 0, 305), "")], ROUND_W)
+    if ch == "l":
+        # A bare ascender. Its advance is zero because the stroke has no width in
+        # these coordinates; TRACK alone sets the gap to the next letter.
+        return ([([(0, BASE), (0, ATOP)], "")], 0.0)
+    if ch == "t":
+        # Shorter than an ascender -- a `t` that reached the `l`'s height would
+        # make `truecell` open on two full-height stems and read as `tl`.
+        w, top = 52.0, XTOP + 30.0
+        return ([([(w / 2, BASE), (w / 2, top)], ""),
+                 ([(0, XTOP), (w, XTOP)], "")], w)
+    if ch == "r":
+        # The `n`'s shoulder, cut off where it turns back down.
+        return ([([(0, BASE), (0, XTOP)], ""),
+                 (_semi(RAD, mid, RAD, 180, 55), "")], 67.0)
     if ch == "s":
         pts = [(u * S_W, XTOP - v * (XTOP - BASE)) for u, v in UNIT_S]
         half = len(pts) // 2
@@ -256,7 +304,7 @@ def letter(ch: str):
     raise ValueError(f"no letterform for {ch!r}")
 
 
-def wordmark_parts(ink: str, lo: str, word: str = "shanuz"):
+def wordmark_parts(ink: str, lo: str, word: str = "truecell"):
     x, parts = 0.0, []
     for ch in word:
         strokes, adv = letter(ch)
@@ -270,14 +318,14 @@ def wordmark_parts(ink: str, lo: str, word: str = "shanuz"):
     return "\n    ".join(parts), x - TRACK - KERN.get(word[-1], 0.0)
 
 
-def wordmark(on_dark=False, word="shanuz") -> str:
+def wordmark(on_dark=False, word="truecell") -> str:
     ink = CREAM if on_dark else PINE
     lo = AMBER_SOFT if on_dark else AMBER
     inner, w = wordmark_parts(ink, lo, word)
     return _svg(f"{-SW / 2} 0 {w + SW:.1f} 140", inner, word)
 
 
-def lockup(shape="tile", on_dark=False, word="shanuz", solid=False) -> str:
+def lockup(shape="tile", on_dark=False, word="truecell", solid=False) -> str:
     ink = CREAM if on_dark else PINE
     lo = AMBER_SOFT if on_dark else AMBER
     inner, w = wordmark_parts(ink, lo, word)
@@ -302,42 +350,42 @@ def lockup(shape="tile", on_dark=False, word="shanuz", solid=False) -> str:
 # --- outputs -----------------------------------------------------------------
 SVGS = {
     # primary: the pointillist mark
-    "shanuz-mark.svg":             lambda: mark("tile"),
-    "shanuz-mark-inverse.svg":     lambda: mark("tile", on_dark=True),
+    "truecell-mark.svg":             lambda: mark("tile"),
+    "truecell-mark-inverse.svg":     lambda: mark("tile", on_dark=True),
     # horizontal lockup, mark plus wordmark
-    "shanuz-lockup.svg":           lambda: lockup("tile"),
-    "shanuz-lockup-inverse.svg":   lambda: lockup("tile", on_dark=True),
+    "truecell-lockup.svg":           lambda: lockup("tile"),
+    "truecell-lockup-inverse.svg":   lambda: lockup("tile", on_dark=True),
     # the wordmark alone
-    "shanuz-wordmark.svg":         lambda: wordmark(),
-    "shanuz-wordmark-inverse.svg": lambda: wordmark(on_dark=True),
+    "truecell-wordmark.svg":         lambda: wordmark(),
+    "truecell-wordmark-inverse.svg": lambda: wordmark(on_dark=True),
     # the R-ecosystem sticker shape, since this is a port of an R package
-    "shanuz-hex.svg":              lambda: mark("hex"),
-    "shanuz-hex-inverse.svg":      lambda: mark("hex", on_dark=True),
+    "truecell-hex.svg":              lambda: mark("hex"),
+    "truecell-hex-inverse.svg":      lambda: mark("hex", on_dark=True),
     # simplified: what reads below roughly 48px
-    "shanuz-glyph.svg":            lambda: glyph(),
-    "shanuz-glyph-inverse.svg":    lambda: glyph(on_dark=True),
+    "truecell-glyph.svg":            lambda: glyph(),
+    "truecell-glyph-inverse.svg":    lambda: glyph(on_dark=True),
     # the glyph with no tile of its own, for dropping onto a ground that is
     # already coloured -- the documentation header, which is pine in both the
     # light and the dark palette, so it is the cream-ink file that goes there.
-    "shanuz-glyph-open.svg":         lambda: glyph(shape="none"),
-    "shanuz-glyph-open-inverse.svg": lambda: glyph(shape="none", on_dark=True),
+    "truecell-glyph-open.svg":         lambda: glyph(shape="none"),
+    "truecell-glyph-open-inverse.svg": lambda: glyph(shape="none", on_dark=True),
     "favicon.svg":                 lambda: glyph(),
 }
 
 # name -> (source svg, width, height); height None means square
 PNGS = {
-    "shanuz-mark-512.png":   ("shanuz-mark.svg", 512, None),
-    "shanuz-mark-256.png":   ("shanuz-mark.svg", 256, None),
-    "shanuz-mark-128.png":   ("shanuz-mark.svg", 128, None),
-    "shanuz-hex-512.png":    ("shanuz-hex.svg", 512, None),
+    "truecell-mark-512.png":   ("truecell-mark.svg", 512, None),
+    "truecell-mark-256.png":   ("truecell-mark.svg", 256, None),
+    "truecell-mark-128.png":   ("truecell-mark.svg", 128, None),
+    "truecell-hex-512.png":    ("truecell-hex.svg", 512, None),
     "apple-touch-icon.png":  ("favicon.svg", 180, None),
     "favicon-48.png":        ("favicon.svg", 48, None),
     "favicon-32.png":        ("favicon.svg", 32, None),
     "favicon-16.png":        ("favicon.svg", 16, None),
     # Both grounds, because the README is read on GitHub and GitHub has a dark
     # mode; the `<picture>` there switches between these two.
-    "shanuz-lockup-1200.png": ("shanuz-lockup.svg", 1200, None),
-    "shanuz-lockup-inverse-1200.png": ("shanuz-lockup-inverse.svg", 1200, None),
+    "truecell-lockup-1200.png": ("truecell-lockup.svg", 1200, None),
+    "truecell-lockup-inverse-1200.png": ("truecell-lockup-inverse.svg", 1200, None),
 }
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"

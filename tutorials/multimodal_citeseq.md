@@ -1,31 +1,31 @@
-# Multimodal Tutorial — CITE-seq (RNA + Protein) with R Seurat vs Shanuz
+# Multimodal Tutorial — CITE-seq (RNA + Protein) with R Seurat vs Truecell
 
 A Python port of Seurat's
 [multimodal vignette](https://satijalab.org/seurat/articles/multimodal_vignette)
 using the **CBMC CITE-seq** dataset (GSE100866): ~8,600 cord-blood mononuclear
 cells profiled simultaneously for the transcriptome and **13 surface proteins**
-(antibody-derived tags, "ADT"). It showcases Shanuz's **multi-assay** support:
+(antibody-derived tags, "ADT"). It showcases Truecell's **multi-assay** support:
 cluster on RNA, attach the protein counts as a second assay, CLR-normalise them,
 and read protein levels on the RNA-derived UMAP.
 
 > **Dataset:** 8k CBMCs, CITE-seq — Stoeckius et al. 2017 (GSE100866)
-> **Python:** Shanuz v0.2.0
+> **Python:** Truecell v0.2.0
 
-> **Scope note.** Shanuz stores and normalises multiple assays, visualises one
+> **Scope note.** Truecell stores and normalises multiple assays, visualises one
 > against another, **and** performs multimodal *integration* via Weighted
 > Nearest Neighbor (WNN) analysis (Step 8) — learning a per-cell RNA-vs-protein
 > weight and clustering both modalities jointly.
 
 ```bash
 python tutorials/cbmc_citeseq_tutorial.py     # printed validation + the numeric handoff
-python tutorials/generate_multimodal_plots.py # writes figures_multimodal/  (Shanuz figures)
+python tutorials/generate_multimodal_plots.py # writes figures_multimodal/  (Truecell figures)
 Rscript tutorials/cbmc_citeseq_verify.R       # R figures + r_adt_clr.csv / r_cell_weights.csv
 python tutorials/cbmc_citeseq_tutorial.py --report   # the side-by-side, per protein and per cell
 ```
 
 > **About the figures.** Each step shows a genuine **side-by-side comparison**:
 > the **left** image is real **R Seurat** output (`cbmc_citeseq_verify.R`, titled
-> *"R Seurat – …"*) and the **right** image is **Shanuz**
+> *"R Seurat – …"*) and the **right** image is **Truecell**
 > (`generate_multimodal_plots.py`). Both run the identical RNA workflow, the same
 > CLR transform, and the same protein-gated annotation — with the same
 > thresholds — on the same data. Clustering is still stochastic and the two
@@ -36,11 +36,11 @@ python tutorials/cbmc_citeseq_tutorial.py --report   # the side-by-side, per pro
 
 ## Step 1 · Load RNA + Protein, align barcodes
 
-The RNA matrix mixes human and mouse spike-in genes; both Seurat and Shanuz keep
+The RNA matrix mixes human and mouse spike-in genes; both Seurat and Truecell keep
 the human genes. RNA and ADT are aligned to their shared cell barcodes.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -57,7 +57,7 @@ cbmc.adt <- cbmc.adt[, joint]
 </td><td>
 
 ```python
-from shanuz.datasets import cbmc_citeseq
+from truecell.datasets import cbmc_citeseq
 # downloads ~15 MB, keeps human genes, aligns shared barcodes
 rna, genes, adt, proteins, cells = cbmc_citeseq()
 # rna: (20379 genes x 8617 cells)   adt: (13 proteins x 8617 cells)
@@ -72,7 +72,7 @@ rna, genes, adt, proteins, cells = cbmc_citeseq()
 ## Step 2 · Create the object & run the RNA workflow
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -89,14 +89,14 @@ cbmc <- RunUMAP(cbmc, dims = 1:15)
 </td><td>
 
 ```python
-from shanuz.shanuz import create_shanuz_object
-from shanuz.preprocessing import normalize_data, find_variable_features, scale_data
-from shanuz.reduction import run_pca
-from shanuz.neighbors import find_neighbors
-from shanuz.clustering import find_clusters
-from shanuz.umap import run_umap
+from truecell.truecell import create_truecell_object
+from truecell.preprocessing import normalize_data, find_variable_features, scale_data
+from truecell.reduction import run_pca
+from truecell.neighbors import find_neighbors
+from truecell.clustering import find_clusters
+from truecell.umap import run_umap
 
-obj = create_shanuz_object(counts=rna, assay="RNA", min_cells=3,
+obj = create_truecell_object(counts=rna, assay="RNA", min_cells=3,
                            feature_names=genes, cell_names=cells, project="cbmc")
 normalize_data(obj)
 find_variable_features(obj, selection_method="vst", nfeatures=2000)
@@ -123,7 +123,7 @@ centered-log-ratio transform, applied per cell across the 13-protein panel
 (`margin = 2`) — the recommended setting for small ADT panels.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -137,7 +137,7 @@ cbmc <- NormalizeData(cbmc, assay = "ADT",
 </td><td>
 
 ```python
-from shanuz.assay5 import create_assay5_object
+from truecell.assay5 import create_assay5_object
 
 obj.assays["ADT"] = create_assay5_object(
     counts=adt_aligned, feature_names=proteins,
@@ -155,7 +155,7 @@ normalize_data(obj, assay="ADT", normalization_method="CLR", margin=2)
 > `apply` treats `MARGIN = 1` as rows and `MARGIN = 2` as columns. So with counts
 > stored features × cells, **`margin = 1` normalises each protein across cells**
 > (Seurat's default) and **`margin = 2` normalises each cell across its
-> proteins** (what ADT panels want). Shanuz had these two swapped until the fix
+> proteins** (what ADT panels want). Truecell had these two swapped until the fix
 > described at the end of Step 8.
 
 ---
@@ -163,10 +163,10 @@ normalize_data(obj, assay="ADT", normalization_method="CLR", margin=2)
 ## Step 4 · Visualise protein on the RNA UMAP
 
 In R you switch `DefaultAssay()` (or use the `adt_`/`rna_` key prefixes); in
-Shanuz you pass `assay="ADT"`.
+Truecell you pass `assay="ADT"`.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -178,7 +178,7 @@ FeaturePlot(cbmc, c("CD3","CD4","CD8","CD19",
 </td><td>
 
 ```python
-from shanuz.plotting import feature_plot
+from truecell.plotting import feature_plot
 
 feature_plot(obj, ["CD3","CD4","CD8","CD19",
                    "CD14","CD16","CD56","CD11c"],
@@ -204,7 +204,7 @@ The CITE-seq payoff: protein gives a smooth, high signal-to-noise readout where
 the encoding mRNA is sparse and noisy.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -234,7 +234,7 @@ feature_plot(obj, ["CD19"], assay="RNA", reduction="umap")
 ## Step 6 · Ridge plots & protein bivariates
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -248,7 +248,7 @@ FeatureScatter(cbmc, "adt_CD4",  "adt_CD8")
 </td><td>
 
 ```python
-from shanuz.plotting import ridge_plot, feature_scatter
+from truecell.plotting import ridge_plot, feature_scatter
 
 ridge_plot(obj, ["CD3","CD19","CD14","CD56"], assay="ADT",
            group_by="protein_celltype", ncol=2)
@@ -285,7 +285,7 @@ markers for populations the 13-protein panel can't resolve — platelets (`PPBP`
 erythroid (`HBB`), pDC (`IGJ`/`PLD4`), and cycling cells.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -298,7 +298,7 @@ DimPlot(cbmc, label = TRUE)
 
 ```python
 from tutorials.cbmc_citeseq_tutorial import annotate_cells
-from shanuz.plotting import dim_plot
+from truecell.plotting import dim_plot
 
 anno = annotate_cells(obj)
 obj.stash_ident("rna_clusters")
@@ -341,7 +341,7 @@ a per-cell weight for each modality. Clustering and UMAP then run **on the joint
 graph** instead of the RNA PCA.
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr><td>
 
 ```r
@@ -368,9 +368,9 @@ cbmc <- RunUMAP(cbmc, nn.name = "weighted.nn",
 </td><td>
 
 ```python
-from shanuz.reduction import run_pca
-from shanuz.preprocessing import scale_data
-from shanuz.multimodal import find_multi_modal_neighbors
+from truecell.reduction import run_pca
+from truecell.preprocessing import scale_data
+from truecell.multimodal import find_multi_modal_neighbors
 
 # protein modality needs its own reduction
 adt_features = obj.assays["ADT"]._all_feature_names
@@ -404,7 +404,7 @@ The lineages the antibody panel targets head-on lean on protein, and the
 ordering tracks how well the panel covers each type. Seurat's numbers on the
 same data are alongside:
 
-| Cell type | Shanuz `ADT.weight` | R Seurat | in the panel? |
+| Cell type | Truecell `ADT.weight` | R Seurat | in the panel? |
 |-----------|--------------------|----------|---------------|
 | NK | 0.65 | 0.65 | CD16 + CD56 |
 | CD4 T | 0.64 | 0.64 | CD4 — and CD4/CD8 is a protein call, not an RNA one |
@@ -426,11 +426,11 @@ RNA.
 **Progenitor is the one row that does not line up** — 0.35 here against R's 0.29,
 where every other type agrees to 0.02. It is a 146-cell population, and the two
 sides do not cut quite the same cells into it (R's progenitor cluster carries
-mean CD34 1.31, Shanuz's 1.5).
+mean CD34 1.31, Truecell's 1.5).
 
 This used to be as far as the tutorial could go: it read like small-population
 clustering noise rather than a difference in the WNN maths, but that was a
-reading. **It is now established.** Re-grouping Shanuz's *own* per-cell weights
+reading. **It is now established.** Re-grouping Truecell's *own* per-cell weights
 by *R's* labels puts progenitor at **0.283** against R's 0.285 — the weights
 agree to three decimals, and the gap was entirely in which cells carry the
 label. See [How close is this to Seurat?](#how-close-is-this-to-seurat) for the
@@ -443,7 +443,7 @@ is `09_wnn_vs_rna_umap.png` — the *same cells with the same labels*, embedded 
 RNA alone (left) and on the joint graph (right):
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td><img src="figures_multimodal/r_09_wnn_vs_rna_umap.png" width="420"/></td>
 <td><img src="figures_multimodal/09_wnn_vs_rna_umap.png" width="420"/></td>
@@ -461,7 +461,7 @@ cells commit, and the per-type mean is a summary of that split, not a
 description of a typical cell:
 
 <table>
-<tr><th>R (Seurat)</th><th>Python (Shanuz)</th></tr>
+<tr><th>R (Seurat)</th><th>Python (Truecell)</th></tr>
 <tr>
 <td><img src="figures_multimodal/r_10_adt_weight_by_celltype.png" width="420"/></td>
 <td><img src="figures_multimodal/10_adt_weight_by_celltype.png" width="420"/></td>
@@ -491,10 +491,10 @@ against a live Seurat 5.5.1 run:
 **The progenitor gap was never a WNN difference.** This section used to record
 progenitor at 0.06 away from Seurat while every other type agreed to 0.02, and
 attributed it to cluster boundaries. The per-cell dump settles it: re-group
-*shanuz's own weights* by *R's* labels and progenitor reads **0.283** against
+*truecell's own weights* by *R's* labels and progenitor reads **0.283** against
 R's 0.285. The weights agree; the two tools put different cells in the bucket.
 
-| cell type | shanuz | R | shanuz's weights, R's labels | n (py / R) |
+| cell type | truecell | R | truecell's weights, R's labels | n (py / R) |
 |---|---|---|---|---|
 | Progenitor | 0.352 | 0.285 | **0.283** | 146 / 184 |
 | Erythroid | 0.378 | 0.397 | **0.400** | 606 / 566 |
@@ -513,7 +513,7 @@ code. Both sides run the same CLR and the same `annotate_cells` thresholds,
 shared verbatim between the two scripts.
 
 > **This table used to look much worse, and the cause was not in the WNN code.**
-> Shanuz's CLR had its `margin` flag inverted relative to Seurat: `margin=2`
+> Truecell's CLR had its `margin` flag inverted relative to Seurat: `margin=2`
 > computed what Seurat's `margin=1` computes and vice versa, so the protein
 > matrix feeding `apca` — and therefore every weight — was the wrong transform.
 > The published numbers ran 0.10–0.74 against R's 0.21–0.65, and erythroid and
@@ -531,7 +531,7 @@ shared verbatim between the two scripts.
 
 ## API Translation (multimodal additions)
 
-| Task | R (Seurat) | Python (Shanuz) |
+| Task | R (Seurat) | Python (Truecell) |
 |------|-----------|-----------------|
 | Load CITE-seq | `read.csv` + `CollapseSpeciesExpressionMatrix` | `cbmc_citeseq()` |
 | Add a 2nd assay | `cbmc[["ADT"]] <- CreateAssayObject(counts)` | `obj.assays["ADT"] = create_assay5_object(counts, key="adt_")` |

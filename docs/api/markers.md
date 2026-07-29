@@ -18,12 +18,12 @@ Two numbers to know before reading a result table:
 
 ## Per-cluster and per-pair tests
 
-::: shanuz.markers.find_markers
+::: truecell.markers.find_markers
 
-::: shanuz.markers.find_all_markers
+::: truecell.markers.find_all_markers
 
-::: shanuz.markers.find_conserved_markers
+::: truecell.markers.find_conserved_markers
 
 ## Pseudobulk
 
-::: shanuz.aggregate.aggregate_expression
+::: truecell.aggregate.aggregate_expression

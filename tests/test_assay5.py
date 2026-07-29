@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
-from shanuz import create_assay5_object
+from truecell import create_assay5_object
 
 
 def test_create(small_assay5):
@@ -133,10 +133,10 @@ def test_join_layers_leaves_unsplit_layers_alone():
 
 
 def test_split_layers_generic_is_registered():
-    # `split_layers` was declared in shanuz.generics but never registered for
+    # `split_layers` was declared in truecell.generics but never registered for
     # any type, so the documented generic raised NotImplementedError while the
     # method it should dispatch to worked fine.
-    from shanuz import generics as G
+    from truecell import generics as G
     split = G.split_layers(_ordered_assay(), ["a", "b"] * 3)
     assert sorted(split.layers_list()) == ["counts.a", "counts.b"]
 

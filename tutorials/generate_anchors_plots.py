@@ -44,7 +44,7 @@ def fig_agreement():
 
         ax = axes[0, col]
         only_r, only_p = len(rp - pp), len(pp - rp)
-        ax.bar(["Seurat only", "both", "shanuz only"], [only_r, len(shared), only_p],
+        ax.bar(["Seurat only", "both", "truecell only"], [only_r, len(shared), only_p],
                color=[ORANGE, BLUE, GREY])
         ax.set_title(f"{reduction.upper()} — anchor pairs\n"
                      f"{len(shared):,} of Seurat's {len(rp):,} recovered "
@@ -62,7 +62,7 @@ def fig_agreement():
         ax.scatter(y, x, s=4, alpha=0.25, color=BLUE, edgecolors="none")
         ax.plot([0, 1], [0, 1], color=GREY, lw=1, ls="--")
         ax.set_xlabel("Seurat anchor score")
-        ax.set_ylabel("shanuz anchor score")
+        ax.set_ylabel("truecell anchor score")
         ax.set_title(f"scores on the {len(order):,} shared anchors\n"
                      f"r = {np.corrcoef(x, y)[0, 1]:.5f}, "
                      f"{100*np.mean(np.isclose(x, y, atol=1e-9)):.1f}% identical")
@@ -86,7 +86,7 @@ def fig_correction():
 
     x = np.arange(len(labels))
     ax.bar(x - 0.19, r_vals, 0.38, label="Seurat 5.5.1", color=ORANGE)
-    ax.bar(x + 0.19, py_vals, 0.38, label="shanuz", color=BLUE)
+    ax.bar(x + 0.19, py_vals, 0.38, label="truecell", color=BLUE)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=9)
     ax.set_yscale("log")

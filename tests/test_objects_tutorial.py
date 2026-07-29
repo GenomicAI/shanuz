@@ -13,7 +13,7 @@ Covers ``tutorials/pbmc3k_objects_tutorial.py``:
     so they are exercised without the 2,700-cell download.
 
 The real-data numbers live in ``tests/test_tutorial_smoke.py`` and only run
-when ``SHANUZ_TUTORIAL_SMOKE=1`` is set. Network-free.
+when ``TRUECELL_TUTORIAL_SMOKE=1`` is set. Network-free.
 """
 import sys
 from pathlib import Path
@@ -25,7 +25,7 @@ import scipy.sparse as sp
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from shanuz import create_assay5_object  # noqa: E402
+from truecell import create_assay5_object  # noqa: E402
 from tutorials.pbmc3k_objects_tutorial import (  # noqa: E402
     _column_sum,
     assign_idents,
@@ -82,7 +82,7 @@ def test_matrix_anchor_counts_true_nonzeros_not_stored_entries():
 
 
 def test_r_safe_names_matches_read10x_mangling():
-    # Read10X rewrites '_' to '-'; shanuz's loader does not, and the difference
+    # Read10X rewrites '_' to '-'; truecell's loader does not, and the difference
     # belongs to the two loaders rather than to the object model.
     assert r_safe_names(["Y_RNA", "RP11-1_2", "CD3E"]) == ["Y-RNA", "RP11-1-2", "CD3E"]
 
@@ -201,7 +201,7 @@ def test_split_join_roundtrip_reports_a_clean_round_trip():
 def test_split_join_roundtrip_notices_a_permuted_result(monkeypatch):
     # The helper must be able to say "no" — otherwise the three booleans it
     # reports are decoration. Force a join that returns the split order.
-    from shanuz.assay5 import StdAssay
+    from truecell.assay5 import StdAssay
 
     original = StdAssay.join_layers
 
@@ -233,7 +233,7 @@ def test_join_all_layers_survives_a_prepared_assay():
 def test_join_all_layers_records_an_error_instead_of_raising(monkeypatch):
     # This is how the defect presented, and the helper has to survive it: a
     # tutorial that dies on the finding cannot report the finding.
-    from shanuz.assay5 import StdAssay
+    from truecell.assay5 import StdAssay
 
     def exploding_join(self, layers=None):
         raise ValueError("incompatible dimensions for axis 0")
@@ -250,7 +250,7 @@ def test_join_all_layers_records_an_error_instead_of_raising(monkeypatch):
 
 
 def test_assign_idents_applies_the_first_matching_gate():
-    from shanuz import create_shanuz_object, normalize_data
+    from truecell import create_truecell_object, normalize_data
 
     # Cell 0 expresses CD3E and LYZ — "T" wins, being the earlier gate.
     # Cell 1 expresses only LYZ, cell 2 nothing.
@@ -259,7 +259,7 @@ def test_assign_idents_applies_the_first_matching_gate():
         [0.0, 0.0, 0.0],   # MS4A1
         [7.0, 9.0, 0.0],   # LYZ
     ]))
-    obj = create_shanuz_object(
+    obj = create_truecell_object(
         counts=counts, assay="RNA", min_cells=0, min_features=0,
         feature_names=["CD3E", "MS4A1", "LYZ"],
         cell_names=["c0", "c1", "c2"], project="P",
@@ -283,7 +283,7 @@ def test_r_reference_pins_exact_neighbours():
     while this port's neighbour search is exact. With the default, the two sides
     build their graphs from different neighbour tables and the `graphs` anchors
     report a difference that belongs to annoy — 182 SNN edges on pbmc3k, 199,434
-    against the exact 199,616 — which reads as a shanuz defect and cost a real
+    against the exact 199,616 — which reads as a truecell defect and cost a real
     investigation once already.
 
     This asserts the script text rather than running R, which CI has no Seurat

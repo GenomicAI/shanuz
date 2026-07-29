@@ -1,5 +1,5 @@
 import numpy as np
-from shanuz import LogMap
+from truecell import LogMap
 
 
 def test_setget():

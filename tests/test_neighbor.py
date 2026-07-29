@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from shanuz import Neighbor
-from shanuz.graph import Graph
+from truecell import Neighbor
+from truecell.graph import Graph
 
 
 @pytest.fixture
