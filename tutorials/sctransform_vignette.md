@@ -11,7 +11,7 @@ vignette's point is that this removes technical effects more effectively, so —
 run over more PCs (dims 1:30) — it resolves finer immune subsets.
 
 > **Dataset:** 3k PBMCs — 10x Genomics (2016)
-> **Python:** Truecell v0.2.0
+> **Python:** Truecell v0.9.0
 
 ```bash
 python tutorials/pbmc3k_sctransform_tutorial.py   # printed validation + the model handoff

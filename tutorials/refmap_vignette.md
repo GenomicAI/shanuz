@@ -168,8 +168,8 @@ predictions = transfer_data(anchors, refdata="celltype",
 </td></tr>
 </table>
 
-Both tools find a healthy anchor set on the shared HVG basis (truecell **3,551**
-anchors) and transfer with high confidence — mean `prediction.score.max` 0.986
+Both tools find a healthy anchor set on the shared HVG basis (truecell **3,561**
+anchors) and transfer with high confidence — mean `prediction.score.max` 0.988
 (truecell) vs 0.988 (Seurat).
 
 ---
@@ -182,7 +182,7 @@ matches the truth — read per cell type. The Truecell result:
 
 | cell type | support | recall ↑ |
 |-----------|---:|---:|
-| alpha | 1,008 | 0.987 |
+| alpha | 1,008 | 0.989 |
 | ductal | 444 | 0.996 |
 | beta | 308 | 0.990 |
 | gamma | 213 | 0.991 |
@@ -190,18 +190,18 @@ matches the truth — read per cell type. The Truecell result:
 | delta | 127 | 0.984 |
 | activated_stellate | 55 | 1.000 |
 | endothelial | 21 | 1.000 |
-| epsilon | 8 | 0.375 |
-| macrophage | 7 | 0.714 |
+| epsilon | 8 | 0.500 |
+| macrophage | 7 | 0.857 |
 | mast | 7 | 1.000 |
 | quiescent_stellate | 6 | 0.000 |
 | schwann | 2 | 0.000 |
-| **overall** | **2,394** | **0.985** |
+| **overall** | **2,394** | **0.986** |
 
-**2,357 of 2,394 query cells (98.5%) are annotated correctly.** Every abundant
+**2,361 of 2,394 query cells (98.6%) are annotated correctly.** Every abundant
 cell type is recovered at ≥98%; the whole error budget is the handful of **rare
 types** (epsilon, macrophage, quiescent_stellate, schwann) for which the
 2,285-cell single-technology reference simply carries too few examples to anchor
-reliably — the macro-averaged recall (0.77, every class weighted equally) is what
+reliably — the macro-averaged recall (0.79, every class weighted equally) is what
 exposes that tail. This is the honest limit of a small single-tech reference, not
 a defect: Seurat's transfer stumbles on exactly the same rare types.
 
@@ -238,14 +238,14 @@ a `predicted.id` from the same reference label set — the concordance is a plai
 
 | tool | accuracy vs truth ↑ | mean score |
 |------|---:|---:|
-| **truecell** | **0.9845** | 0.9857 |
+| **truecell** | **0.9862** | 0.9879 |
 | **Seurat R** | **0.9879** | 0.9875 |
 
-> **Label concordance — same `predicted.id` per cell: 0.9871 (2,363 / 2,394 query cells).**
+> **Label concordance — same `predicted.id` per cell: 0.9883 (2,366 / 2,394 query cells).**
 
-**truecell and Seurat annotate the query almost identically.** 2,363 of 2,394 query
-cells (98.71%) receive the *same* label from both tools, and each tool is ~98.5%
-accurate against the held-out truth — truecell 0.9845, Seurat 0.9879, a 0.3-point
+**truecell and Seurat annotate the query almost identically.** 2,366 of 2,394 query
+cells (98.83%) receive the *same* label from both tools, and each tool is ~98.6%
+accurate against the held-out truth — truecell 0.9862, Seurat 0.9879, a 0.2-point
 gap that is entirely the rare-type tail where a few cells tip between neighbours.
 The two tools even fail *together*: both recover epsilon poorly, both nearly
 perfect on the abundant types. This is the confirmation the initiative was built

@@ -175,9 +175,9 @@ run_mixscape(obj, assay="PRTB", labels="gene",
         min_de_genes=5, iter_num=10,
         prtb_type="KO")
 obj.meta_data["mixscape_class.global"].value_counts()
-#  NP    13398
+#  NP    13401
 #  NT     2386
-#  KO     4945
+#  KO     4942
 ```
 
 </td></tr>
@@ -185,8 +185,8 @@ obj.meta_data["mixscape_class.global"].value_counts()
 
 | Global class | Truecell | R Seurat |
 |---|---:|---:|
-| KO | 4,945 | 5,107 |
-| NP | 13,398 | 13,236 |
+| KO | 4,942 | 5,107 |
+| NP | 13,401 | 13,236 |
 | NT | 2,386 | 2,386 |
 
 The **per-guide knockout rate** is the headline: how often the edit actually took.
@@ -198,10 +198,10 @@ original screen also measured protein.
 | gene | Truecell KO rate | R KO rate |    | gene | Truecell | R |
 |------|---:|---:|---|------|---:|---:|
 | STAT2  | 0.83 | 0.80 | | IRF1 | 0.57 | 0.68 |
-| JAK2   | 0.78 | 0.78 | | MYC  | 0.58 | 0.23 |
-| SMAD4  | 0.76 | 0.82 | | SPI1 | 0.52 | 0.44 |
+| JAK2   | 0.78 | 0.78 | | MYC  | 0.57 | 0.23 |
+| SMAD4  | 0.75 | 0.82 | | SPI1 | 0.52 | 0.44 |
 | STAT1  | 0.75 | 0.75 | | CUL3 | 0.34 | 0.38 |
-| IFNGR2 | 0.74 | 0.74 | | BRD4 | 0.32 | 0.45 |
+| IFNGR2 | 0.74 | 0.74 | | BRD4 | 0.31 | 0.45 |
 | IFNGR1 | 0.72 | 0.73 | | *(14 more)* | 0.00 | 0.00 |
 
 The **perturbation-score density** for `IFNGR2` is the diagnostic for *why*
@@ -263,23 +263,23 @@ verify script writes):
 
 | Comparison | Agreement |
 |---|---:|
-| **Mixscape** global class (KO/NP/NT)       | **97.45 %** |
-| **Mixscape** full class (`<gene> KO`/`NP`) | **97.45 %** |
+| **Mixscape** global class (KO/NP/NT)       | **97.52 %** |
+| **Mixscape** full class (`<gene> KO`/`NP`) | **97.52 %** |
 
 Mixscape global — Truecell (rows) × R (cols):
 
 |          | R KO | R NP | R NT |
 |---|---:|---:|---:|
-| **KO** | 4,762 |   183 |     0 |
-| **NP** |   345 | 13,053 |    0 |
+| **KO** | 4,767 |   175 |     0 |
+| **NP** |   340 | 13,061 |    0 |
 | **NT** |     0 |     0 | 2,386 |
 
-**Truecell reproduces Seurat to 97.45 %** — 528 of 20,729 cells differ — with the
+**Truecell reproduces Seurat to 97.52 %** — 515 of 20,729 cells differ — with the
 disagreement landing exactly where a mixture model is least certain. All 2,386 NT
 cells agree; all 14 zero-phenotype guides agree 100 %; the strong interferon-γ
-hits agree tightly (`STAT1` 98.6 %, `JAK2` 97.8 %, `IFNGR2` 97.7 %, `IFNGR1`
-96.8 %). The divergence concentrates in the **weak, boundary guides** — `MYC`
-(42 % of its cells differ), `SPI1` (29 %), `BRD4` (17 %), `CUL3` (14 %) — whose
+hits agree tightly (`STAT1` 98.4 %, `JAK2` 98.0 %, `IFNGR2` 97.4 %, `IFNGR1`
+97.1 %). The divergence concentrates in the **weak, boundary guides** — `MYC`
+(42 % of its cells differ), `SPI1` (33 %), `BRD4` (18 %), `CUL3` (14 %) — whose
 perturbation score sits close to the NT mode, so a small difference in the DE gene
 set or the EM initialisation flips a cell KO↔NP. That is the genuinely
 method-level residual, not a bug: scipy's `GaussianMixture` and R's `mixtools`
