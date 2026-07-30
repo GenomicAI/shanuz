@@ -90,7 +90,10 @@ jobs:
           path: coverage.xml
 
   freshdeps:
-    name: Resolve dependencies fresh (upstream canary)
+    # The interpolation is load-bearing: an explicit `name:` overrides the
+    # default matrix suffix, so without it both legs would report under one
+    # identical name and a single red leg would be unattributable.
+    name: Resolve dependencies fresh (upstream canary, ${{ matrix.python-version }})
     # Pinning the test matrix to `uv.lock` buys reproducibility and gives up the
     # thing the old unpinned install did for free: noticing that a new release
     # of numpy, pandas or scikit-learn has broken us. `pyproject.toml` declares
@@ -103,6 +106,15 @@ jobs:
     # so upstream breaking is never mistaken for the pull request breaking.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    strategy:
+      # Both legs, for the same reason the `test` matrix has both: an upstream
+      # release can break one interpreter and not the other, and a canary that
+      # only resolves under 3.12 stays green through it. `fail-fast: false`
+      # because which legs broke is the diagnosis — one leg red localises the
+      # breakage to that interpreter, both red points at the package itself.
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,12 +123,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Set up Python
-        run: uv python install 3.12
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Install with the lock ignored
         run: |
-          uv venv --python 3.12
+          uv venv --python ${{ matrix.python-version }}
           uv pip install -e ".[all]"
 
       - name: Show what resolved
