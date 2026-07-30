@@ -55,6 +55,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stopped checking. It runs on a schedule and on demand, not per pull request,
   so upstream breaking is never mistaken for the pull request breaking.
 
+  It resolves under both 3.12 and 3.13, matching the `test` matrix — an upstream
+  release can break one interpreter and not the other, and a canary that only
+  resolved under 3.12 would stay green through it. The legs do not fail fast,
+  because which legs went red is the diagnosis: one is an interpreter problem,
+  both is the package.
+
   The distribution job deliberately still installs the wheel *unlocked*: it
   exists to prove a plain `pip install truecell` works for a real user, and
   pinning it would defeat the point.
