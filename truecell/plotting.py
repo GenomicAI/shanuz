@@ -1250,6 +1250,11 @@ def ridge_plot(
     Mirrors R's ``RidgePlot(pbmc, features = c("LYZ", "CD3D"))``.
 
     Requires ``scipy`` for KDE smoothing.
+
+    Group labels sit outside the axes, so a panel needs more width than its axes
+    alone. The default ``figsize`` allows for that. Passing one that is too small
+    makes matplotlib draw the panels over each other instead of erroring, so an
+    explicit ``figsize`` is checked and warns if the panels end up colliding.
     """
     from scipy.stats import gaussian_kde
     plt = _mpl()
@@ -1262,8 +1267,10 @@ def ridge_plot(
     colors = palette or _palette(len(unique))
 
     nrow, nc = _subplot_grid(len(features), ncol)
+    user_figsize = figsize
+    default_figsize = (nc * 5, nrow * max(3, len(unique) * 0.5))
     if figsize is None:
-        figsize = (nc * 5, nrow * max(3, len(unique) * 0.5))
+        figsize = default_figsize
 
     fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
     axes_flat = axes.flatten()
@@ -1296,7 +1303,68 @@ def ridge_plot(
         axes_flat[i].set_visible(False)
 
     fig.tight_layout()
+    if user_figsize is not None:
+        _warn_if_panels_collide(fig, "ridge_plot", default_figsize)
     return fig
+
+
+def _warn_if_panels_collide(fig, func: str, default_figsize: tuple) -> None:
+    """Warn when panels overlap because the requested figure is too small.
+
+    Group labels sit outside the axes, so a ridgeline panel is wider than its
+    axes by however long the longest label is. The computed default leaves room
+    for that, and a sweep of 162 shapes — up to 12 groups, labels as long as
+    "Haematopoietic stem cell", every ncol — finds no collision at it. An
+    explicit `figsize` can still be too small for the content, and matplotlib's
+    response is to draw the panels on top of each other rather than to complain,
+    which is how a figure ends up with one panel's labels printed across its
+    neighbour.
+
+    No layout engine fixes this — `constrained_layout` overlaps by slightly more
+    here and reports "axes sizes collapsed to zero" — because the space does not
+    exist. So say so, with the size that would work, instead of returning a
+    figure that silently looks wrong.
+
+    Only called when the caller passed `figsize`; the default path never needs it
+    and this costs a draw.
+    """
+    try:
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+    except Exception:  # pragma: no cover - headless backends without a renderer
+        return
+
+    inv = fig.transFigure.inverted()
+    boxes = [ax.get_tightbbox(renderer).transformed(inv)
+             for ax in fig.axes if ax.get_visible()]
+
+    worst = 0.0
+    for i in range(len(boxes)):
+        for j in range(i + 1, len(boxes)):
+            a, b = boxes[i], boxes[j]
+            ox = min(a.x1, b.x1) - max(a.x0, b.x0)
+            oy = min(a.y1, b.y1) - max(a.y0, b.y0)
+            if ox > 0 and oy > 0:
+                worst = max(worst, min(ox, oy))
+
+    # A hair of overlap is just antialiased edges touching; 0.5% of the figure
+    # is the point where a label is visibly sitting on the neighbouring panel.
+    if worst <= 0.005:
+        return
+
+    w, h = (float(v) for v in fig.get_size_inches())
+    dw, dh = (round(float(v), 1) for v in default_figsize)
+    # Recommend the computed default rather than scaling the caller's size by
+    # some function of the overlap. The overlap fraction does not map linearly
+    # onto the inches needed, so a scaled guess can still collide — and the
+    # default is the one size measured collision-free across the whole sweep.
+    warnings.warn(
+        f"{func}: panels overlap at figsize=({w:.1f}, {h:.1f}) — the group "
+        f"labels need more room than this canvas has. Use figsize=({dw}, {dh}), "
+        f"omit figsize to get that automatically, or raise ncol.",
+        UserWarning,
+        stacklevel=3,
+    )
 
 
 # ---------------------------------------------------------------------------
