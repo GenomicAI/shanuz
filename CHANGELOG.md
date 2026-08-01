@@ -18,6 +18,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`vln_plot` drew the wrong violin, three ways.** All three were checked
+  against R 4.6.1 / Seurat 5.5.1 running locally, not against recollection of
+  what Seurat does.
+
+  **The bandwidth was 2.3x too wide.** The density used scipy's `"scott"` rule,
+  which scales the sample standard deviation. R's `stats::density` — and so
+  `geom_violin`, and so Seurat — uses `bw.nrd0`, which takes
+  `min(sd, IQR/1.34)`. Expression is zero-inflated, so the IQR term is much the
+  smaller, and measured against R on zero-inflated draws scipy's bandwidth came
+  out 2.0-2.5x wider. The effect is over-smoothing that flattens the spike at
+  zero, which is the shape of the distribution. `_bw_nrd0` now reproduces R to
+  5e-13 across seven cases including both zero-spread fallback branches.
+
+  (`bw.nrd0` divides the IQR by **1.34**. The neighbouring rule `bw.nrd`, which
+  R also ships, uses 1.349 — taking that one is a silent 0.67% error wherever
+  the IQR term wins. The first version of this fix had exactly that bug, caught
+  by diffing against R.)
+
+  **The violin was not trimmed.** `geom_violin(trim = TRUE)` limits the density
+  to the observed range; an untrimmed gaussian KDE tails off past it, so every
+  violin extended below zero where expression cannot go.
+
+  **Points were off by default.** `pt_size` defaulted to `0`. Seurat's `VlnPlot`
+  passes `pt.size = NULL`, which `ExIPlot` resolves through `AutoPointSize` —
+  `min(1583/n, 1)` — so points are shown and shrink as the cell count grows.
+  `pt_size=None` is now the default and follows that rule; `pt_size=0` still
+  omits them.
+
+  The violin outline now matches `geom_violin(scale = "width", trim = TRUE)`'s
+  own computed polygon to 0.2% of full width, with the support equal to the data
+  range exactly. Nine tutorial figures are regenerated; they are the nine drawn
+  by the six generators that call `vln_plot`, and no others moved.
+
+  Two additions fall out of the rewrite: `violin_width` sets the width of a full
+  violin, and `jitter_seed` (default `0`) makes the point jitter reproducible so
+  a committed figure redraws identically.
+
+  Still deliberately different from Seurat: the median bar. `geom_violin` draws
+  none, and this keeps drawing one.
+
 ### Added
 
 - **`ridge_plot` warns when an explicit `figsize` is too small for the group
