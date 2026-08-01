@@ -18,6 +18,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`split_by` on `dim_plot`, `feature_plot` and `vln_plot`.** Seurat uses three
+  *different* mechanisms for this, which is the part worth getting right; each
+  was probed against Seurat 5.5.1 rather than assumed.
+
+  `DimPlot` uses `facet_wrap`: one panel per level holding only that level's
+  cells, with `scales = "fixed"`. Both the axis limits and the group colours are
+  therefore computed across all cells and shared, because panels are only
+  comparable if a position and a colour mean the same thing in each.
+
+  `FeaturePlot` builds a features x levels grid. The colour scale is computed per
+  feature over all cells and shared along the row — per-panel scales would make
+  two very different levels look alike, each filling its own range.
+
+  `VlnPlot` does not facet at all. `split.plot = FALSE` is its default, and it
+  says so itself: "Separate violin plots are now plotted side-by-side". So the
+  levels are **dodged** within each group's x position and coloured by level,
+  with the group carried by position. The offsets match ggplot's dodge geometry.
+
+  Every existing figure is byte-identical; the feature is purely additive.
+
 ### Fixed
 
 - **`vln_plot` drew the wrong violin, three ways.** All three were checked
