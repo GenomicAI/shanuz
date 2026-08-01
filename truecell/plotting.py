@@ -476,6 +476,42 @@ def _strip_axes(ax):
     ax.spines["right"].set_visible(False)
 
 
+def _split_levels(obj, split_by: str) -> tuple:
+    """Return ``(labels, levels)`` for a ``split_by`` column.
+
+    Levels are ordered the way R orders a factor: by its own levels if the
+    column is categorical, alphabetically otherwise. Numeric-looking strings
+    sort numerically, matching how group labels are ordered elsewhere here.
+    """
+    if split_by not in obj.meta_data.columns:
+        raise KeyError(
+            f"split_by column {split_by!r} not found in meta_data. "
+            f"Available: {list(obj.meta_data.columns)}"
+        )
+    col = obj.meta_data[split_by]
+    if isinstance(col.dtype, pd.CategoricalDtype):
+        levels = [str(c) for c in col.cat.categories]
+    else:
+        levels = sorted({str(v) for v in col},
+                        key=lambda x: (int(x) if x.isdigit() else x))
+    return col.astype(str).values, levels
+
+
+def _shared_limits(emb: np.ndarray, pad: float = 0.04) -> tuple:
+    """Axis limits covering the whole embedding, with ggplot-ish padding.
+
+    `facet_wrap` defaults to `scales = "fixed"`, so every split panel gets the
+    same range — which is the point of splitting: the panels are only comparable
+    if a position means the same thing in each. Computing limits per panel would
+    silently rescale each one.
+    """
+    xs, ys = emb[:, 0], emb[:, 1]
+    dx = (xs.max() - xs.min()) or 1.0
+    dy = (ys.max() - ys.min()) or 1.0
+    return ((xs.min() - pad * dx, xs.max() + pad * dx),
+            (ys.min() - pad * dy, ys.max() + pad * dy))
+
+
 def _subplot_grid(n: int, ncol: Optional[int] = None):
     """Return (nrow, ncol) for n subplots."""
     if ncol is None:
@@ -542,6 +578,7 @@ def vln_plot(
     violin_width: float = 0.8,
     jitter_seed: Optional[int] = 0,
     raster: Optional[bool] = None,
+    split_by: Optional[str] = None,
 ) -> "Figure":
     """Violin plot of feature expression per cluster/identity.
 
@@ -567,6 +604,11 @@ def vln_plot(
                    ``None`` draws fresh jitter each call.
     raster   : rasterise the jittered points. ``None`` follows the same
                100,000-point rule as the other plots.
+    split_by : metadata column to split each group by. Matches Seurat's
+               ``split.plot = FALSE`` default — the levels are *dodged*
+               side-by-side within each group's x position and coloured by
+               level, not drawn as one split violin and not faceted into
+               separate panels.
     """
     from scipy.stats import gaussian_kde
 
@@ -576,13 +618,28 @@ def vln_plot(
 
     groups = _get_groups(obj, group_by)
     unique = sorted(set(groups), key=lambda x: (int(x) if x.isdigit() else x))
-    colors = palette or _palette(len(unique))
     if pt_size is None:
         pt_size = _auto_point_size(len(groups))
 
+    # Seurat's `split.by` on a violin is a *dodge*, not a facet and not a split
+    # violin: `VlnPlot` has `split.plot = FALSE` by default, and its own message
+    # says "Separate violin plots are now plotted side-by-side". So each ident
+    # keeps one x position and the levels sit shoulder to shoulder within it,
+    # coloured by level rather than by ident.
+    if split_by is None:
+        sub_levels: list = [None]
+        split_labels = None
+        colors = palette or _palette(len(unique))
+    else:
+        split_labels, sub_levels = _split_levels(obj, split_by)
+        colors = palette or _palette(len(sub_levels))
+
+    n_sub = len(sub_levels)
+    slot = violin_width / n_sub  # ggplot dodges within one group's width
+
     nrow, nc = _subplot_grid(len(features), ncol)
     if figsize is None:
-        figsize = (max(5, nc * 4), nrow * 3.5)
+        figsize = (max(5, nc * 4 * max(1, n_sub / 2)), nrow * 3.5)
 
     fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
     axes_flat = axes.flatten()
@@ -594,7 +651,16 @@ def vln_plot(
         expr = _get_expression(obj, feat, assay, layer)
 
         for j, g in enumerate(unique):
-            vals = expr[groups == g]
+          for k, lv in enumerate(sub_levels):
+            in_cell = (groups == g)
+            if lv is not None:
+                in_cell = in_cell & (split_labels == lv)
+            vals = expr[in_cell]
+            colour = colors[j if lv is None else k]
+            # Centre of this violin's slot within the group's width.
+            centre = j + (0 if lv is None else (k - (n_sub - 1) / 2) * slot)
+            body = violin_width if lv is None else slot * 0.9
+
             if vals.size < 2:
                 continue
             lo, hi = float(vals.min()), float(vals.max())
@@ -602,8 +668,13 @@ def vln_plot(
                 # Constant within the group: a density is undefined, but the
                 # group still exists. Draw a flat marker at the value so it is
                 # not silently missing from the panel.
-                ax.plot([j - 0.35, j + 0.35], [lo, lo],
-                        color=colors[j], linewidth=1.5, zorder=2)
+                # 0.4375 of the body, which is exactly +/-0.35 at the default
+                # width of 0.8 — the constant this used before it had to scale
+                # with a dodge slot. Keeping it identical matters: a cluster with
+                # no variance in a `counts` layer hits this branch, and the two
+                # tutorial figures that draw one would otherwise shift by 0.002.
+                ax.plot([centre - body * 0.4375, centre + body * 0.4375],
+                        [lo, lo], color=colour, linewidth=1.5, zorder=2)
                 continue
 
             # trim = TRUE: the support is the observed range, so the violin does
@@ -619,22 +690,31 @@ def vln_plot(
             peak = dens.max()
             if peak <= 0:
                 continue
-            half = dens / peak * (violin_width / 2)
-            ax.fill_betweenx(grid, j - half, j + half,
-                             facecolor=colors[j], alpha=0.8, linewidth=0,
-                             zorder=2)
+            half = dens / peak * (body / 2)
+            ax.fill_betweenx(grid, centre - half, centre + half,
+                             facecolor=colour, alpha=0.8, linewidth=0,
+                             zorder=2,
+                             label=(str(lv) if (lv is not None and j == 0
+                                                and i == 0) else None))
             med = float(np.median(vals))
             w_at_med = float(np.interp(med, grid, half))
-            ax.plot([j - w_at_med, j + w_at_med], [med, med],
+            ax.plot([centre - w_at_med, centre + w_at_med], [med, med],
                     color="black", linewidth=1.5, zorder=4)
 
         if pt_size > 0:
+            jitter_span = 0.2 * (1 if n_sub == 1 else slot / violin_width)
             for j, g in enumerate(unique):
-                vals = expr[groups == g]
-                jitter = rng.uniform(-0.2, 0.2, size=vals.size)
-                ax.scatter(j + jitter, vals, s=pt_size, alpha=0.4,
-                           color=colors[j], zorder=3,
-                           rasterized=_should_raster(raster, len(expr)))
+                for k, lv in enumerate(sub_levels):
+                    in_cell = (groups == g)
+                    if lv is not None:
+                        in_cell = in_cell & (split_labels == lv)
+                    vals = expr[in_cell]
+                    centre = j + (0 if lv is None
+                                  else (k - (n_sub - 1) / 2) * slot)
+                    jitter = rng.uniform(-jitter_span, jitter_span, size=vals.size)
+                    ax.scatter(centre + jitter, vals, s=pt_size, alpha=0.4,
+                               color=colors[j if lv is None else k], zorder=3,
+                               rasterized=_should_raster(raster, len(expr)))
 
         ax.set_xticks(range(len(unique)))
         ax.set_xticklabels(unique, rotation=45 if len(unique) > 6 else 0,
@@ -647,6 +727,12 @@ def vln_plot(
         axes_flat[i].set_visible(False)
 
     fig.tight_layout()
+    if split_by is not None:
+        handles, labels_ = axes_flat[0].get_legend_handles_labels()
+        if handles:
+            fig.legend(handles, labels_, title=split_by, fontsize=_fs("small"),
+                       title_fontsize=_fs("small"), loc="center left",
+                       bbox_to_anchor=(1.0, 0.5), frameon=False)
     return fig
 
 
@@ -668,6 +754,7 @@ def feature_plot(
     pt_size: float = 3.0,
     figsize: Optional[tuple] = None,
     raster: Optional[bool] = None,
+    split_by: Optional[str] = None,
 ) -> "Figure":
     """Visualise feature expression on a dimensionality reduction embedding.
 
@@ -685,6 +772,12 @@ def feature_plot(
     raster      : draw the cells as a raster layer instead of vector paths.
                   ``None`` (default) rasterises above 100,000 cells, the same
                   rule and threshold Seurat uses.
+    split_by    : metadata column to facet on. Lays out one row per feature and
+                  one column per level, as Seurat does. The colour scale and the
+                  axis limits are computed once per feature over *all* cells and
+                  shared down the row, so a colour means the same expression in
+                  every panel — per-panel scales would make the levels look
+                  alike however different they are.
     """
     plt = _mpl()
     if isinstance(features, str):
@@ -695,48 +788,70 @@ def feature_plot(
     ax1_label = reduction.upper() + "_1"
     ax2_label = reduction.upper() + "_2"
 
-    nrow, nc = _subplot_grid(len(features), ncol)
-    if figsize is None:
-        figsize = (nc * 4.5, nrow * 4)
+    if split_by is None:
+        nrow, nc = _subplot_grid(len(features), ncol)
+        if figsize is None:
+            figsize = (nc * 4.5, nrow * 4)
+        fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
+        axes_flat = axes.flatten()
+        cells = [(None, np.ones(len(emb), dtype=bool))]
+        xlim = ylim = None
+    else:
+        split_labels, levels = _split_levels(obj, split_by)
+        cells = [(lv, split_labels == lv) for lv in levels]
+        nrow, nc = len(features), len(levels)
+        if figsize is None:
+            figsize = (nc * 4.2, nrow * 3.9)
+        fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
+        axes_flat = axes.flatten()
+        xlim, ylim = _shared_limits(emb)
 
-    fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
-    axes_flat = axes.flatten()
-
-    for i, feat in enumerate(features):
-        ax = axes_flat[i]
+    for fi, feat in enumerate(features):
         expr = _get_expression(obj, feat, assay, layer)
 
+        # Cutoffs from every cell, not the panel's subset — that is what makes
+        # the row comparable.
         vmin = np.percentile(expr, 5) if min_cutoff == "q05" else (min_cutoff or 0)
         vmax = np.percentile(expr, 95) if max_cutoff == "q95" else (max_cutoff or expr.max())
         vmax = max(vmax, vmin + 1e-9)
 
-        # R Seurat default: non-expressing (zero) cells rendered in light gray,
-        # expressing cells drawn on top sorted by expression level.
-        zero_mask = expr <= vmin
-        nonzero_mask = ~zero_mask
-        ax.scatter(emb[zero_mask, 0], emb[zero_mask, 1],
-                   c="#D3D3D3", s=pt_size, linewidths=0, rasterized=rast)
+        for ci, (level, in_panel) in enumerate(cells):
+            ax = axes_flat[fi * len(cells) + ci]
 
-        expr_nz = expr[nonzero_mask]
-        emb_nz = emb[nonzero_mask]
-        if order:
-            sort_idx = np.argsort(expr_nz)
-            expr_nz = expr_nz[sort_idx]
-            emb_nz = emb_nz[sort_idx]
+            # R Seurat default: non-expressing (zero) cells rendered in light gray,
+            # expressing cells drawn on top sorted by expression level.
+            zero_mask = (expr <= vmin) & in_panel
+            nonzero_mask = (expr > vmin) & in_panel
+            ax.scatter(emb[zero_mask, 0], emb[zero_mask, 1],
+                       c="#D3D3D3", s=pt_size, linewidths=0, rasterized=rast)
 
-        sc = ax.scatter(emb_nz[:, 0], emb_nz[:, 1], c=expr_nz, s=pt_size,
-                        cmap=colormap, vmin=vmin, vmax=vmax, linewidths=0,
-                        rasterized=rast)
-        plt.colorbar(sc, ax=ax, shrink=0.6, pad=0.01, aspect=25)
-        ax.set_xlabel(ax1_label, fontsize=_fs("small"))
-        ax.set_ylabel(ax2_label, fontsize=_fs("small"))
-        ax.set_title(feat, fontsize=_fs("title"), fontweight="bold")
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
+            expr_nz = expr[nonzero_mask]
+            emb_nz = emb[nonzero_mask]
+            if order:
+                sort_idx = np.argsort(expr_nz)
+                expr_nz = expr_nz[sort_idx]
+                emb_nz = emb_nz[sort_idx]
 
-    for i in range(len(features), len(axes_flat)):
+            sc = ax.scatter(emb_nz[:, 0], emb_nz[:, 1], c=expr_nz, s=pt_size,
+                            cmap=colormap, vmin=vmin, vmax=vmax, linewidths=0,
+                            rasterized=rast)
+            # One colourbar per row when split: it applies to the whole row, and
+            # repeating it per panel would say otherwise.
+            if level is None or ci == len(cells) - 1:
+                plt.colorbar(sc, ax=ax, shrink=0.6, pad=0.01, aspect=25)
+            if xlim is not None:
+                ax.set_xlim(*xlim)
+                ax.set_ylim(*ylim)
+            ax.set_xlabel(ax1_label, fontsize=_fs("small"))
+            ax.set_ylabel(ax2_label, fontsize=_fs("small"))
+            ax.set_title(feat if level is None else f"{feat} — {level}",
+                         fontsize=_fs("title"), fontweight="bold")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+
+    for i in range(len(features) * len(cells), len(axes_flat)):
         axes_flat[i].set_visible(False)
 
     fig.tight_layout()
@@ -759,6 +874,8 @@ def dim_plot(
     palette: Optional[list] = None,
     title: Optional[str] = None,
     raster: Optional[bool] = None,
+    split_by: Optional[str] = None,
+    ncol: Optional[int] = None,
 ) -> "Figure":
     """Plot cells in a reduced-dimension embedding coloured by identity.
 
@@ -775,6 +892,12 @@ def dim_plot(
     raster    : draw the cells as a raster layer instead of vector paths.
                 ``None`` (default) rasterises above 100,000 cells, the same rule
                 and threshold Seurat uses.
+    split_by  : metadata column to facet on — one panel per level, holding only
+                that level's cells. Colours and axis limits are shared across
+                panels, matching ``facet_wrap``'s fixed scales: the panels are
+                only comparable if a position and a colour mean the same thing
+                in each.
+    ncol      : panels per row when ``split_by`` is set.
     """
     plt = _mpl()
     emb = _get_embedding(obj, reduction)
@@ -788,34 +911,75 @@ def dim_plot(
 
     ax1_label = reduction.upper() + "_1"
     ax2_label = reduction.upper() + "_2"
+    colour_of = dict(zip(unique, colors))
 
-    fig, ax = plt.subplots(figsize=figsize)
-    for g, color in zip(unique, colors):
-        mask = groups == g
-        ax.scatter(emb[mask, 0], emb[mask, 1], s=pt_size, alpha=alpha,
-                   color=color, label=g, linewidths=0, rasterized=rast)
+    if split_by is None:
+        panels: list = [(None, np.ones(len(emb), dtype=bool))]
+        fig, axes = plt.subplots(figsize=figsize, squeeze=False)
+        axes_flat = axes.flatten()
+        xlim = ylim = None
+    else:
+        split_labels, levels = _split_levels(obj, split_by)
+        panels = [(lv, split_labels == lv) for lv in levels]
+        nrow, nc = _subplot_grid(len(levels), ncol)
+        if figsize == (7, 6):  # untouched default — size to the grid instead
+            figsize = (nc * 4.6, nrow * 4.2)
+        fig, axes = plt.subplots(nrow, nc, figsize=figsize, squeeze=False)
+        axes_flat = axes.flatten()
+        xlim, ylim = _shared_limits(emb)
 
-    if label:
+    for i, (level, in_panel) in enumerate(panels):
+        ax = axes_flat[i]
         for g in unique:
-            mask = groups == g
-            cx, cy = emb[mask, 0].mean(), emb[mask, 1].mean()
-            ax.text(cx, cy, g,
-                    fontsize=_fs("label") if label_size is None else label_size,
-                    fontweight="bold",
-                    ha="center", va="center",
-                    bbox=dict(boxstyle="round,pad=0.25", fc="white",
-                              alpha=0.75, ec="none"))
+            mask = (groups == g) & in_panel
+            # Draw even when empty, so the legend carries every group in every
+            # panel and the colours stay attached to the same labels.
+            ax.scatter(emb[mask, 0], emb[mask, 1], s=pt_size, alpha=alpha,
+                       color=colour_of[g], label=g if i == 0 else None,
+                       linewidths=0, rasterized=rast)
 
-    ax.set_xlabel(ax1_label)
-    ax.set_ylabel(ax2_label)
-    ax.set_title(title or f"{reduction.upper()} — coloured by "
-                          f"{'ident' if group_by is None else group_by}",
-                 fontsize=_fs("large"))
-    ax.legend(markerscale=2.5, fontsize=_fs("small"),
-              bbox_to_anchor=(1.01, 1), loc="upper left",
-              frameon=False)
-    _strip_axes(ax)
-    fig.tight_layout()
+        if label:
+            for g in unique:
+                mask = (groups == g) & in_panel
+                if not mask.any():
+                    continue
+                cx, cy = emb[mask, 0].mean(), emb[mask, 1].mean()
+                ax.text(cx, cy, g,
+                        fontsize=_fs("label") if label_size is None else label_size,
+                        fontweight="bold", ha="center", va="center",
+                        bbox=dict(boxstyle="round,pad=0.25", fc="white",
+                                  alpha=0.75, ec="none"))
+
+        if xlim is not None:
+            ax.set_xlim(*xlim)
+            ax.set_ylim(*ylim)
+        ax.set_xlabel(ax1_label)
+        ax.set_ylabel(ax2_label)
+        if level is None:
+            ax.set_title(title or f"{reduction.upper()} — coloured by "
+                                  f"{'ident' if group_by is None else group_by}",
+                         fontsize=_fs("large"))
+        else:
+            ax.set_title(str(level), fontsize=_fs("title"), fontweight="bold")
+        _strip_axes(ax)
+
+    for i in range(len(panels), len(axes_flat)):
+        axes_flat[i].set_visible(False)
+
+    # One legend for the figure. Anchoring it to the first panel would put it
+    # inside the grid; on the figure it sits clear of every panel.
+    handles, labels_ = axes_flat[0].get_legend_handles_labels()
+    if split_by is None:
+        axes_flat[0].legend(handles, labels_, markerscale=2.5,
+                            fontsize=_fs("small"), bbox_to_anchor=(1.01, 1),
+                            loc="upper left", frameon=False)
+        fig.tight_layout()
+    else:
+        if title:
+            fig.suptitle(title, fontsize=_fs("suptitle"), fontweight="bold")
+        fig.tight_layout()
+        fig.legend(handles, labels_, markerscale=2.5, fontsize=_fs("small"),
+                   loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False)
     return fig
 
 
