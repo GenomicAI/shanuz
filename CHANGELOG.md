@@ -18,6 +18,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ridge_plot` warns when an explicit `figsize` is too small for the group
+  labels**, instead of silently returning a figure with one panel's labels
+  printed across its neighbour. Ridgeline labels sit outside the axes, so a
+  panel is wider than its axes by the length of the longest label; when the
+  canvas cannot fit that, matplotlib overlaps the panels rather than erroring.
+
+  The warning names the computed default, which a 162-configuration sweep — up
+  to 12 groups, labels as long as `"Haematopoietic stem cell"`, every `ncol` —
+  found collision-free, and a test asserts the suggested size actually resolves
+  the collision. Recommending it beats scaling the caller's size by some
+  function of the overlap, which can still collide.
+
+  No layout engine fixes the underlying case: `constrained_layout` overlaps by
+  slightly *more* here and reports "axes sizes collapsed to zero", because the
+  space genuinely does not exist. The default path is unaffected and pays no
+  cost — the check only runs when `figsize` was passed.
+
 ### Fixed
 
 - **The categorical palette repeated colours, so two clusters could render
