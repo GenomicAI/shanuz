@@ -22,6 +22,8 @@ All functions return a matplotlib Figure so the caller can save or display it:
 from __future__ import annotations
 
 import re
+import warnings
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
@@ -51,29 +53,272 @@ def _mpl():
         ) from e
 
 
-def _sns():
+# ---------------------------------------------------------------------------
+# Theme — one place that sets the look of every figure in this module
+# ---------------------------------------------------------------------------
+
+# Every function here used to name absolute point sizes (fontsize=8, 9, 11, 12,
+# 13 across 37 call sites), so changing the house style meant editing the source.
+# They now scale off one base size through the named roles below.
+#
+# The multipliers are chosen so that the default base of 10.0 reproduces the
+# previous absolute sizes exactly — 0.8 * 10 == 8, and so on. Calling nothing
+# leaves every figure byte-identical to before this layer existed; the point is
+# to make the sizes adjustable, not to change them.
+_FONT_ROLES = {
+    "tiny": 0.7,       # dense tick labels — heatmap rows, HVG annotations
+    "small": 0.8,      # axis labels, legends, colourbar labels
+    "label": 0.9,      # tick labels, panel titles in grids
+    "title": 1.1,      # per-panel titles
+    "large": 1.2,      # single-panel figure titles
+    "suptitle": 1.3,   # figure-level suptitles
+}
+
+_THEME_DEFAULTS: dict = {
+    "base_size": 10.0,
+    "palette": None,     # None -> ggplot's hue_pal, matching Seurat
+    "font": None,        # None -> leave matplotlib's family alone
+    "dpi": None,         # None -> leave matplotlib's figure.dpi alone
+    "style": None,       # None -> apply no rcParams at all
+}
+_THEME: dict = dict(_THEME_DEFAULTS)
+
+# rcParams per style preset. Deliberately small: these set the frame the plots
+# are drawn in, not the plots themselves, so they compose with the explicit
+# per-artist styling each function already does.
+_STYLES: dict = {
+    # Seurat's own look, which is cowplot's: no grid, no top/right spine,
+    # black axis lines and ticks, sans-serif throughout.
+    "seurat": {
+        "axes.grid": False,
+        "axes.edgecolor": "black",
+        "axes.linewidth": 1.0,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "xtick.color": "black",
+        "ytick.color": "black",
+        "xtick.direction": "out",
+        "ytick.direction": "out",
+        "legend.frameon": False,
+        "figure.facecolor": "white",
+        "savefig.facecolor": "white",
+    },
+    # Lighter-weight variant: faint grid, grey spines, for on-screen reading.
+    "minimal": {
+        "axes.grid": True,
+        "grid.color": "#E6E6E6",
+        "grid.linewidth": 0.6,
+        "axes.edgecolor": "#666666",
+        "axes.linewidth": 0.8,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "xtick.color": "#666666",
+        "ytick.color": "#666666",
+        "legend.frameon": False,
+        "figure.facecolor": "white",
+        "savefig.facecolor": "white",
+    },
+}
+
+
+def _fs(role: str) -> float:
+    """Point size for a named text role, scaled by the theme's base size."""
+    return _THEME["base_size"] * _FONT_ROLES[role]
+
+
+def _apply_rc() -> None:
+    """Push the active theme's rcParams into matplotlib.
+
+    ``font.size`` is the load-bearing one. The roles above only reach text this
+    module sizes explicitly; axis labels and tick labels are left to matplotlib,
+    so without this a larger ``base_size`` grew the titles and left the axis
+    furniture at 10pt — half a theme. Setting it here makes one knob move
+    everything, and costs nothing at the default because matplotlib's own
+    ``font.size`` is already 10.0.
+    """
+    plt = _mpl()
+    style = _THEME["style"]
+    rc: dict = {"font.size": _THEME["base_size"]}
+    if style is not None:
+        if style not in _STYLES:
+            raise ValueError(
+                f"Unknown style {style!r}. Available: {sorted(_STYLES)}"
+            )
+        rc.update(_STYLES[style])
+    if _THEME["font"] is not None:
+        rc["font.family"] = _THEME["font"]
+    if _THEME["dpi"] is not None:
+        rc["figure.dpi"] = _THEME["dpi"]
+        rc["savefig.dpi"] = _THEME["dpi"]
+    plt.rcParams.update(rc)
+
+
+def set_theme(
+    base_size: Optional[float] = None,
+    palette: Optional[list] = None,
+    font: Optional[str] = None,
+    dpi: Optional[float] = None,
+    style: Optional[str] = None,
+) -> dict:
+    """Set the look of every plot this module draws.
+
+    The Python counterpart of applying a ggplot theme once and having Seurat's
+    plots pick it up, rather than passing the same overrides to every call.
+
+    Only the arguments you pass are changed; the rest keep their current values.
+    Use :func:`reset_theme` to go back to the defaults, or :func:`theme_context`
+    to scope a change to a ``with`` block.
+
+    Parameters
+    ----------
+    base_size : float, optional
+        Base font size in points (default 10.0). Every text element scales from
+        it, so this is the one knob for "make the labels bigger" — a figure
+        destined for a slide wants 13-14, a dense multi-panel figure wants 8.
+    palette : list, optional
+        Categorical colours to use instead of ggplot's ``hue_pal``. Ignored for
+        any plot with more groups than the list has entries, which falls back to
+        ``hue_pal`` rather than repeating a colour.
+    font : str, optional
+        matplotlib font family, e.g. ``"Helvetica"``, ``"DejaVu Sans"``.
+    dpi : float, optional
+        Figure and savefig dpi.
+    style : str, optional
+        ``"seurat"`` (cowplot's look — no grid, black spines) or ``"minimal"``
+        (faint grid, grey spines). ``None`` leaves matplotlib's rcParams
+        untouched.
+
+    Returns
+    -------
+    dict
+        The theme as applied, so a caller can stash it and restore it later.
+
+    Examples
+    --------
+    >>> import truecell as tc
+    >>> tc.set_theme(base_size=13, style="seurat")   # doctest: +SKIP
+    >>> tc.dim_plot(pbmc)                            # doctest: +SKIP
+    """
+    if base_size is not None:
+        if base_size <= 0:
+            raise ValueError(f"base_size must be positive, got {base_size!r}")
+        _THEME["base_size"] = float(base_size)
+    if palette is not None:
+        _THEME["palette"] = list(palette)
+    if font is not None:
+        _THEME["font"] = font
+    if dpi is not None:
+        _THEME["dpi"] = float(dpi)
+    if style is not None:
+        if style not in _STYLES:
+            raise ValueError(
+                f"Unknown style {style!r}. Available: {sorted(_STYLES)}"
+            )
+        _THEME["style"] = style
+    _apply_rc()
+    return dict(_THEME)
+
+
+def get_theme() -> dict:
+    """Return a copy of the active theme."""
+    return dict(_THEME)
+
+
+def reset_theme() -> dict:
+    """Restore the default theme and matplotlib's own rcParams."""
+    _THEME.update(_THEME_DEFAULTS)
+    _THEME["palette"] = None
     try:
-        import seaborn as sns
-        return sns
+        plt = _mpl()
     except ImportError:
-        return None
+        return dict(_THEME)
+    plt.rcdefaults()
+    return dict(_THEME)
+
+
+@contextmanager
+def theme_context(**kwargs):
+    """Apply a theme for the duration of a ``with`` block, then restore it.
+
+    >>> with theme_context(base_size=14, style="seurat"):   # doctest: +SKIP
+    ...     fig = dim_plot(pbmc)
+    """
+    previous = dict(_THEME)
+    try:
+        plt = _mpl()
+        saved_rc = dict(plt.rcParams)
+    except ImportError:
+        saved_rc = None
+    try:
+        set_theme(**kwargs)
+        yield get_theme()
+    finally:
+        _THEME.update(previous)
+        if saved_rc is not None:
+            # `rcParams.update` rather than assignment: a few keys are
+            # read-only derived entries that raise if written back.
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                _mpl().rcParams.update(saved_rc)
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-# Seurat-like categorical colour palette (up to 36 groups)
-_PALETTE_36 = [
-    "#F8766D", "#CD9600", "#7CAE00", "#00BE67", "#00BFC4",
-    "#00A9FF", "#C77CFF", "#FF61CC", "#ABA300", "#00C19A",
-    "#E68613", "#0CB702", "#00B8E7", "#35A2FF", "#A3A500",
-    "#F564E3", "#FF6C90", "#D39200", "#93AA00", "#00BA38",
-    "#00C0AF", "#619CFF", "#DB72FB", "#FF65AC", "#B79F00",
-    "#00BE6F", "#F0766E", "#E76BF3", "#00B0F6", "#A3A500",
-    "#39B600", "#F8766D", "#00BFC4", "#C77CFF", "#FF61CC",
-    "#00B8E7",
-]
+def _hcl_to_hex(h: float, c: float, lum: float) -> str:
+    """R's ``hcl(h, c, l)`` — polarLUV to sRGB, D65 white point, ``fixup = TRUE``.
+
+    Written out rather than delegated to a colour library because the whole point
+    is to reproduce R's numbers exactly, and the nearest equivalents disagree in
+    the last step: colorspace libraries typically *reject* out-of-gamut values or
+    scale the whole triplet back into range, where R clamps each channel
+    independently. That clamp is what produces ggplot's actual palette — several
+    of its colours are out of the sRGB gamut before it.
+    """
+    if lum <= 0:
+        return "#000000"
+    hr = np.deg2rad(h)
+    u_star, v_star = c * np.cos(hr), c * np.sin(hr)
+
+    # D65, the white point R's hcl() uses.
+    xn, yn, zn = 95.047, 100.0, 108.883
+    y = yn * (lum / 903.3 if lum <= 8 else ((lum + 16) / 116) ** 3)
+    denom = xn + 15 * yn + 3 * zn
+    un, vn = 4 * xn / denom, 9 * yn / denom
+    u = u_star / (13 * lum) + un
+    v = v_star / (13 * lum) + vn
+    x = 9 * y * u / (4 * v)
+    z = -x / 3 - 5 * y + 3 * y / v
+
+    # XYZ -> linear sRGB, then gamma companding.
+    m = np.array([[3.240479, -1.537150, -0.498535],
+                  [-0.969256, 1.875992, 0.041556],
+                  [0.055648, -0.204043, 1.057311]])
+    rgb = m @ (np.array([x, y, z]) / 100.0)
+    out = np.where(rgb <= 0.0031308,
+                   12.92 * rgb,
+                   1.055 * np.abs(rgb) ** (1 / 2.4) - 0.055)
+    out = np.clip(out, 0.0, 1.0)  # fixup = TRUE
+    return "#" + "".join(f"{int(round(float(ch) * 255)):02X}" for ch in out)
+
+
+def hue_pal(n: int, h: tuple = (15, 375), c: float = 100, lum: float = 65) -> list[str]:
+    """``n`` evenly-spaced HCL hues — ggplot2's default discrete colour scale.
+
+    The Python counterpart of ``scales::hue_pal()(n)``, which is what Seurat's
+    ``DimPlot``/``VlnPlot``/``DoHeatmap`` colour groups with. Verified exact
+    against R for n = 1-6, 8 and 9 in ``tests/test_plotting_theme.py``.
+
+    Computing the ramp beats carrying a fixed list, for two reasons. The palette
+    depends on ``n`` — ggplot spreads the same hue circle across however many
+    groups there are, so the colours for 9 clusters are *not* the colours for 8
+    plus one more — and a fixed list therefore only matches Seurat at the one
+    length it was copied from. It also cannot run out or repeat.
+    """
+    if n < 1:
+        return []
+    return [_hcl_to_hex(x, c, lum) for x in np.linspace(h[0], h[1], n + 1)[:n]]
 
 
 # Seurat's mixscape plots default to R colour names that matplotlib does not know.
@@ -96,15 +341,40 @@ def _r_colour(name):
 
 
 def _palette(n: int) -> list[str]:
-    """Return n categorical colours."""
-    if n <= len(_PALETTE_36):
-        return _PALETTE_36[:n]
-    import matplotlib.pyplot as plt
-    # `plt.cm.get_cmap(name, lut)` was removed in matplotlib 3.9; `.resampled`
-    # is its documented replacement and reaches back to 3.6, under our >=3.7.
-    cmap = plt.get_cmap("tab20").resampled(n)
-    return [f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
-            for r, g, b, *_ in (cmap(i) for i in range(n))]
+    """Return n categorical colours — the active theme's palette, else ggplot's.
+
+    The previous implementation sliced a hard-coded 36-entry list that held only
+    30 distinct colours, so an object with 30-36 groups drew two clusters in the
+    identical colour with no warning, and the `tab20` fallback that would have
+    produced distinct ones only engaged above 36. `hue_pal` has neither problem
+    and matches Seurat at every n rather than only at 8.
+    """
+    if _THEME["palette"] is not None:
+        pal = list(_THEME["palette"])
+        if n <= len(pal):
+            return pal[:n]
+        # A user palette too short for the data: cycling would repeat colours,
+        # which is the defect this function exists to avoid. Fall through.
+    return hue_pal(n)
+
+
+# Seurat's own threshold: `SingleDimPlot` rasterises when the layer holds more
+# than 1e5 points. Matching it keeps `raster=None` meaning the same thing here.
+_RASTER_THRESHOLD = 100_000
+
+
+def _should_raster(raster: Optional[bool], n_points: int) -> bool:
+    """Resolve ``raster=None`` to Seurat's automatic rule.
+
+    Rasterising matters only for vector output, where an unrasterised scatter
+    embeds one path per cell — a 100k-cell `dim_plot` saved to PDF becomes 100k
+    circles that no vector editor will open comfortably. It costs resolution,
+    though, so it should not be unconditional either: below the threshold the
+    points stay vector and scale cleanly.
+    """
+    if raster is not None:
+        return bool(raster)
+    return n_points > _RASTER_THRESHOLD
 
 
 def _get_assay_obj(obj, assay: Optional[str]):
@@ -279,9 +549,9 @@ def vln_plot(
 
         ax.set_xticks(range(len(unique)))
         ax.set_xticklabels(unique, rotation=45 if len(unique) > 6 else 0,
-                           ha="right" if len(unique) > 6 else "center", fontsize=9)
+                           ha="right" if len(unique) > 6 else "center", fontsize=_fs("label"))
         ax.set_ylabel("Expression")
-        ax.set_title(feat, fontsize=11, fontweight="bold")
+        ax.set_title(feat, fontsize=_fs("title"), fontweight="bold")
         _strip_axes(ax)
 
     for i in range(len(features), len(axes_flat)):
@@ -308,6 +578,7 @@ def feature_plot(
     colormap: str = "YlOrRd",
     pt_size: float = 3.0,
     figsize: Optional[tuple] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Visualise feature expression on a dimensionality reduction embedding.
 
@@ -322,12 +593,16 @@ def feature_plot(
     max_cutoff  : clip expression above this percentile
     colormap    : matplotlib colormap name for expression
     pt_size     : scatter point size
+    raster      : draw the cells as a raster layer instead of vector paths.
+                  ``None`` (default) rasterises above 100,000 cells, the same
+                  rule and threshold Seurat uses.
     """
     plt = _mpl()
     if isinstance(features, str):
         features = [features]
 
     emb = _get_embedding(obj, reduction)
+    rast = _should_raster(raster, len(emb))
     ax1_label = reduction.upper() + "_1"
     ax2_label = reduction.upper() + "_2"
 
@@ -351,7 +626,7 @@ def feature_plot(
         zero_mask = expr <= vmin
         nonzero_mask = ~zero_mask
         ax.scatter(emb[zero_mask, 0], emb[zero_mask, 1],
-                   c="#D3D3D3", s=pt_size, linewidths=0, rasterized=True)
+                   c="#D3D3D3", s=pt_size, linewidths=0, rasterized=rast)
 
         expr_nz = expr[nonzero_mask]
         emb_nz = emb[nonzero_mask]
@@ -362,11 +637,11 @@ def feature_plot(
 
         sc = ax.scatter(emb_nz[:, 0], emb_nz[:, 1], c=expr_nz, s=pt_size,
                         cmap=colormap, vmin=vmin, vmax=vmax, linewidths=0,
-                        rasterized=True)
+                        rasterized=rast)
         plt.colorbar(sc, ax=ax, shrink=0.6, pad=0.01, aspect=25)
-        ax.set_xlabel(ax1_label, fontsize=8)
-        ax.set_ylabel(ax2_label, fontsize=8)
-        ax.set_title(feat, fontsize=11, fontweight="bold")
+        ax.set_xlabel(ax1_label, fontsize=_fs("small"))
+        ax.set_ylabel(ax2_label, fontsize=_fs("small"))
+        ax.set_title(feat, fontsize=_fs("title"), fontweight="bold")
         ax.set_xticks([])
         ax.set_yticks([])
         for spine in ax.spines.values():
@@ -388,12 +663,13 @@ def dim_plot(
     reduction: str = "umap",
     group_by: Optional[str] = None,
     label: bool = True,
-    label_size: int = 9,
+    label_size: Optional[float] = None,
     pt_size: float = 4.0,
     alpha: float = 0.7,
     figsize: tuple = (7, 6),
     palette: Optional[list] = None,
     title: Optional[str] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Plot cells in a reduced-dimension embedding coloured by identity.
 
@@ -404,15 +680,22 @@ def dim_plot(
     reduction : which reduction to use ("umap", "pca", …)
     group_by  : metadata column for colouring (default: active idents)
     label     : add centroid labels for each group
-    label_size: font size for centroid labels
+    label_size: font size for centroid labels (default: scales with the theme)
     pt_size   : scatter point size
     alpha     : point transparency
+    raster    : draw the cells as a raster layer instead of vector paths.
+                ``None`` (default) rasterises above 100,000 cells, the same rule
+                and threshold Seurat uses.
     """
     plt = _mpl()
     emb = _get_embedding(obj, reduction)
     groups = _get_groups(obj, group_by)
     unique = sorted(set(groups), key=lambda x: (int(x) if x.isdigit() else x))
     colors = palette or _palette(len(unique))
+    # On the whole embedding, not the per-group slice: the decision is about the
+    # figure's total path count, and a 200k-cell object split across 20 clusters
+    # would otherwise never cross the threshold in any single call below.
+    rast = _should_raster(raster, len(emb))
 
     ax1_label = reduction.upper() + "_1"
     ax2_label = reduction.upper() + "_2"
@@ -421,13 +704,15 @@ def dim_plot(
     for g, color in zip(unique, colors):
         mask = groups == g
         ax.scatter(emb[mask, 0], emb[mask, 1], s=pt_size, alpha=alpha,
-                   color=color, label=g, linewidths=0)
+                   color=color, label=g, linewidths=0, rasterized=rast)
 
     if label:
         for g in unique:
             mask = groups == g
             cx, cy = emb[mask, 0].mean(), emb[mask, 1].mean()
-            ax.text(cx, cy, g, fontsize=label_size, fontweight="bold",
+            ax.text(cx, cy, g,
+                    fontsize=_fs("label") if label_size is None else label_size,
+                    fontweight="bold",
                     ha="center", va="center",
                     bbox=dict(boxstyle="round,pad=0.25", fc="white",
                               alpha=0.75, ec="none"))
@@ -436,8 +721,8 @@ def dim_plot(
     ax.set_ylabel(ax2_label)
     ax.set_title(title or f"{reduction.upper()} — coloured by "
                           f"{'ident' if group_by is None else group_by}",
-                 fontsize=12)
-    ax.legend(markerscale=2.5, fontsize=8,
+                 fontsize=_fs("large"))
+    ax.legend(markerscale=2.5, fontsize=_fs("small"),
               bbox_to_anchor=(1.01, 1), loc="upper left",
               frameon=False)
     _strip_axes(ax)
@@ -476,7 +761,7 @@ def elbow_plot(
     ax.plot(pcs, stdev[:n], "o-", color="#F8766D", markersize=5, linewidth=1.8)
     ax.set_xlabel("Principal Component")
     ax.set_ylabel("Standard Deviation")
-    ax.set_title("Elbow Plot", fontsize=12)
+    ax.set_title("Elbow Plot", fontsize=_fs("large"))
     ax.set_xticks(pcs[::max(1, n // 10)])
     _strip_axes(ax)
     fig.tight_layout()
@@ -498,6 +783,7 @@ def feature_scatter(
     alpha: float = 0.6,
     figsize: tuple = (6, 5),
     palette: Optional[list] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Scatter plot of two features coloured by identity.
 
@@ -507,6 +793,8 @@ def feature_scatter(
     ----------
     feature1 / feature2 : gene names or metadata columns
     group_by : column for colouring; default: active idents
+    raster   : draw the cells as a raster layer instead of vector paths.
+               ``None`` (default) rasterises above 100,000 cells.
     """
     plt = _mpl()
     x = _get_expression(obj, feature1, assay, layer)
@@ -514,17 +802,18 @@ def feature_scatter(
     groups = _get_groups(obj, group_by)
     unique = sorted(set(groups), key=lambda v: (int(v) if v.isdigit() else v))
     colors = palette or _palette(len(unique))
+    rast = _should_raster(raster, len(x))
 
     fig, ax = plt.subplots(figsize=figsize)
     for g, color in zip(unique, colors):
         mask = groups == g
         ax.scatter(x[mask], y[mask], s=pt_size, alpha=alpha,
-                   color=color, label=g, linewidths=0)
+                   color=color, label=g, linewidths=0, rasterized=rast)
 
     ax.set_xlabel(feature1)
     ax.set_ylabel(feature2)
-    ax.set_title(f"{feature1} vs {feature2}", fontsize=12)
-    ax.legend(markerscale=2.5, fontsize=8,
+    ax.set_title(f"{feature1} vs {feature2}", fontsize=_fs("large"))
+    ax.legend(markerscale=2.5, fontsize=_fs("small"),
               bbox_to_anchor=(1.01, 1), loc="upper left", frameon=False)
     _strip_axes(ax)
     fig.tight_layout()
@@ -542,6 +831,7 @@ def variable_feature_plot(
     label: bool = True,
     n_label: int = 10,
     figsize: tuple = (9, 5),
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Plot mean expression vs dispersion and highlight variable features.
 
@@ -552,6 +842,9 @@ def variable_feature_plot(
     log     : use log10 axes
     label   : annotate the top *n_label* HVGs by name
     n_label : number of top HVGs to label
+    raster  : draw the points as a raster layer instead of vector paths.
+              ``None`` (default) rasterises above 100,000 points. The points
+              here are genes, not cells, so the default rarely engages.
     """
     import scipy.sparse as sp
     plt = _mpl()
@@ -599,18 +892,21 @@ def variable_feature_plot(
         y_vals = sq_means - means ** 2
         y_label = "Dispersion (log)" if log else "Dispersion"
 
+    rast = _should_raster(raster, len(feat_names))
     fig, ax = plt.subplots(figsize=figsize)
     ax.scatter(means[~is_hvg], y_vals[~is_hvg], s=3, alpha=0.3,
-               color="#AAAAAA", label="Other genes", linewidths=0)
+               color="#AAAAAA", label="Other genes", linewidths=0,
+               rasterized=rast)
     ax.scatter(means[is_hvg], y_vals[is_hvg], s=4, alpha=0.7,
-               color="#F8766D", label="Variable features", linewidths=0)
+               color="#F8766D", label="Variable features", linewidths=0,
+               rasterized=rast)
 
     if label:
         for gene in top_labeled:
             if gene in feat_names:
                 idx = feat_names.index(gene)
                 ax.annotate(gene, (means[idx], y_vals[idx]),
-                            fontsize=7, xytext=(3, 3),
+                            fontsize=_fs("tiny"), xytext=(3, 3),
                             textcoords="offset points", color="#333333")
 
     if log and not use_std_var:
@@ -622,8 +918,8 @@ def variable_feature_plot(
 
     ax.set_ylabel(y_label)
     ax.set_title(f"Highly Variable Features  ({len(hvg_set):,} selected)",
-                 fontsize=12)
-    ax.legend(markerscale=3, fontsize=9)
+                 fontsize=_fs("large"))
+    ax.legend(markerscale=3, fontsize=_fs("label"))
     _strip_axes(ax)
     fig.tight_layout()
     return fig
@@ -681,17 +977,22 @@ def viz_dim_loadings(
         y_pos = np.arange(len(genes))
         ax.barh(y_pos, vals, color=colors, edgecolor="none", height=0.75)
         ax.set_yticks(y_pos)
-        ax.set_yticklabels(genes, fontsize=max(6, 9 - n_features // 10))
+        # Shrinks as rows are added so the labels stay legible, but the shrink
+        # and its floor both scale with the theme rather than pinning to 9 and 6.
+        ax.set_yticklabels(
+            genes,
+            fontsize=max(_fs("label") * 0.67, _fs("label") - n_features // 10),
+        )
         ax.axvline(0, color="#333333", linewidth=0.8)
         ax.set_xlabel("Loading score")
-        ax.set_title(f"{reduction.upper()} {dim}", fontsize=12, fontweight="bold")
+        ax.set_title(f"{reduction.upper()} {dim}", fontsize=_fs("large"), fontweight="bold")
         _strip_axes(ax)
 
         # Compact legend patches
         from matplotlib.patches import Patch
         ax.legend(handles=[Patch(color="#F8766D", label="Positive"),
                             Patch(color="#00BFC4", label="Negative")],
-                  fontsize=8, frameon=False, loc="lower right")
+                  fontsize=_fs("small"), frameon=False, loc="lower right")
 
     for i in range(len(dims), len(axes_flat)):
         axes_flat[i].set_visible(False)
@@ -796,17 +1097,17 @@ def dim_heatmap(
         im = ax.imshow(mat_sub, aspect="auto", cmap="RdBu_r",
                        vmin=-2.5, vmax=2.5, interpolation="none")
         ax.set_yticks(range(len(gene_labels)))
-        ax.set_yticklabels(gene_labels, fontsize=7)
+        ax.set_yticklabels(gene_labels, fontsize=_fs("tiny"))
         ax.set_xticks([])
         if balanced:
             ax.axvline(n_half - 0.5, color="white", linewidth=1.5)
-        ax.set_title(f"PC {dim}", fontsize=11)
+        ax.set_title(f"PC {dim}", fontsize=_fs("title"))
         plt.colorbar(im, ax=ax, shrink=0.6, label="Scaled expr.")
 
     for i in range(len(dims), len(axes_flat)):
         axes_flat[i].set_visible(False)
 
-    fig.suptitle(f"DimHeatmap — {reduction.upper()}", fontsize=13,
+    fig.suptitle(f"DimHeatmap — {reduction.upper()}", fontsize=_fs("suptitle"),
                  fontweight="bold", y=1.01)
     fig.tight_layout()
     return fig
@@ -895,7 +1196,10 @@ def do_heatmap(
     im = axes[1].imshow(matrix, aspect="auto", cmap="RdBu_r",
                         vmin=-2.5, vmax=2.5, interpolation="none")
     axes[1].set_yticks(range(len(features)))
-    axes[1].set_yticklabels(features, fontsize=max(5, 9 - len(features) // 20))
+    axes[1].set_yticklabels(
+        features,
+        fontsize=max(_fs("label") * 0.56, _fs("label") - len(features) // 20),
+    )
     axes[1].set_xticks([])
 
     # Cluster boundary lines + labels inside the colour bar row.
@@ -918,11 +1222,11 @@ def do_heatmap(
                 # Labels sit inside axes[0] (the colour bar) — y=0.5 centres vertically
                 axes[0].text((start + end) / 2, 0.5, sorted_groups[start],
                              ha="center", va="center",
-                             fontsize=7, color="white", fontweight="bold")
+                             fontsize=_fs("tiny"), color="white", fontweight="bold")
 
     plt.colorbar(im, ax=axes[1], shrink=0.4, pad=0.01, label="Scaled expression")
     axes[1].set_xlabel("Cells (sorted by cluster)")
-    fig.suptitle("Expression Heatmap", fontsize=13, fontweight="bold", y=1.0)
+    fig.suptitle("Expression Heatmap", fontsize=_fs("suptitle"), fontweight="bold", y=1.0)
     fig.tight_layout()
     return fig
 
@@ -983,9 +1287,9 @@ def ridge_plot(
         ax.set_yticks(range(len(unique)))
         # Row j holds the density for unique[j] (see loop above), so the tick
         # labels must be `unique`, not its reverse.
-        ax.set_yticklabels(unique, fontsize=9)
+        ax.set_yticklabels(unique, fontsize=_fs("label"))
         ax.set_xlabel("Expression")
-        ax.set_title(feat, fontsize=11, fontweight="bold")
+        ax.set_title(feat, fontsize=_fs("title"), fontweight="bold")
         _strip_axes(ax)
 
     for i in range(len(features), len(axes_flat)):
@@ -1082,9 +1386,9 @@ def dot_plot(
             )
 
     ax.set_xticks(range(len(features)))
-    ax.set_xticklabels(features, rotation=90, fontsize=9)
+    ax.set_xticklabels(features, rotation=90, fontsize=_fs("label"))
     ax.set_yticks(range(len(unique)))
-    ax.set_yticklabels(unique, fontsize=9)
+    ax.set_yticklabels(unique, fontsize=_fs("label"))
     ax.set_xlim(-0.5, len(features) - 0.5)
     ax.set_ylim(-0.5, len(unique) - 0.5)
     ax.set_axisbelow(True)
@@ -1096,13 +1400,13 @@ def dot_plot(
     sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, shrink=0.4, pad=0.02, aspect=12)
-    cbar.set_label("Average expression" + (" (scaled)" if scale else ""), fontsize=8)
+    cbar.set_label("Average expression" + (" (scaled)" if scale else ""), fontsize=_fs("small"))
 
     for frac in (0.25, 0.5, 0.75, 1.0):
         ax.scatter([], [], s=(frac * dot_scale) ** 2 * np.pi, c="grey",
                    edgecolors="black", linewidths=0.3, label=f"{int(frac * 100)}%")
     ax.legend(title="% expressed", bbox_to_anchor=(1.22, 0.0), loc="lower left",
-              labelspacing=1.2, frameon=False, fontsize=8, title_fontsize=8)
+              labelspacing=1.2, frameon=False, fontsize=_fs("small"), title_fontsize=_fs("small"))
 
     fig.tight_layout()
     return fig
@@ -1121,6 +1425,7 @@ def image_dim_plot(
     ncol: Optional[int] = None,
     flip_y: bool = True,
     figsize: Optional[tuple] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Plot cell centroids in physical space, coloured by a grouping variable.
 
@@ -1134,6 +1439,8 @@ def image_dim_plot(
     image    : image name(s) to draw (default: all).
     cols     : optional ``{group: colour}`` mapping.
     flip_y   : invert the y-axis so images match Seurat's orientation.
+    raster   : draw the points as a raster layer instead of vector paths.
+               ``None`` (default) rasterises above 100,000 points.
     """
     plt = _mpl()
     coords = obj.get_tissue_coordinates(image)
@@ -1159,8 +1466,9 @@ def image_dim_plot(
         d = coords[coords["image"] == img]
         for g, dd in d.groupby("group"):
             ax.scatter(dd["x"], dd["y"], s=size, c=[cols.get(g, "grey")],
+                       rasterized=_should_raster(raster, len(coords)),
                        label=g, linewidths=0)
-        ax.set_title(str(img), fontsize=9, fontweight="bold")
+        ax.set_title(str(img), fontsize=_fs("label"), fontweight="bold")
         ax.set_aspect("equal")
         ax.axis("off")
         if flip_y:
@@ -1172,7 +1480,7 @@ def image_dim_plot(
                           markerfacecolor=cols.get(g, "grey"), markeredgewidth=0)
                for g in uniq]
     fig.legend(handles, uniq, title=group_by or "ident", loc="center right",
-               fontsize=8, title_fontsize=8, frameon=False)
+               fontsize=_fs("small"), title_fontsize=_fs("small"), frameon=False)
     fig.tight_layout(rect=(0, 0, 0.88, 1))
     return fig
 
@@ -1188,10 +1496,13 @@ def image_feature_plot(
     ncol: Optional[int] = None,
     flip_y: bool = True,
     figsize: Optional[tuple] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Plot cell centroids in physical space, coloured by a feature's expression.
 
     Matplotlib equivalent of Seurat's ``ImageFeaturePlot``. One panel per image.
+    raster   : draw the points as a raster layer instead of vector paths.
+               ``None`` (default) rasterises above 100,000 points.
     """
     plt = _mpl()
     coords = obj.get_tissue_coordinates(image)
@@ -1214,8 +1525,9 @@ def image_feature_plot(
     for ax, img in zip(axes_flat, images):
         d = coords[coords["image"] == img]
         sc = ax.scatter(d["x"], d["y"], s=size, c=d["val"], cmap=cmap,
-                        vmin=0, vmax=vmax, linewidths=0)
-        ax.set_title(str(img), fontsize=9, fontweight="bold")
+                        vmin=0, vmax=vmax, linewidths=0,
+                        rasterized=_should_raster(raster, len(coords)))
+        ax.set_title(str(img), fontsize=_fs("label"), fontweight="bold")
         ax.set_aspect("equal")
         ax.axis("off")
         if flip_y:
@@ -1325,6 +1637,7 @@ def spatial_dim_plot(
     crop: bool = True,
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Plot spots on the tissue image, coloured by a grouping variable.
 
@@ -1346,6 +1659,8 @@ def spatial_dim_plot(
     image_alpha : opacity of the tissue photo — drop it to make spots pop.
     resolution : ``"hires"`` / ``"lowres"``; defaults to whatever was loaded.
     crop     : zoom to the spots rather than showing the whole slide.
+    raster   : draw the points as a raster layer instead of vector paths.
+               ``None`` (default) rasterises above 100,000 points.
     """
     plt = _mpl()
     fovs = _resolve_fovs(obj, image)
@@ -1380,13 +1695,14 @@ def spatial_dim_plot(
         coll = _spot_collection(ax, coords, radius, pt_size_factor)
         if coll is None:
             ax.scatter(coords["x"], coords["y"], s=size, c=face,
+                       rasterized=_should_raster(raster, len(coords)),
                        alpha=alpha, linewidths=0)
         else:
             coll.set_facecolor(face)
             coll.set_alpha(alpha)
             ax.add_collection(coll)
         _spatial_limits(ax, coords, radius, img, crop)
-        ax.set_title(str(name), fontsize=9, fontweight="bold")
+        ax.set_title(str(name), fontsize=_fs("label"), fontweight="bold")
         ax.set_aspect("equal")
         ax.axis("off")
     for ax in axes_flat[len(panels):]:
@@ -1396,7 +1712,7 @@ def spatial_dim_plot(
                           markerfacecolor=cols.get(g, "grey"), markeredgewidth=0)
                for g in uniq]
     fig.legend(handles, uniq, title=group_by or "ident", loc="center right",
-               fontsize=8, title_fontsize=8, frameon=False)
+               fontsize=_fs("small"), title_fontsize=_fs("small"), frameon=False)
     fig.tight_layout(rect=(0, 0, 0.88, 1))
     return fig
 
@@ -1416,6 +1732,7 @@ def spatial_feature_plot(
     crop: bool = True,
     ncol: Optional[int] = None,
     figsize: Optional[tuple] = None,
+    raster: Optional[bool] = None,
 ) -> "Figure":
     """Plot spots on the tissue image, coloured by a feature's expression.
 
@@ -1423,6 +1740,8 @@ def spatial_feature_plot(
     like :func:`spatial_dim_plot` — same tissue background, same true-to-scale
     spots, same fallback when no image is stored — but colours the spots by a
     continuous value on a shared scale across panels.
+    raster   : draw the points as a raster layer instead of vector paths.
+               ``None`` (default) rasterises above 100,000 points.
     """
     plt = _mpl()
     fovs = _resolve_fovs(obj, image)
@@ -1459,6 +1778,7 @@ def spatial_feature_plot(
         coll = _spot_collection(ax, coords, radius, pt_size_factor)
         if coll is None:
             mappable = ax.scatter(coords["x"], coords["y"], s=size, c=v, cmap=cmap,
+                                  rasterized=_should_raster(raster, len(coords)),
                                   vmin=0, vmax=vmax, alpha=alpha, linewidths=0)
         else:
             coll.set_array(v)
@@ -1468,7 +1788,7 @@ def spatial_feature_plot(
             ax.add_collection(coll)
             mappable = coll
         _spatial_limits(ax, coords, radius, img, crop)
-        ax.set_title(str(name), fontsize=9, fontweight="bold")
+        ax.set_title(str(name), fontsize=_fs("label"), fontweight="bold")
         ax.set_aspect("equal")
         ax.axis("off")
     for ax in axes_flat[len(panels):]:
@@ -1650,15 +1970,15 @@ def plot_perturb_score(
         ax.set_xlabel("perturbation score")
         ax.set_ylabel("Cell density")
         if level is not None:
-            ax.set_title(str(level), fontsize=11)
+            ax.set_title(str(level), fontsize=_fs("title"))
         _strip_axes(ax)
-        ax.legend(frameon=False, fontsize=9)
+        ax.legend(frameon=False, fontsize=_fs("label"))
 
     for ax in axes_flat[len(facets):]:
         ax.axis("off")
 
     fig.suptitle(f"Perturbation score — {target_gene_ident}",
-                 fontsize=13, fontweight="bold")
+                 fontsize=_fs("suptitle"), fontweight="bold")
     fig.tight_layout()
     return fig
 

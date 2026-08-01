@@ -74,6 +74,11 @@ from .composition import composition_test
 from . import generics
 from . import plotting
 from .plotting import (
+    set_theme,
+    get_theme,
+    reset_theme,
+    theme_context,
+    hue_pal,
     vln_plot,
     feature_plot,
     dim_plot,
@@ -197,6 +202,11 @@ __all__ = [
     "generics",
     # Plotting module
     "plotting",
+    "set_theme",
+    "get_theme",
+    "reset_theme",
+    "theme_context",
+    "hue_pal",
     "vln_plot",
     "feature_plot",
     "dim_plot",

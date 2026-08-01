@@ -18,6 +18,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The categorical palette repeated colours, so two clusters could render
+  identically.** `_PALETTE_36` was named for 36 entries but held only 30
+  distinct ones — `#A3A500` sat at both index 14 and index 29, and five more
+  colours were doubled in the last five slots. `_palette` sliced that list for
+  any `n <= 36` and only fell through to a `tab20` ramp above it, so an object
+  with 30 to 36 groups drew two of them in exactly the same colour, silently.
+  That is a wrong plot, not an aesthetic one: nothing on the figure said which
+  cluster was which.
+
+  The list is gone. `hue_pal(n)` now computes the ramp the way ggplot does —
+  `n` evenly spaced HCL hues at c=100, l=65, the polarLUV-to-sRGB conversion
+  written out so R's per-channel `fixup = TRUE` clamp is reproduced rather than
+  approximated. It cannot run out and it cannot repeat.
+
+  It is also *more* faithful, not just safer. ggplot spreads the hue circle
+  across however many groups there are, so the colours for 9 groups are not the
+  colours for 8 plus one more. The old list had been built by concatenating
+  several such runs, which is where the duplicates came from — and it therefore
+  matched Seurat only at n=8. `hue_pal` matches at every n, verified exact
+  against R for n = 1-6, 8 and 9.
+
+  **This changes existing figures.** Any plot coloured by group where the group
+  count is not 8 gets different (correct) colours. Numbers, ordering and layout
+  are untouched.
+
+- **Only `feature_plot` rasterised its points, and it did so unconditionally.**
+  Every other scatter drew one vector path per cell, so a PDF or SVG of a
+  100k-cell `dim_plot` embedded 100k circles. `dim_plot`, `feature_scatter`,
+  `variable_feature_plot`, `image_dim_plot`, `image_feature_plot`,
+  `spatial_dim_plot` and `spatial_feature_plot` now take `raster=` alongside
+  `feature_plot`, defaulting to `None` — which resolves to Seurat's own rule,
+  rasterise above 100,000 points. PNG output is unaffected either way.
+
+### Added
+
+- **A theme layer: `set_theme`, `theme_context`, `get_theme`, `reset_theme`.**
+  The module named absolute point sizes at 40 call sites (`fontsize=8` twelve
+  times, `fontsize=9` ten times, and so on), so changing the house style meant
+  editing the source. Text now scales from one base size through named roles,
+  and `set_theme(base_size=13, style="seurat")` moves all of it at once.
+
+  `base_size` also writes `rcParams["font.size"]`, because the roles only cover
+  text this module sizes explicitly — axis and tick labels are matplotlib's, and
+  without that a larger base grew the titles and left the axis furniture at
+  10pt.
+
+  Two style presets ship: `"seurat"` (cowplot's look, which is what Seurat
+  draws) and `"minimal"`. Neither is applied unless asked for; the default
+  touches no rcParams at all.
+
+  The default `base_size=10` reproduces the previous absolute sizes exactly —
+  0.8 x 10 == 8, and so on. Verified by rendering twelve plots on both sides of
+  the change with the old palette pinned: all twelve came out byte-identical,
+  which is also what isolates the palette above as the only behavioural change.
+
+- `hue_pal(n)` is public — the ggplot/Seurat discrete colour scale, useful for
+  matching group colours in a figure drawn outside truecell.
+
 ### Changed
 
 - **CI installs from `uv.lock`, and so should you.** The test matrix ran

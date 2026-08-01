@@ -20,25 +20,23 @@ import pytest
 import scipy.sparse as sp
 
 from truecell.assay5 import Assay5
-from truecell.plotting import _PALETTE_36, _get_data_matrix, _palette
+from truecell.plotting import _get_data_matrix, _palette
 from truecell.preprocessing import _get_layer
 
-_HEX = re.compile(r"^#[0-9a-f]{6}$")
+_HEX = re.compile(r"^#[0-9a-f]{6}$", re.IGNORECASE)
 
 
-@pytest.mark.parametrize("n", [1, 36])
-def test_palette_serves_small_n_from_the_fixed_list(n):
-    assert _palette(n) == _PALETTE_36[:n]
-
-
-@pytest.mark.parametrize("n", [37, 40, 64])
-def test_palette_falls_back_to_a_colormap_past_the_fixed_list(n):
-    # The colormap branch — unreachable for n <= 36, which is why its removed
-    # matplotlib call went unnoticed. Only the length and format are asserted:
-    # tab20 resampled to n repeats hues, so distinctness is not a property here.
+@pytest.mark.parametrize("n", [1, 2, 8, 30, 36, 37, 40, 64])
+def test_palette_is_well_formed_and_distinct_at_every_n(n):
+    # Distinctness is the property, at every n rather than only the small ones.
+    # It did not hold before: `_palette` sliced a 36-entry list holding 30
+    # distinct colours, so 30-36 groups drew duplicates, and past 36 the
+    # `tab20` fallback repeated hues by construction. Two clusters rendered in
+    # the same colour is a wrong plot, not a cosmetic one.
     colors = _palette(n)
     assert len(colors) == n
     assert all(_HEX.match(c) for c in colors)
+    assert len(set(colors)) == n
 
 
 def test_vln_plot_survives_more_groups_than_the_fixed_palette():

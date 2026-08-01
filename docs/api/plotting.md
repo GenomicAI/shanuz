@@ -8,10 +8,43 @@ fig = truecell.dim_plot(pbmc, reduction="umap", label=True)
 fig.savefig("umap.png", dpi=150, bbox_inches="tight")
 ```
 
-matplotlib and seaborn are **optional** — they live in the `analysis` extra, and
-`import truecell` works without them. That is why the `Figure` return annotation is
-an `if TYPE_CHECKING:` import: it documents the return type without making the
-import mandatory.
+matplotlib is **optional** — it lives in the `analysis` extra, and `import truecell`
+works without it. That is why the `Figure` return annotation is an
+`if TYPE_CHECKING:` import: it documents the return type without making the import
+mandatory.
+
+## Theme
+
+Every plot on this page scales its text from one base size and takes its group
+colours from one palette. Set them once instead of passing the same overrides to
+each call:
+
+```python
+import truecell as tc
+
+tc.set_theme(base_size=13, style="seurat")   # bigger text, cowplot's look
+fig = tc.dim_plot(pbmc)
+
+with tc.theme_context(base_size=8):          # scoped to the block
+    panel = tc.feature_plot(pbmc, ["MS4A1", "LYZ"])
+```
+
+The default (`base_size=10`, no style) leaves matplotlib's rcParams untouched and
+reproduces the sizes the module used before the theme existed.
+
+::: truecell.plotting.set_theme
+
+::: truecell.plotting.theme_context
+
+::: truecell.plotting.get_theme
+
+::: truecell.plotting.reset_theme
+
+## Colour
+
+::: truecell.plotting.hue_pal
+
+## Plots
 
 ::: truecell.plotting.dim_plot
 
