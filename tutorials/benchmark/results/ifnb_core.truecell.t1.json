@@ -1,0 +1,443 @@
+{
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": "12",
+    "memory_gb": 25.8,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "timestamp": "2026-08-02T23:14:26"
+  },
+  "runs": [
+    {
+      "bench": "ifnb_core",
+      "arm": "truecell",
+      "repeat": 1,
+      "threads": 1,
+      "exit_code": 0,
+      "wall_seconds": 46.949018239974976,
+      "process_peak_rss_mb": 8673.546875,
+      "baseline_rss_mb": 0.28125,
+      "n_samples": 680,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785692529.264641,
+          "t1": 1785692529.903172,
+          "seconds": 0.638530969619751,
+          "anchor": null,
+          "peak_rss_mb": 124.625,
+          "rss_start_mb": 0.28125,
+          "delta_rss_mb": 124.34375
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785692529.903232,
+          "t1": 1785692530.1601229,
+          "seconds": 0.25689077377319336,
+          "anchor": 13999,
+          "peak_rss_mb": 357.046875,
+          "rss_start_mb": 124.625,
+          "delta_rss_mb": 232.421875
+        },
+        {
+          "step": "create_object",
+          "t0": 1785692530.16016,
+          "t1": 1785692530.2070909,
+          "seconds": 0.046930789947509766,
+          "anchor": 13915,
+          "peak_rss_mb": 475.390625,
+          "rss_start_mb": 475.390625,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "qc_metrics",
+          "t0": 1785692530.2071428,
+          "t1": 1785692530.210287,
+          "seconds": 0.0031442642211914062,
+          "anchor": 0.0,
+          "peak_rss_mb": 550.4375,
+          "rss_start_mb": 550.4375,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "normalize",
+          "t0": 1785692530.210306,
+          "t1": 1785692530.306848,
+          "seconds": 0.0965421199798584,
+          "anchor": 21191453.753,
+          "peak_rss_mb": 550.578125,
+          "rss_start_mb": 550.4375,
+          "delta_rss_mb": 0.140625
+        },
+        {
+          "step": "hvg_vst",
+          "t0": 1785692530.306892,
+          "t1": 1785692530.892571,
+          "seconds": 0.5856790542602539,
+          "anchor": 2000,
+          "peak_rss_mb": 891.125,
+          "rss_start_mb": 550.578125,
+          "delta_rss_mb": 340.546875
+        },
+        {
+          "step": "scale_hvg",
+          "t0": 1785692530.892628,
+          "t1": 1785692531.549427,
+          "seconds": 0.6567990779876709,
+          "anchor": 2000,
+          "peak_rss_mb": 2462.515625,
+          "rss_start_mb": 967.125,
+          "delta_rss_mb": 1495.390625
+        },
+        {
+          "step": "pca",
+          "t0": 1785692531.549488,
+          "t1": 1785692532.776541,
+          "seconds": 1.227052927017212,
+          "anchor": 8.7871,
+          "peak_rss_mb": 2462.609375,
+          "rss_start_mb": 2462.53125,
+          "delta_rss_mb": 0.078125
+        },
+        {
+          "step": "neighbours_exact",
+          "t0": 1785692532.7765949,
+          "t1": 1785692533.197417,
+          "seconds": 0.4208221435546875,
+          "anchor": 955357,
+          "peak_rss_mb": 2510.796875,
+          "rss_start_mb": 2465.765625,
+          "delta_rss_mb": 45.03125
+        },
+        {
+          "step": "cluster_louvain",
+          "t0": 1785692533.1974862,
+          "t1": 1785692533.908064,
+          "seconds": 0.7105777263641357,
+          "anchor": 15,
+          "peak_rss_mb": 2642.109375,
+          "rss_start_mb": 2510.796875,
+          "delta_rss_mb": 131.3125
+        },
+        {
+          "step": "umap",
+          "t0": 1785692533.91462,
+          "t1": 1785692548.568139,
+          "seconds": 14.65351915359497,
+          "anchor": 13999,
+          "peak_rss_mb": 2986.921875,
+          "rss_start_mb": 2592.59375,
+          "delta_rss_mb": 394.328125
+        },
+        {
+          "step": "umap_unseeded",
+          "t0": 1785692548.568202,
+          "t1": 1785692550.235347,
+          "seconds": 1.667145013809204,
+          "anchor": 13999,
+          "peak_rss_mb": 3076.65625,
+          "rss_start_mb": 2990.859375,
+          "delta_rss_mb": 85.796875
+        },
+        {
+          "step": "find_all_markers",
+          "t0": 1785692550.235405,
+          "t1": 1785692575.400301,
+          "seconds": 25.16489601135254,
+          "anchor": 5895,
+          "peak_rss_mb": 8673.546875,
+          "rss_start_mb": 2820.421875,
+          "delta_rss_mb": 5853.125
+        }
+      ],
+      "log": "tutorials/benchmark/logs/ifnb_core.truecell.1.log"
+    },
+    {
+      "bench": "ifnb_core",
+      "arm": "truecell",
+      "repeat": 2,
+      "threads": 1,
+      "exit_code": 0,
+      "wall_seconds": 45.059359073638916,
+      "process_peak_rss_mb": 9378.515625,
+      "baseline_rss_mb": 0.28125,
+      "n_samples": 653,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785692576.216127,
+          "t1": 1785692576.89695,
+          "seconds": 0.6808230876922607,
+          "anchor": null,
+          "peak_rss_mb": 122.75,
+          "rss_start_mb": 0.28125,
+          "delta_rss_mb": 122.46875
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785692576.8970351,
+          "t1": 1785692577.160888,
+          "seconds": 0.2638528347015381,
+          "anchor": 13999,
+          "peak_rss_mb": 409.53125,
+          "rss_start_mb": 127.296875,
+          "delta_rss_mb": 282.234375
+        },
+        {
+          "step": "create_object",
+          "t0": 1785692577.160931,
+          "t1": 1785692577.2075882,
+          "seconds": 0.04665708541870117,
+          "anchor": 13915,
+          "peak_rss_mb": 488.6875,
+          "rss_start_mb": 488.6875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "qc_metrics",
+          "t0": 1785692577.2076328,
+          "t1": 1785692577.210797,
+          "seconds": 0.0031642913818359375,
+          "anchor": 0.0,
+          "peak_rss_mb": 488.6875,
+          "rss_start_mb": 488.6875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "normalize",
+          "t0": 1785692577.210816,
+          "t1": 1785692577.308494,
+          "seconds": 0.09767818450927734,
+          "anchor": 21191453.753,
+          "peak_rss_mb": 549.546875,
+          "rss_start_mb": 488.6875,
+          "delta_rss_mb": 60.859375
+        },
+        {
+          "step": "hvg_vst",
+          "t0": 1785692577.3085482,
+          "t1": 1785692577.910797,
+          "seconds": 0.6022489070892334,
+          "anchor": 2000,
+          "peak_rss_mb": 891.359375,
+          "rss_start_mb": 684.765625,
+          "delta_rss_mb": 206.59375
+        },
+        {
+          "step": "scale_hvg",
+          "t0": 1785692577.910858,
+          "t1": 1785692578.599102,
+          "seconds": 0.688244104385376,
+          "anchor": 2000,
+          "peak_rss_mb": 2462.046875,
+          "rss_start_mb": 1060.03125,
+          "delta_rss_mb": 1402.015625
+        },
+        {
+          "step": "pca",
+          "t0": 1785692578.599152,
+          "t1": 1785692579.9085171,
+          "seconds": 1.3093650341033936,
+          "anchor": 8.7871,
+          "peak_rss_mb": 2462.875,
+          "rss_start_mb": 2462.046875,
+          "delta_rss_mb": 0.828125
+        },
+        {
+          "step": "neighbours_exact",
+          "t0": 1785692579.908583,
+          "t1": 1785692580.3468869,
+          "seconds": 0.43830394744873047,
+          "anchor": 955357,
+          "peak_rss_mb": 2524.109375,
+          "rss_start_mb": 2467.46875,
+          "delta_rss_mb": 56.640625
+        },
+        {
+          "step": "cluster_louvain",
+          "t0": 1785692580.346955,
+          "t1": 1785692581.137655,
+          "seconds": 0.7906999588012695,
+          "anchor": 15,
+          "peak_rss_mb": 2647.171875,
+          "rss_start_mb": 2524.109375,
+          "delta_rss_mb": 123.0625
+        },
+        {
+          "step": "umap",
+          "t0": 1785692581.145397,
+          "t1": 1785692595.8418188,
+          "seconds": 14.69642186164856,
+          "anchor": 13999,
+          "peak_rss_mb": 2998.859375,
+          "rss_start_mb": 2587.3125,
+          "delta_rss_mb": 411.546875
+        },
+        {
+          "step": "umap_unseeded",
+          "t0": 1785692595.841886,
+          "t1": 1785692597.490687,
+          "seconds": 1.6488008499145508,
+          "anchor": 13999,
+          "peak_rss_mb": 3068.546875,
+          "rss_start_mb": 3001.6875,
+          "delta_rss_mb": 66.859375
+        },
+        {
+          "step": "find_all_markers",
+          "t0": 1785692597.490734,
+          "t1": 1785692620.541933,
+          "seconds": 23.051198959350586,
+          "anchor": 5895,
+          "peak_rss_mb": 9378.515625,
+          "rss_start_mb": 1972.546875,
+          "delta_rss_mb": 7405.96875
+        }
+      ],
+      "log": "tutorials/benchmark/logs/ifnb_core.truecell.2.log"
+    },
+    {
+      "bench": "ifnb_core",
+      "arm": "truecell",
+      "repeat": 3,
+      "threads": 1,
+      "exit_code": 0,
+      "wall_seconds": 45.370673179626465,
+      "process_peak_rss_mb": 9384.234375,
+      "baseline_rss_mb": 0.28125,
+      "n_samples": 659,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785692621.2792912,
+          "t1": 1785692621.912388,
+          "seconds": 0.6330969333648682,
+          "anchor": null,
+          "peak_rss_mb": 125.296875,
+          "rss_start_mb": 0.28125,
+          "delta_rss_mb": 125.015625
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785692621.9124658,
+          "t1": 1785692622.175793,
+          "seconds": 0.26332712173461914,
+          "anchor": 13999,
+          "peak_rss_mb": 357.671875,
+          "rss_start_mb": 125.296875,
+          "delta_rss_mb": 232.375
+        },
+        {
+          "step": "create_object",
+          "t0": 1785692622.175832,
+          "t1": 1785692622.222806,
+          "seconds": 0.04697394371032715,
+          "anchor": 13915,
+          "peak_rss_mb": 474.21875,
+          "rss_start_mb": 474.21875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "qc_metrics",
+          "t0": 1785692622.2228549,
+          "t1": 1785692622.226062,
+          "seconds": 0.0032072067260742188,
+          "anchor": 0.0,
+          "peak_rss_mb": 549.171875,
+          "rss_start_mb": 549.171875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "normalize",
+          "t0": 1785692622.2260811,
+          "t1": 1785692622.3242612,
+          "seconds": 0.09818005561828613,
+          "anchor": 21191453.753,
+          "peak_rss_mb": 549.265625,
+          "rss_start_mb": 549.171875,
+          "delta_rss_mb": 0.09375
+        },
+        {
+          "step": "hvg_vst",
+          "t0": 1785692622.324307,
+          "t1": 1785692622.916734,
+          "seconds": 0.5924270153045654,
+          "anchor": 2000,
+          "peak_rss_mb": 964.5,
+          "rss_start_mb": 549.265625,
+          "delta_rss_mb": 415.234375
+        },
+        {
+          "step": "scale_hvg",
+          "t0": 1785692622.916775,
+          "t1": 1785692623.586155,
+          "seconds": 0.6693799495697021,
+          "anchor": 2000,
+          "peak_rss_mb": 2460.34375,
+          "rss_start_mb": 964.5,
+          "delta_rss_mb": 1495.84375
+        },
+        {
+          "step": "pca",
+          "t0": 1785692623.586217,
+          "t1": 1785692624.8456068,
+          "seconds": 1.259389877319336,
+          "anchor": 8.7871,
+          "peak_rss_mb": 2464.40625,
+          "rss_start_mb": 2460.34375,
+          "delta_rss_mb": 4.0625
+        },
+        {
+          "step": "neighbours_exact",
+          "t0": 1785692624.845675,
+          "t1": 1785692625.266859,
+          "seconds": 0.42118406295776367,
+          "anchor": 955357,
+          "peak_rss_mb": 2515.96875,
+          "rss_start_mb": 2464.40625,
+          "delta_rss_mb": 51.5625
+        },
+        {
+          "step": "cluster_louvain",
+          "t0": 1785692625.266939,
+          "t1": 1785692626.0053241,
+          "seconds": 0.7383852005004883,
+          "anchor": 15,
+          "peak_rss_mb": 2600.296875,
+          "rss_start_mb": 2537.453125,
+          "delta_rss_mb": 62.84375
+        },
+        {
+          "step": "umap",
+          "t0": 1785692626.013076,
+          "t1": 1785692640.590935,
+          "seconds": 14.577858924865723,
+          "anchor": 13999,
+          "peak_rss_mb": 2997.359375,
+          "rss_start_mb": 2586.78125,
+          "delta_rss_mb": 410.578125
+        },
+        {
+          "step": "umap_unseeded",
+          "t0": 1785692640.590988,
+          "t1": 1785692642.235102,
+          "seconds": 1.6441140174865723,
+          "anchor": 13999,
+          "peak_rss_mb": 3082.40625,
+          "rss_start_mb": 3000.0,
+          "delta_rss_mb": 82.40625
+        },
+        {
+          "step": "find_all_markers",
+          "t0": 1785692642.235156,
+          "t1": 1785692665.918335,
+          "seconds": 23.683178901672363,
+          "anchor": 5895,
+          "peak_rss_mb": 9384.234375,
+          "rss_start_mb": 3082.40625,
+          "delta_rss_mb": 6301.828125
+        }
+      ],
+      "log": "tutorials/benchmark/logs/ifnb_core.truecell.3.log"
+    }
+  ]
+}
