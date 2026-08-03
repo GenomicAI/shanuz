@@ -33,6 +33,15 @@ exclude_docs: |
   tutorials/figures*/*_store*/
   tutorials/figures*/*.lazy/
   tutorials/**/__pycache__/
+  # The benchmark harness's raw measurements and its per-child stdout — the data
+  # behind PERFORMANCE.md, which quotes what matters. Nothing on the site links
+  # to the JSON, and there are two full sweeps of it.
+  tutorials/benchmark/results*/
+  tutorials/benchmark/logs/
+  # Written by make_report.py into the working tree; gitignored, so it is only
+  # ever present for someone who has just run a sweep — and their `mkdocs build`
+  # should not start failing because of it.
+  tutorials/benchmark/tables.md
   # Usage notes for the logo files, addressed to someone browsing the repo
   # rather than the site. It links to `tools/make_logo.py`, which is outside
   # docs_dir, so building it would mean either a broken link here or a link
@@ -42,6 +51,9 @@ exclude_docs: |
 not_in_nav: |
   tutorials/*.py
   tutorials/*.R
+  # Addressed to someone running the benchmarks from a checkout, not reading
+  # the site. PERFORMANCE.md, which is the output, *is* in the nav.
+  tutorials/benchmark/README.md
 
 validation:
   # A nav entry pointing at a file that no longer exists, or a heading link that
@@ -215,6 +227,8 @@ nav:
       - Scale:
           - tutorials/sketch_vignette.md
           - tutorials/lazy_vignette.md
+      - Performance:
+          - tutorials/benchmark/PERFORMANCE.md
   - API reference:
       - api/index.md
       - api/objects.md
