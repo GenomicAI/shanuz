@@ -1,0 +1,239 @@
+{
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": "12",
+    "memory_gb": 25.8,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "timestamp": "2026-08-02T23:20:06"
+  },
+  "runs": [
+    {
+      "bench": "pbmc3k_de",
+      "arm": "truecell",
+      "repeat": 1,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 15.212910890579224,
+      "process_peak_rss_mb": 1121.203125,
+      "baseline_rss_mb": 1.375,
+      "n_samples": 227,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785692976.03139,
+          "t1": 1785692976.558881,
+          "seconds": 0.5274910926818848,
+          "anchor": null,
+          "peak_rss_mb": 123.984375,
+          "rss_start_mb": 1.375,
+          "delta_rss_mb": 122.609375
+        },
+        {
+          "step": "prep",
+          "t0": 1785692976.558947,
+          "t1": 1785692977.7059898,
+          "seconds": 1.1470427513122559,
+          "anchor": 8,
+          "peak_rss_mb": 823.28125,
+          "rss_start_mb": 123.984375,
+          "delta_rss_mb": 699.296875
+        },
+        {
+          "step": "de_wilcox",
+          "t0": 1785692977.7085052,
+          "t1": 1785692978.1579149,
+          "seconds": 0.44940972328186035,
+          "anchor": 2022,
+          "peak_rss_mb": 955.578125,
+          "rss_start_mb": 823.28125,
+          "delta_rss_mb": 132.296875
+        },
+        {
+          "step": "de_t",
+          "t0": 1785692978.157973,
+          "t1": 1785692978.678984,
+          "seconds": 0.5210108757019043,
+          "anchor": 2022,
+          "peak_rss_mb": 1036.203125,
+          "rss_start_mb": 955.65625,
+          "delta_rss_mb": 80.546875
+        },
+        {
+          "step": "de_bimod",
+          "t0": 1785692978.679041,
+          "t1": 1785692978.956653,
+          "seconds": 0.27761220932006836,
+          "anchor": 2022,
+          "peak_rss_mb": 1037.28125,
+          "rss_start_mb": 1036.21875,
+          "delta_rss_mb": 1.0625
+        },
+        {
+          "step": "de_LR",
+          "t0": 1785692978.956712,
+          "t1": 1785692981.8263118,
+          "seconds": 2.8695998191833496,
+          "anchor": 2022,
+          "peak_rss_mb": 1087.484375,
+          "rss_start_mb": 1037.390625,
+          "delta_rss_mb": 50.09375
+        },
+        {
+          "step": "de_negbinom",
+          "t0": 1785692981.826371,
+          "t1": 1785692986.9654558,
+          "seconds": 5.139084815979004,
+          "anchor": 2022,
+          "peak_rss_mb": 1087.984375,
+          "rss_start_mb": 1087.890625,
+          "delta_rss_mb": 0.09375
+        },
+        {
+          "step": "de_roc",
+          "t0": 1785692986.96551,
+          "t1": 1785692987.401099,
+          "seconds": 0.435589075088501,
+          "anchor": 2022,
+          "peak_rss_mb": 1087.90625,
+          "rss_start_mb": 1087.90625,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "de_MAST",
+          "t0": 1785692987.4011562,
+          "t1": 1785692990.6678,
+          "seconds": 3.266643762588501,
+          "anchor": 2022,
+          "peak_rss_mb": 1089.578125,
+          "rss_start_mb": 1087.921875,
+          "delta_rss_mb": 1.65625
+        },
+        {
+          "step": "de_DESeq2",
+          "t0": 1785692990.667857,
+          "t1": 1785692991.064168,
+          "seconds": 0.39631104469299316,
+          "anchor": -1,
+          "peak_rss_mb": 1117.21875,
+          "rss_start_mb": 1089.578125,
+          "delta_rss_mb": 27.640625
+        }
+      ],
+      "log": "tutorials/benchmark/logs/pbmc3k_de.truecell.1.log"
+    },
+    {
+      "bench": "pbmc3k_de",
+      "arm": "truecell",
+      "repeat": 2,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 15.14482307434082,
+      "process_peak_rss_mb": 1109.34375,
+      "baseline_rss_mb": 1.53125,
+      "n_samples": 227,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785692991.2446842,
+          "t1": 1785692991.768223,
+          "seconds": 0.5235388278961182,
+          "anchor": null,
+          "peak_rss_mb": 124.40625,
+          "rss_start_mb": 1.53125,
+          "delta_rss_mb": 122.875
+        },
+        {
+          "step": "prep",
+          "t0": 1785692991.7683048,
+          "t1": 1785692992.876388,
+          "seconds": 1.1080832481384277,
+          "anchor": 8,
+          "peak_rss_mb": 811.359375,
+          "rss_start_mb": 124.40625,
+          "delta_rss_mb": 686.953125
+        },
+        {
+          "step": "de_wilcox",
+          "t0": 1785692992.87857,
+          "t1": 1785692993.322603,
+          "seconds": 0.4440329074859619,
+          "anchor": 2022,
+          "peak_rss_mb": 943.71875,
+          "rss_start_mb": 943.125,
+          "delta_rss_mb": 0.59375
+        },
+        {
+          "step": "de_t",
+          "t0": 1785692993.322659,
+          "t1": 1785692993.8335779,
+          "seconds": 0.5109188556671143,
+          "anchor": 2022,
+          "peak_rss_mb": 1024.359375,
+          "rss_start_mb": 943.71875,
+          "delta_rss_mb": 80.640625
+        },
+        {
+          "step": "de_bimod",
+          "t0": 1785692993.833638,
+          "t1": 1785692994.111126,
+          "seconds": 0.27748799324035645,
+          "anchor": 2022,
+          "peak_rss_mb": 1025.4375,
+          "rss_start_mb": 1024.375,
+          "delta_rss_mb": 1.0625
+        },
+        {
+          "step": "de_LR",
+          "t0": 1785692994.1111948,
+          "t1": 1785692996.972907,
+          "seconds": 2.8617122173309326,
+          "anchor": 2022,
+          "peak_rss_mb": 1075.5,
+          "rss_start_mb": 1025.5625,
+          "delta_rss_mb": 49.9375
+        },
+        {
+          "step": "de_negbinom",
+          "t0": 1785692996.972964,
+          "t1": 1785693002.07058,
+          "seconds": 5.097615957260132,
+          "anchor": 2022,
+          "peak_rss_mb": 1076.09375,
+          "rss_start_mb": 1075.921875,
+          "delta_rss_mb": 0.171875
+        },
+        {
+          "step": "de_roc",
+          "t0": 1785693002.070643,
+          "t1": 1785693002.51113,
+          "seconds": 0.4404871463775635,
+          "anchor": 2022,
+          "peak_rss_mb": 1075.984375,
+          "rss_start_mb": 1075.984375,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "de_MAST",
+          "t0": 1785693002.5111911,
+          "t1": 1785693005.792955,
+          "seconds": 3.281763792037964,
+          "anchor": 2022,
+          "peak_rss_mb": 1077.6875,
+          "rss_start_mb": 1075.984375,
+          "delta_rss_mb": 1.703125
+        },
+        {
+          "step": "de_DESeq2",
+          "t0": 1785693005.793011,
+          "t1": 1785693006.194206,
+          "seconds": 0.40119504928588867,
+          "anchor": -1,
+          "peak_rss_mb": 1104.84375,
+          "rss_start_mb": 1077.6875,
+          "delta_rss_mb": 27.15625
+        }
+      ],
+      "log": "tutorials/benchmark/logs/pbmc3k_de.truecell.2.log"
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": "12",
+    "memory_gb": 25.8,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "timestamp": "2026-08-03T21:52:08"
+  },
+  "runs": [
+    {
+      "bench": "xenium_spatial",
+      "arm": "truecell",
+      "repeat": 1,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 6.758464097976685,
+      "process_peak_rss_mb": 1003.84375,
+      "baseline_rss_mb": 2.25,
+      "n_samples": 102,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785774115.274684,
+          "t1": 1785774115.786148,
+          "seconds": 0.5114641189575195,
+          "anchor": null,
+          "peak_rss_mb": 123.796875,
+          "rss_start_mb": 2.25,
+          "delta_rss_mb": 121.546875
+        },
+        {
+          "step": "read_xenium",
+          "t0": 1785774115.7890298,
+          "t1": 1785774115.904194,
+          "seconds": 0.11516427993774414,
+          "anchor": 36602,
+          "peak_rss_mb": 197.703125,
+          "rss_start_mb": 123.796875,
+          "delta_rss_mb": 73.90625
+        },
+        {
+          "step": "normalize",
+          "t0": 1785774115.904254,
+          "t1": 1785774115.927049,
+          "seconds": 0.02279496192932129,
+          "anchor": 36602,
+          "peak_rss_mb": 265.234375,
+          "rss_start_mb": 265.234375,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "morans_i_2k",
+          "t0": 1785774116.2955148,
+          "t1": 1785774116.324676,
+          "seconds": 0.02916121482849121,
+          "anchor": 248,
+          "peak_rss_mb": 339.046875,
+          "rss_start_mb": 339.046875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "morans_i_full",
+          "t0": 1785774116.324796,
+          "t1": 1785774121.957976,
+          "seconds": 5.633180141448975,
+          "anchor": 248,
+          "peak_rss_mb": 999.203125,
+          "rss_start_mb": 339.046875,
+          "delta_rss_mb": 660.15625
+        }
+      ],
+      "log": "tutorials/benchmark/logs/xenium_spatial.truecell.1.log"
+    },
+    {
+      "bench": "xenium_spatial",
+      "arm": "truecell",
+      "repeat": 2,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 6.748586893081665,
+      "process_peak_rss_mb": 995.953125,
+      "baseline_rss_mb": 1.5625,
+      "n_samples": 102,
+      "steps": [
+        {
+          "step": "import",
+          "t0": 1785774122.033934,
+          "t1": 1785774122.565225,
+          "seconds": 0.5312907695770264,
+          "anchor": null,
+          "peak_rss_mb": 123.453125,
+          "rss_start_mb": 1.5625,
+          "delta_rss_mb": 121.890625
+        },
+        {
+          "step": "read_xenium",
+          "t0": 1785774122.568053,
+          "t1": 1785774122.6836648,
+          "seconds": 0.11561179161071777,
+          "anchor": 36602,
+          "peak_rss_mb": 244.40625,
+          "rss_start_mb": 123.453125,
+          "delta_rss_mb": 120.953125
+        },
+        {
+          "step": "normalize",
+          "t0": 1785774122.683734,
+          "t1": 1785774122.706381,
+          "seconds": 0.02264714241027832,
+          "anchor": 36602,
+          "peak_rss_mb": 244.40625,
+          "rss_start_mb": 244.40625,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "morans_i_2k",
+          "t0": 1785774123.077077,
+          "t1": 1785774123.1065211,
+          "seconds": 0.029444217681884766,
+          "anchor": 248,
+          "peak_rss_mb": 265.5625,
+          "rss_start_mb": 265.5625,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "morans_i_full",
+          "t0": 1785774123.1065788,
+          "t1": 1785774128.707843,
+          "seconds": 5.601264238357544,
+          "anchor": 248,
+          "peak_rss_mb": 991.234375,
+          "rss_start_mb": 265.5625,
+          "delta_rss_mb": 725.671875
+        }
+      ],
+      "log": "tutorials/benchmark/logs/xenium_spatial.truecell.2.log"
+    }
+  ]
+}

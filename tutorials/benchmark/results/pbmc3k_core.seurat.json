@@ -1,0 +1,503 @@
+{
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": "12",
+    "memory_gb": 25.8,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "timestamp": "2026-08-03T21:17:14"
+  },
+  "runs": [
+    {
+      "bench": "pbmc3k_core",
+      "arm": "seurat",
+      "repeat": 1,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 7.991679906845093,
+      "process_peak_rss_mb": 1998.421875,
+      "baseline_rss_mb": 0.03125,
+      "n_samples": 122,
+      "steps": [
+        {
+          "step": "library_load",
+          "t0": 1785772010.98396,
+          "t1": 1785772012.411304,
+          "seconds": 1.427344,
+          "anchor": null,
+          "peak_rss_mb": 501.34375,
+          "rss_start_mb": 58.609375,
+          "delta_rss_mb": 442.734375
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785772012.421081,
+          "t1": 1785772013.111319,
+          "seconds": 0.690238,
+          "anchor": 2700,
+          "peak_rss_mb": 590.203125,
+          "rss_start_mb": 501.34375,
+          "delta_rss_mb": 88.859375
+        },
+        {
+          "step": "create_object",
+          "t0": 1785772013.115067,
+          "t1": 1785772013.40845,
+          "seconds": 0.293383,
+          "anchor": 13714,
+          "peak_rss_mb": 643.703125,
+          "rss_start_mb": 643.1875,
+          "delta_rss_mb": 0.515625
+        },
+        {
+          "step": "qc_metrics",
+          "t0": 1785772013.505667,
+          "t1": 1785772013.520072,
+          "seconds": 0.014405,
+          "anchor": 2.216642,
+          "peak_rss_mb": 656.921875,
+          "rss_start_mb": 656.921875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "normalize",
+          "t0": 1785772013.520161,
+          "t1": 1785772013.6736,
+          "seconds": 0.153439,
+          "anchor": 4625433,
+          "peak_rss_mb": 696.21875,
+          "rss_start_mb": 656.921875,
+          "delta_rss_mb": 39.296875
+        },
+        {
+          "step": "hvg_vst",
+          "t0": 1785772013.673691,
+          "t1": 1785772013.818614,
+          "seconds": 0.144923,
+          "anchor": 2000,
+          "peak_rss_mb": 722.953125,
+          "rss_start_mb": 696.21875,
+          "delta_rss_mb": 26.734375
+        },
+        {
+          "step": "scale_hvg",
+          "t0": 1785772013.819217,
+          "t1": 1785772013.985346,
+          "seconds": 0.166129,
+          "anchor": 2000,
+          "peak_rss_mb": 858.1875,
+          "rss_start_mb": 722.953125,
+          "delta_rss_mb": 135.234375
+        },
+        {
+          "step": "scale_all_genes",
+          "t0": 1785772013.985432,
+          "t1": 1785772014.732126,
+          "seconds": 0.746694,
+          "anchor": 13714,
+          "peak_rss_mb": 1648.0,
+          "rss_start_mb": 900.140625,
+          "delta_rss_mb": 747.859375
+        },
+        {
+          "step": "rescale_hvg",
+          "t0": 1785772014.732212,
+          "t1": 1785772014.889949,
+          "seconds": 0.157737,
+          "anchor": 2000,
+          "peak_rss_mb": 1648.015625,
+          "rss_start_mb": 1648.0,
+          "delta_rss_mb": 0.015625
+        },
+        {
+          "step": "pca",
+          "t0": 1785772014.890029,
+          "t1": 1785772015.208473,
+          "seconds": 0.318444,
+          "anchor": 6.8737,
+          "peak_rss_mb": 1980.359375,
+          "rss_start_mb": 1785.3125,
+          "delta_rss_mb": 195.046875
+        },
+        {
+          "step": "neighbours_exact",
+          "t0": 1785772015.208549,
+          "t1": 1785772015.279389,
+          "seconds": 0.07084,
+          "anchor": 198616,
+          "peak_rss_mb": 1993.421875,
+          "rss_start_mb": 1980.359375,
+          "delta_rss_mb": 13.0625
+        },
+        {
+          "step": "neighbours_annoy",
+          "t0": 1785772015.279471,
+          "t1": 1785772015.660058,
+          "seconds": 0.380587,
+          "anchor": 198484,
+          "peak_rss_mb": 1998.421875,
+          "rss_start_mb": 1993.421875,
+          "delta_rss_mb": 5.0
+        },
+        {
+          "step": "cluster_louvain",
+          "t0": 1785772015.660146,
+          "t1": 1785772015.782305,
+          "seconds": 0.122159,
+          "anchor": 9,
+          "peak_rss_mb": 1394.21875,
+          "rss_start_mb": 1381.1875,
+          "delta_rss_mb": 13.03125
+        },
+        {
+          "step": "umap",
+          "t0": 1785772015.782374,
+          "t1": 1785772018.198367,
+          "seconds": 2.415993,
+          "anchor": 2700,
+          "peak_rss_mb": 1397.03125,
+          "rss_start_mb": 1394.21875,
+          "delta_rss_mb": 2.8125
+        },
+        {
+          "step": "find_all_markers",
+          "t0": 1785772018.205309,
+          "t1": 1785772018.85996,
+          "seconds": 0.654651,
+          "anchor": 3118,
+          "peak_rss_mb": 1563.625,
+          "rss_start_mb": 991.578125,
+          "delta_rss_mb": 572.046875
+        }
+      ],
+      "log": "tutorials/benchmark/logs/pbmc3k_core.seurat.1.log"
+    },
+    {
+      "bench": "pbmc3k_core",
+      "arm": "seurat",
+      "repeat": 2,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 8.06879997253418,
+      "process_peak_rss_mb": 2008.390625,
+      "baseline_rss_mb": 0.03125,
+      "n_samples": 123,
+      "steps": [
+        {
+          "step": "library_load",
+          "t0": 1785772018.981002,
+          "t1": 1785772020.470104,
+          "seconds": 1.489102,
+          "anchor": null,
+          "peak_rss_mb": 497.3125,
+          "rss_start_mb": 58.296875,
+          "delta_rss_mb": 439.015625
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785772020.480026,
+          "t1": 1785772021.169247,
+          "seconds": 0.689221,
+          "anchor": 2700,
+          "peak_rss_mb": 586.53125,
+          "rss_start_mb": 497.3125,
+          "delta_rss_mb": 89.21875
+        },
+        {
+          "step": "create_object",
+          "t0": 1785772021.173364,
+          "t1": 1785772021.485736,
+          "seconds": 0.312372,
+          "anchor": 13714,
+          "peak_rss_mb": 641.578125,
+          "rss_start_mb": 639.53125,
+          "delta_rss_mb": 2.046875
+        },
+        {
+          "step": "qc_metrics",
+          "t0": 1785772021.584764,
+          "t1": 1785772021.59928,
+          "seconds": 0.014516,
+          "anchor": 2.216642,
+          "peak_rss_mb": 641.671875,
+          "rss_start_mb": 641.671875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "normalize",
+          "t0": 1785772021.599359,
+          "t1": 1785772021.75557,
+          "seconds": 0.156211,
+          "anchor": 4625433,
+          "peak_rss_mb": 694.171875,
+          "rss_start_mb": 641.671875,
+          "delta_rss_mb": 52.5
+        },
+        {
+          "step": "hvg_vst",
+          "t0": 1785772021.755667,
+          "t1": 1785772021.906021,
+          "seconds": 0.150354,
+          "anchor": 2000,
+          "peak_rss_mb": 703.015625,
+          "rss_start_mb": 694.5,
+          "delta_rss_mb": 8.515625
+        },
+        {
+          "step": "scale_hvg",
+          "t0": 1785772021.907275,
+          "t1": 1785772022.076337,
+          "seconds": 0.169062,
+          "anchor": 2000,
+          "peak_rss_mb": 860.53125,
+          "rss_start_mb": 787.125,
+          "delta_rss_mb": 73.40625
+        },
+        {
+          "step": "scale_all_genes",
+          "t0": 1785772022.076417,
+          "t1": 1785772022.830816,
+          "seconds": 0.754399,
+          "anchor": 13714,
+          "peak_rss_mb": 1506.75,
+          "rss_start_mb": 860.53125,
+          "delta_rss_mb": 646.21875
+        },
+        {
+          "step": "rescale_hvg",
+          "t0": 1785772022.830898,
+          "t1": 1785772022.992285,
+          "seconds": 0.161387,
+          "anchor": 2000,
+          "peak_rss_mb": 1643.421875,
+          "rss_start_mb": 1642.265625,
+          "delta_rss_mb": 1.15625
+        },
+        {
+          "step": "pca",
+          "t0": 1785772022.992353,
+          "t1": 1785772023.316418,
+          "seconds": 0.324065,
+          "anchor": 6.8737,
+          "peak_rss_mb": 1978.328125,
+          "rss_start_mb": 1643.421875,
+          "delta_rss_mb": 334.90625
+        },
+        {
+          "step": "neighbours_exact",
+          "t0": 1785772023.316493,
+          "t1": 1785772023.388878,
+          "seconds": 0.072385,
+          "anchor": 198616,
+          "peak_rss_mb": 1989.046875,
+          "rss_start_mb": 1989.046875,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "neighbours_annoy",
+          "t0": 1785772023.388962,
+          "t1": 1785772023.771679,
+          "seconds": 0.382717,
+          "anchor": 198484,
+          "peak_rss_mb": 2008.390625,
+          "rss_start_mb": 2008.25,
+          "delta_rss_mb": 0.140625
+        },
+        {
+          "step": "cluster_louvain",
+          "t0": 1785772023.771763,
+          "t1": 1785772023.894821,
+          "seconds": 0.123058,
+          "anchor": 9,
+          "peak_rss_mb": 1398.09375,
+          "rss_start_mb": 1398.046875,
+          "delta_rss_mb": 0.046875
+        },
+        {
+          "step": "umap",
+          "t0": 1785772023.894899,
+          "t1": 1785772026.292879,
+          "seconds": 2.39798,
+          "anchor": 2700,
+          "peak_rss_mb": 1400.953125,
+          "rss_start_mb": 1398.4375,
+          "delta_rss_mb": 2.515625
+        },
+        {
+          "step": "find_all_markers",
+          "t0": 1785772026.299678,
+          "t1": 1785772026.928882,
+          "seconds": 0.629204,
+          "anchor": 3118,
+          "peak_rss_mb": 1542.84375,
+          "rss_start_mb": 975.640625,
+          "delta_rss_mb": 567.203125
+        }
+      ],
+      "log": "tutorials/benchmark/logs/pbmc3k_core.seurat.2.log"
+    },
+    {
+      "bench": "pbmc3k_core",
+      "arm": "seurat",
+      "repeat": 3,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 7.984124183654785,
+      "process_peak_rss_mb": 1990.1875,
+      "baseline_rss_mb": 0.03125,
+      "n_samples": 121,
+      "steps": [
+        {
+          "step": "library_load",
+          "t0": 1785772027.050994,
+          "t1": 1785772028.487384,
+          "seconds": 1.43639,
+          "anchor": null,
+          "peak_rss_mb": 503.390625,
+          "rss_start_mb": 55.03125,
+          "delta_rss_mb": 448.359375
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785772028.497169,
+          "t1": 1785772029.193733,
+          "seconds": 0.696564,
+          "anchor": 2700,
+          "peak_rss_mb": 592.046875,
+          "rss_start_mb": 503.390625,
+          "delta_rss_mb": 88.65625
+        },
+        {
+          "step": "create_object",
+          "t0": 1785772029.197312,
+          "t1": 1785772029.48309,
+          "seconds": 0.285778,
+          "anchor": 13714,
+          "peak_rss_mb": 645.734375,
+          "rss_start_mb": 645.0625,
+          "delta_rss_mb": 0.671875
+        },
+        {
+          "step": "qc_metrics",
+          "t0": 1785772029.578786,
+          "t1": 1785772029.592603,
+          "seconds": 0.013817,
+          "anchor": 2.216642,
+          "peak_rss_mb": 663.390625,
+          "rss_start_mb": 663.390625,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "normalize",
+          "t0": 1785772029.592688,
+          "t1": 1785772029.744431,
+          "seconds": 0.151743,
+          "anchor": 4625433,
+          "peak_rss_mb": 698.328125,
+          "rss_start_mb": 663.390625,
+          "delta_rss_mb": 34.9375
+        },
+        {
+          "step": "hvg_vst",
+          "t0": 1785772029.744508,
+          "t1": 1785772029.889989,
+          "seconds": 0.145481,
+          "anchor": 2000,
+          "peak_rss_mb": 726.75,
+          "rss_start_mb": 698.328125,
+          "delta_rss_mb": 28.421875
+        },
+        {
+          "step": "scale_hvg",
+          "t0": 1785772029.890548,
+          "t1": 1785772030.052927,
+          "seconds": 0.162379,
+          "anchor": 2000,
+          "peak_rss_mb": 859.890625,
+          "rss_start_mb": 726.75,
+          "delta_rss_mb": 133.140625
+        },
+        {
+          "step": "scale_all_genes",
+          "t0": 1785772030.053017,
+          "t1": 1785772030.809425,
+          "seconds": 0.756408,
+          "anchor": 13714,
+          "peak_rss_mb": 1648.828125,
+          "rss_start_mb": 901.234375,
+          "delta_rss_mb": 747.59375
+        },
+        {
+          "step": "rescale_hvg",
+          "t0": 1785772030.809496,
+          "t1": 1785772030.956216,
+          "seconds": 0.14672,
+          "anchor": 2000,
+          "peak_rss_mb": 1648.828125,
+          "rss_start_mb": 1648.828125,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "pca",
+          "t0": 1785772030.9563,
+          "t1": 1785772031.27846,
+          "seconds": 0.32216,
+          "anchor": 6.8737,
+          "peak_rss_mb": 1981.046875,
+          "rss_start_mb": 1648.828125,
+          "delta_rss_mb": 332.21875
+        },
+        {
+          "step": "neighbours_exact",
+          "t0": 1785772031.278538,
+          "t1": 1785772031.349593,
+          "seconds": 0.071055,
+          "anchor": 198616,
+          "peak_rss_mb": 1989.796875,
+          "rss_start_mb": 1982.90625,
+          "delta_rss_mb": 6.890625
+        },
+        {
+          "step": "neighbours_annoy",
+          "t0": 1785772031.349664,
+          "t1": 1785772031.731922,
+          "seconds": 0.382258,
+          "anchor": 198484,
+          "peak_rss_mb": 1990.1875,
+          "rss_start_mb": 1989.796875,
+          "delta_rss_mb": 0.390625
+        },
+        {
+          "step": "cluster_louvain",
+          "t0": 1785772031.732005,
+          "t1": 1785772031.857211,
+          "seconds": 0.125206,
+          "anchor": 9,
+          "peak_rss_mb": 1380.015625,
+          "rss_start_mb": 1380.015625,
+          "delta_rss_mb": 0.0
+        },
+        {
+          "step": "umap",
+          "t0": 1785772031.857297,
+          "t1": 1785772034.263335,
+          "seconds": 2.406038,
+          "anchor": 2700,
+          "peak_rss_mb": 1382.828125,
+          "rss_start_mb": 1380.328125,
+          "delta_rss_mb": 2.5
+        },
+        {
+          "step": "find_all_markers",
+          "t0": 1785772034.270183,
+          "t1": 1785772034.918251,
+          "seconds": 0.648068,
+          "anchor": 3118,
+          "peak_rss_mb": 1550.546875,
+          "rss_start_mb": 1076.234375,
+          "delta_rss_mb": 474.3125
+        }
+      ],
+      "log": "tutorials/benchmark/logs/pbmc3k_core.seurat.3.log"
+    }
+  ]
+}

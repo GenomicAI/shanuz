@@ -1,0 +1,171 @@
+{
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": "12",
+    "memory_gb": 25.8,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "timestamp": "2026-08-02T23:31:21"
+  },
+  "tutorials": {
+    "pbmc3k": {
+      "truecell": {
+        "cmd": "python pbmc3k_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 16.538105964660645,
+        "peak_rss_mb": 2882.046875,
+        "log": "tutorials/benchmark/logs/tutorial.pbmc3k.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript pbmc3k_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 11.46973991394043,
+        "peak_rss_mb": 1859.265625,
+        "log": "tutorials/benchmark/logs/tutorial.pbmc3k.seurat.log"
+      }
+    },
+    "sctransform": {
+      "truecell": {
+        "cmd": "python pbmc3k_sctransform_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 61.90883994102478,
+        "peak_rss_mb": 4992.65625,
+        "log": "tutorials/benchmark/logs/tutorial.sctransform.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript pbmc3k_sctransform_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 71.80224204063416,
+        "peak_rss_mb": 3453.546875,
+        "log": "tutorials/benchmark/logs/tutorial.sctransform.seurat.log"
+      }
+    },
+    "de": {
+      "truecell": {
+        "cmd": "python pbmc3k_de_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 103.40018582344055,
+        "peak_rss_mb": 3552.84375,
+        "log": "tutorials/benchmark/logs/tutorial.de.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript pbmc3k_de_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 342.60293102264404,
+        "peak_rss_mb": 5312.46875,
+        "log": "tutorials/benchmark/logs/tutorial.de.seurat.log"
+      }
+    },
+    "dimreduc": {
+      "truecell": {
+        "cmd": "python pbmc3k_dimreduc_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 8.595065116882324,
+        "peak_rss_mb": 1010.34375,
+        "log": "tutorials/benchmark/logs/tutorial.dimreduc.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript pbmc3k_dimreduc_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 131.52559614181519,
+        "peak_rss_mb": 1201.015625,
+        "log": "tutorials/benchmark/logs/tutorial.dimreduc.seurat.log"
+      }
+    },
+    "objects": {
+      "truecell": {
+        "cmd": "python pbmc3k_objects_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 2.814924955368042,
+        "peak_rss_mb": 1399.375,
+        "log": "tutorials/benchmark/logs/tutorial.objects.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript pbmc3k_objects_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 5.91575288772583,
+        "peak_rss_mb": 2020.515625,
+        "log": "tutorials/benchmark/logs/tutorial.objects.seurat.log"
+      }
+    },
+    "integration": {
+      "truecell": {
+        "cmd": "python ifnb_integration_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 48.76567792892456,
+        "peak_rss_mb": 5211.703125,
+        "log": "tutorials/benchmark/logs/tutorial.integration.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript ifnb_integration_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 147.83279085159302,
+        "peak_rss_mb": 5768.984375,
+        "log": "tutorials/benchmark/logs/tutorial.integration.seurat.log"
+      }
+    },
+    "cellcycle": {
+      "truecell": {
+        "cmd": "python thp1_cellcycle_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 4.129698991775513,
+        "peak_rss_mb": 3574.359375,
+        "log": "tutorials/benchmark/logs/tutorial.cellcycle.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript thp1_cellcycle_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 14.85755181312561,
+        "peak_rss_mb": 7789.234375,
+        "log": "tutorials/benchmark/logs/tutorial.cellcycle.seurat.log"
+      }
+    },
+    "svf": {
+      "truecell": {
+        "cmd": "python xenium_svf_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 1.7498950958251953,
+        "peak_rss_mb": 391.328125,
+        "log": "tutorials/benchmark/logs/tutorial.svf.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript xenium_svf_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 7.545861005783081,
+        "peak_rss_mb": 1033.109375,
+        "log": "tutorials/benchmark/logs/tutorial.svf.seurat.log"
+      }
+    },
+    "visium": {
+      "truecell": {
+        "cmd": "python visium_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 3.221210241317749,
+        "peak_rss_mb": 1551.21875,
+        "log": "tutorials/benchmark/logs/tutorial.visium.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript visium_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 8.184213876724243,
+        "peak_rss_mb": 2069.171875,
+        "log": "tutorials/benchmark/logs/tutorial.visium.seurat.log"
+      }
+    },
+    "lazy": {
+      "truecell": {
+        "cmd": "python lazy_bpcells_tutorial.py",
+        "exit_code": 0,
+        "wall_seconds": 132.0980260372162,
+        "peak_rss_mb": 3303.6875,
+        "log": "tutorials/benchmark/logs/tutorial.lazy.truecell.log"
+      },
+      "seurat": {
+        "cmd": "Rscript lazy_bpcells_verify.R",
+        "exit_code": 0,
+        "wall_seconds": 9.978240013122559,
+        "peak_rss_mb": 4100.703125,
+        "log": "tutorials/benchmark/logs/tutorial.lazy.seurat.log"
+      }
+    }
+  }
+}
