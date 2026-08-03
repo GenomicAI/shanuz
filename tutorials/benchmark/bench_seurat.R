@@ -360,6 +360,11 @@ run_blas <- function(bench, log) {
     a <- matrix(rnorm(n * n), n, n)
     n
   })
+  # `a %*% t(a)` materialises the transpose first; numpy's `a @ a.T` passes a
+  # transpose flag to dgemm and copies nothing. So this step times R's extra
+  # 32 MB copy alongside the multiply, and overstates the pure-BLAS gap.
+  # `blas_crossprod_chol` below uses `crossprod`, R's flagged form, and is the
+  # cleaner of the two comparisons.
   step(log, "blas_gemm", {
     g <- a %*% t(a)
     round(g[1, 1], 3)

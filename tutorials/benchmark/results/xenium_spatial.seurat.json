@@ -4,7 +4,7 @@
     "cores": "12",
     "memory_gb": 25.8,
     "platform": "macOS-26.5.2-arm64-arm-64bit",
-    "timestamp": "2026-08-02T23:31:21"
+    "timestamp": "2026-08-03T21:52:29"
   },
   "runs": [
     {
@@ -13,50 +13,50 @@
       "repeat": 1,
       "threads": null,
       "exit_code": 0,
-      "wall_seconds": 7.3232457637786865,
-      "process_peak_rss_mb": 1033.375,
-      "baseline_rss_mb": 0.03125,
-      "n_samples": 110,
+      "wall_seconds": 6.809960842132568,
+      "process_peak_rss_mb": 1023.953125,
+      "baseline_rss_mb": 0.125,
+      "n_samples": 103,
       "steps": [
         {
           "step": "library_load",
-          "t0": 1785693667.188542,
-          "t1": 1785693668.664543,
-          "seconds": 1.476001,
+          "t0": 1785774136.174738,
+          "t1": 1785774137.675994,
+          "seconds": 1.501256,
           "anchor": null,
-          "peak_rss_mb": 489.8125,
-          "rss_start_mb": 58.796875,
-          "delta_rss_mb": 431.015625
+          "peak_rss_mb": 500.140625,
+          "rss_start_mb": 58.5625,
+          "delta_rss_mb": 441.578125
         },
         {
           "step": "read_xenium",
-          "t0": 1785693668.668278,
-          "t1": 1785693670.934957,
-          "seconds": 2.266679,
+          "t0": 1785774137.680115,
+          "t1": 1785774139.988836,
+          "seconds": 2.308721,
           "anchor": 36602,
-          "peak_rss_mb": 799.859375,
-          "rss_start_mb": 500.875,
-          "delta_rss_mb": 298.984375
+          "peak_rss_mb": 778.640625,
+          "rss_start_mb": 500.140625,
+          "delta_rss_mb": 278.5
         },
         {
           "step": "normalize",
-          "t0": 1785693670.938971,
-          "t1": 1785693671.271486,
-          "seconds": 0.332515,
+          "t0": 1785774139.993295,
+          "t1": 1785774140.333161,
+          "seconds": 0.339866,
           "anchor": 36602,
-          "peak_rss_mb": 807.703125,
-          "rss_start_mb": 799.859375,
-          "delta_rss_mb": 7.84375
+          "peak_rss_mb": 795.015625,
+          "rss_start_mb": 794.984375,
+          "delta_rss_mb": 0.03125
         },
         {
           "step": "morans_i_2k",
-          "t0": 1785693671.271869,
-          "t1": 1785693674.399944,
-          "seconds": 3.128075,
+          "t0": 1785774140.333566,
+          "t1": 1785774142.873827,
+          "seconds": 2.540261,
           "anchor": 248,
-          "peak_rss_mb": 1033.375,
-          "rss_start_mb": 807.703125,
-          "delta_rss_mb": 225.671875
+          "peak_rss_mb": 1023.953125,
+          "rss_start_mb": 799.171875,
+          "delta_rss_mb": 224.78125
         }
       ],
       "log": "tutorials/benchmark/logs/xenium_spatial.seurat.1.log"
@@ -67,50 +67,50 @@
       "repeat": 2,
       "threads": null,
       "exit_code": 0,
-      "wall_seconds": 7.435416221618652,
-      "process_peak_rss_mb": 1071.046875,
-      "baseline_rss_mb": 0.125,
-      "n_samples": 112,
+      "wall_seconds": 6.817422151565552,
+      "process_peak_rss_mb": 1060.859375,
+      "baseline_rss_mb": 0.03125,
+      "n_samples": 103,
       "steps": [
         {
           "step": "library_load",
-          "t0": 1785693674.512605,
-          "t1": 1785693676.034287,
-          "seconds": 1.521682,
+          "t0": 1785774142.985595,
+          "t1": 1785774144.485012,
+          "seconds": 1.499417,
           "anchor": null,
-          "peak_rss_mb": 494.359375,
-          "rss_start_mb": 58.765625,
-          "delta_rss_mb": 435.59375
+          "peak_rss_mb": 492.140625,
+          "rss_start_mb": 58.53125,
+          "delta_rss_mb": 433.609375
         },
         {
           "step": "read_xenium",
-          "t0": 1785693676.038376,
-          "t1": 1785693678.339421,
-          "seconds": 2.301045,
+          "t0": 1785774144.489606,
+          "t1": 1785774146.793684,
+          "seconds": 2.304078,
           "anchor": 36602,
-          "peak_rss_mb": 776.8125,
-          "rss_start_mb": 494.359375,
-          "delta_rss_mb": 282.453125
+          "peak_rss_mb": 803.625,
+          "rss_start_mb": 492.140625,
+          "delta_rss_mb": 311.484375
         },
         {
           "step": "normalize",
-          "t0": 1785693678.343395,
-          "t1": 1785693678.691008,
-          "seconds": 0.347613,
+          "t0": 1785774146.797781,
+          "t1": 1785774147.13936,
+          "seconds": 0.341579,
           "anchor": 36602,
-          "peak_rss_mb": 800.59375,
-          "rss_start_mb": 788.453125,
-          "delta_rss_mb": 12.140625
+          "peak_rss_mb": 829.421875,
+          "rss_start_mb": 828.9375,
+          "delta_rss_mb": 0.484375
         },
         {
           "step": "morans_i_2k",
-          "t0": 1785693678.691393,
-          "t1": 1785693681.835686,
-          "seconds": 3.144293,
+          "t0": 1785774147.139805,
+          "t1": 1785774149.690911,
+          "seconds": 2.551106,
           "anchor": 248,
-          "peak_rss_mb": 1071.046875,
-          "rss_start_mb": 848.984375,
-          "delta_rss_mb": 222.0625
+          "peak_rss_mb": 1060.859375,
+          "rss_start_mb": 837.671875,
+          "delta_rss_mb": 223.1875
         }
       ],
       "log": "tutorials/benchmark/logs/xenium_spatial.seurat.2.log"

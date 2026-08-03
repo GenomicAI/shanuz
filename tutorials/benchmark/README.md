@@ -12,7 +12,7 @@ The results and the discussion are in [`PERFORMANCE.md`](PERFORMANCE.md).
 bash tutorials/benchmark/sweep.sh
 ```
 
-About an hour on an M4 Pro. Run it on an otherwise idle machine — memory is
+About 40 minutes on an M4 Pro. Run it on an otherwise idle machine — memory is
 sampled from outside the process, so anything else competing for cores or RAM
 lands in the numbers. Needs the datasets cached (any tutorial run downloads
 them) and an R with Seurat, plus `presto`, `harmony`, `RANN`, `Rfast2` and
@@ -25,7 +25,13 @@ python tutorials/benchmark/run_benchmarks.py run --bench pbmc3k_core
 python tutorials/benchmark/run_benchmarks.py run --bench ifnb_core --arm truecell --threads 1
 python tutorials/benchmark/run_benchmarks.py scripts --tutorial pbmc3k,de
 python tutorials/benchmark/make_report.py
+python tutorials/benchmark/compare_blas.py results_refblas results
 ```
+
+`results_refblas/` holds a full sweep taken before R's BLAS was switched from
+the reference build it ships with to Accelerate. Keeping it is what let the
+report show that the swap changed no result anywhere while taking up to 12.9x
+off individual steps.
 
 ## How it works
 
@@ -37,6 +43,7 @@ python tutorials/benchmark/make_report.py
 | `steps.py` / `steps.R` | The step recorder each arm writes its boundaries with |
 | `make_report.py` | Turns `results/*.json` into the tables in `PERFORMANCE.md` |
 | `sweep.sh` | The full run, in the order the report is written from |
+| `compare_blas.py` | Diffs two sweeps — anchors first, then timings. Used for the reference-BLAS vs Accelerate comparison in `PERFORMANCE.md` section 2.1 |
 
 **Time is measured inside each process; memory from outside.** R's `gc()` and
 Python's `tracemalloc` measure different things and neither sees the other's

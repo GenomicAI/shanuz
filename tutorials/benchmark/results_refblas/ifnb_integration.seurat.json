@@ -1,0 +1,159 @@
+{
+  "machine": {
+    "cpu": "Apple M4 Pro",
+    "cores": "12",
+    "memory_gb": 25.8,
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "timestamp": "2026-08-02T23:30:39"
+  },
+  "runs": [
+    {
+      "bench": "ifnb_integration",
+      "arm": "seurat",
+      "repeat": 1,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 112.25028681755066,
+      "process_peak_rss_mb": 5320.703125,
+      "baseline_rss_mb": 0.03125,
+      "n_samples": 1682,
+      "steps": [
+        {
+          "step": "library_load",
+          "t0": 1785693413.481409,
+          "t1": 1785693414.978064,
+          "seconds": 1.496655,
+          "anchor": null,
+          "peak_rss_mb": 492.265625,
+          "rss_start_mb": 92.375,
+          "delta_rss_mb": 399.890625
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785693414.983508,
+          "t1": 1785693417.34545,
+          "seconds": 2.361942,
+          "anchor": 13999,
+          "peak_rss_mb": 1018.625,
+          "rss_start_mb": 492.265625,
+          "delta_rss_mb": 526.359375
+        },
+        {
+          "step": "prep_to_pca",
+          "t0": 1785693417.34919,
+          "t1": 1785693423.035283,
+          "seconds": 5.686093,
+          "anchor": 8.783,
+          "peak_rss_mb": 3078.609375,
+          "rss_start_mb": 1095.078125,
+          "delta_rss_mb": 1983.53125
+        },
+        {
+          "step": "harmony",
+          "t0": 1785693423.131769,
+          "t1": 1785693425.641552,
+          "seconds": 2.509783,
+          "anchor": 13999,
+          "peak_rss_mb": 3131.625,
+          "rss_start_mb": 3080.21875,
+          "delta_rss_mb": 51.40625
+        },
+        {
+          "step": "integrate_cca",
+          "t0": 1785693425.802047,
+          "t1": 1785693513.630634,
+          "seconds": 87.828587,
+          "anchor": 13999,
+          "peak_rss_mb": 3631.203125,
+          "rss_start_mb": 3378.65625,
+          "delta_rss_mb": 252.546875
+        },
+        {
+          "step": "integrate_rpca",
+          "t0": 1785693513.630925,
+          "t1": 1785693525.556182,
+          "seconds": 11.925257,
+          "anchor": 13999,
+          "peak_rss_mb": 5320.703125,
+          "rss_start_mb": 3421.3125,
+          "delta_rss_mb": 1899.390625
+        }
+      ],
+      "log": "tutorials/benchmark/logs/ifnb_integration.seurat.1.log"
+    },
+    {
+      "bench": "ifnb_integration",
+      "arm": "seurat",
+      "repeat": 2,
+      "threads": null,
+      "exit_code": 0,
+      "wall_seconds": 113.64141607284546,
+      "process_peak_rss_mb": 5090.546875,
+      "baseline_rss_mb": 0.03125,
+      "n_samples": 1703,
+      "steps": [
+        {
+          "step": "library_load",
+          "t0": 1785693525.736713,
+          "t1": 1785693527.312008,
+          "seconds": 1.575295,
+          "anchor": null,
+          "peak_rss_mb": 492.890625,
+          "rss_start_mb": 90.0,
+          "delta_rss_mb": 402.890625
+        },
+        {
+          "step": "read_counts",
+          "t0": 1785693527.317463,
+          "t1": 1785693529.713343,
+          "seconds": 2.39588,
+          "anchor": 13999,
+          "peak_rss_mb": 1018.203125,
+          "rss_start_mb": 492.890625,
+          "delta_rss_mb": 525.3125
+        },
+        {
+          "step": "prep_to_pca",
+          "t0": 1785693529.717168,
+          "t1": 1785693535.483737,
+          "seconds": 5.766569,
+          "anchor": 8.783,
+          "peak_rss_mb": 3078.296875,
+          "rss_start_mb": 1093.5625,
+          "delta_rss_mb": 1984.734375
+        },
+        {
+          "step": "harmony",
+          "t0": 1785693535.582317,
+          "t1": 1785693538.149991,
+          "seconds": 2.567674,
+          "anchor": 13999,
+          "peak_rss_mb": 3125.609375,
+          "rss_start_mb": 3082.046875,
+          "delta_rss_mb": 43.5625
+        },
+        {
+          "step": "integrate_cca",
+          "t0": 1785693538.30582,
+          "t1": 1785693627.298474,
+          "seconds": 88.992654,
+          "anchor": 13999,
+          "peak_rss_mb": 3588.859375,
+          "rss_start_mb": 3348.265625,
+          "delta_rss_mb": 240.59375
+        },
+        {
+          "step": "integrate_rpca",
+          "t0": 1785693627.299422,
+          "t1": 1785693639.203802,
+          "seconds": 11.90438,
+          "anchor": 13999,
+          "peak_rss_mb": 5090.546875,
+          "rss_start_mb": 2734.671875,
+          "delta_rss_mb": 2355.875
+        }
+      ],
+      "log": "tutorials/benchmark/logs/ifnb_integration.seurat.2.log"
+    }
+  ]
+}

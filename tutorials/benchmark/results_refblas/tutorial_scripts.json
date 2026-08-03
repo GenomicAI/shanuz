@@ -4,22 +4,22 @@
     "cores": "12",
     "memory_gb": 25.8,
     "platform": "macOS-26.5.2-arm64-arm-64bit",
-    "timestamp": "2026-08-03T21:52:29"
+    "timestamp": "2026-08-02T23:31:21"
   },
   "tutorials": {
     "pbmc3k": {
       "truecell": {
         "cmd": "python pbmc3k_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 16.278140783309937,
-        "peak_rss_mb": 2883.359375,
+        "wall_seconds": 16.538105964660645,
+        "peak_rss_mb": 2882.046875,
         "log": "tutorials/benchmark/logs/tutorial.pbmc3k.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript pbmc3k_verify.R",
         "exit_code": 0,
-        "wall_seconds": 8.366591215133667,
-        "peak_rss_mb": 1877.453125,
+        "wall_seconds": 11.46973991394043,
+        "peak_rss_mb": 1859.265625,
         "log": "tutorials/benchmark/logs/tutorial.pbmc3k.seurat.log"
       }
     },
@@ -27,15 +27,15 @@
       "truecell": {
         "cmd": "python pbmc3k_sctransform_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 61.3529908657074,
-        "peak_rss_mb": 7386.125,
+        "wall_seconds": 61.90883994102478,
+        "peak_rss_mb": 4992.65625,
         "log": "tutorials/benchmark/logs/tutorial.sctransform.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript pbmc3k_sctransform_verify.R",
         "exit_code": 0,
-        "wall_seconds": 65.24719405174255,
-        "peak_rss_mb": 3447.8125,
+        "wall_seconds": 71.80224204063416,
+        "peak_rss_mb": 3453.546875,
         "log": "tutorials/benchmark/logs/tutorial.sctransform.seurat.log"
       }
     },
@@ -43,15 +43,15 @@
       "truecell": {
         "cmd": "python pbmc3k_de_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 103.79218983650208,
-        "peak_rss_mb": 3550.78125,
+        "wall_seconds": 103.40018582344055,
+        "peak_rss_mb": 3552.84375,
         "log": "tutorials/benchmark/logs/tutorial.de.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript pbmc3k_de_verify.R",
         "exit_code": 0,
-        "wall_seconds": 340.7401030063629,
-        "peak_rss_mb": 5704.640625,
+        "wall_seconds": 342.60293102264404,
+        "peak_rss_mb": 5312.46875,
         "log": "tutorials/benchmark/logs/tutorial.de.seurat.log"
       }
     },
@@ -59,15 +59,15 @@
       "truecell": {
         "cmd": "python pbmc3k_dimreduc_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 8.60037875175476,
-        "peak_rss_mb": 1012.5625,
+        "wall_seconds": 8.595065116882324,
+        "peak_rss_mb": 1010.34375,
         "log": "tutorials/benchmark/logs/tutorial.dimreduc.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript pbmc3k_dimreduc_verify.R",
         "exit_code": 0,
-        "wall_seconds": 22.39020609855652,
-        "peak_rss_mb": 1250.140625,
+        "wall_seconds": 131.52559614181519,
+        "peak_rss_mb": 1201.015625,
         "log": "tutorials/benchmark/logs/tutorial.dimreduc.seurat.log"
       }
     },
@@ -75,15 +75,15 @@
       "truecell": {
         "cmd": "python pbmc3k_objects_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 2.9025039672851562,
-        "peak_rss_mb": 1396.046875,
+        "wall_seconds": 2.814924955368042,
+        "peak_rss_mb": 1399.375,
         "log": "tutorials/benchmark/logs/tutorial.objects.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript pbmc3k_objects_verify.R",
         "exit_code": 0,
-        "wall_seconds": 4.9013049602508545,
-        "peak_rss_mb": 2019.71875,
+        "wall_seconds": 5.91575288772583,
+        "peak_rss_mb": 2020.515625,
         "log": "tutorials/benchmark/logs/tutorial.objects.seurat.log"
       }
     },
@@ -91,15 +91,15 @@
       "truecell": {
         "cmd": "python ifnb_integration_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 49.757951974868774,
-        "peak_rss_mb": 5443.296875,
+        "wall_seconds": 48.76567792892456,
+        "peak_rss_mb": 5211.703125,
         "log": "tutorials/benchmark/logs/tutorial.integration.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript ifnb_integration_verify.R",
         "exit_code": 0,
-        "wall_seconds": 52.569007873535156,
-        "peak_rss_mb": 6321.03125,
+        "wall_seconds": 147.83279085159302,
+        "peak_rss_mb": 5768.984375,
         "log": "tutorials/benchmark/logs/tutorial.integration.seurat.log"
       }
     },
@@ -107,15 +107,15 @@
       "truecell": {
         "cmd": "python thp1_cellcycle_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 4.126883029937744,
-        "peak_rss_mb": 3571.5,
+        "wall_seconds": 4.129698991775513,
+        "peak_rss_mb": 3574.359375,
         "log": "tutorials/benchmark/logs/tutorial.cellcycle.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript thp1_cellcycle_verify.R",
         "exit_code": 0,
-        "wall_seconds": 13.701495885848999,
-        "peak_rss_mb": 8979.5625,
+        "wall_seconds": 14.85755181312561,
+        "peak_rss_mb": 7789.234375,
         "log": "tutorials/benchmark/logs/tutorial.cellcycle.seurat.log"
       }
     },
@@ -123,15 +123,15 @@
       "truecell": {
         "cmd": "python xenium_svf_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 1.7885799407958984,
-        "peak_rss_mb": 379.1875,
+        "wall_seconds": 1.7498950958251953,
+        "peak_rss_mb": 391.328125,
         "log": "tutorials/benchmark/logs/tutorial.svf.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript xenium_svf_verify.R",
         "exit_code": 0,
-        "wall_seconds": 6.921243906021118,
-        "peak_rss_mb": 1031.46875,
+        "wall_seconds": 7.545861005783081,
+        "peak_rss_mb": 1033.109375,
         "log": "tutorials/benchmark/logs/tutorial.svf.seurat.log"
       }
     },
@@ -139,15 +139,15 @@
       "truecell": {
         "cmd": "python visium_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 3.1952908039093018,
-        "peak_rss_mb": 1554.453125,
+        "wall_seconds": 3.221210241317749,
+        "peak_rss_mb": 1551.21875,
         "log": "tutorials/benchmark/logs/tutorial.visium.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript visium_verify.R",
         "exit_code": 0,
-        "wall_seconds": 7.033152103424072,
-        "peak_rss_mb": 2058.046875,
+        "wall_seconds": 8.184213876724243,
+        "peak_rss_mb": 2069.171875,
         "log": "tutorials/benchmark/logs/tutorial.visium.seurat.log"
       }
     },
@@ -155,15 +155,15 @@
       "truecell": {
         "cmd": "python lazy_bpcells_tutorial.py",
         "exit_code": 0,
-        "wall_seconds": 129.71309876441956,
-        "peak_rss_mb": 3303.421875,
+        "wall_seconds": 132.0980260372162,
+        "peak_rss_mb": 3303.6875,
         "log": "tutorials/benchmark/logs/tutorial.lazy.truecell.log"
       },
       "seurat": {
         "cmd": "Rscript lazy_bpcells_verify.R",
         "exit_code": 0,
-        "wall_seconds": 9.414413928985596,
-        "peak_rss_mb": 4099.296875,
+        "wall_seconds": 9.978240013122559,
+        "peak_rss_mb": 4100.703125,
         "log": "tutorials/benchmark/logs/tutorial.lazy.seurat.log"
       }
     }

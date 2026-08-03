@@ -4,7 +4,7 @@
     "cores": "12",
     "memory_gb": 25.8,
     "platform": "macOS-26.5.2-arm64-arm-64bit",
-    "timestamp": "2026-08-02T23:19:20"
+    "timestamp": "2026-08-03T21:45:12"
   },
   "runs": [
     {
@@ -13,60 +13,60 @@
       "repeat": 1,
       "threads": null,
       "exit_code": 0,
-      "wall_seconds": 58.222541093826294,
-      "process_peak_rss_mb": 3108.484375,
-      "baseline_rss_mb": 0.03125,
-      "n_samples": 871,
+      "wall_seconds": 55.811654806137085,
+      "process_peak_rss_mb": 3114.453125,
+      "baseline_rss_mb": 0.125,
+      "n_samples": 841,
       "steps": [
         {
           "step": "library_load",
-          "t0": 1785692844.758408,
-          "t1": 1785692846.240022,
-          "seconds": 1.481614,
+          "t0": 1785773600.768747,
+          "t1": 1785773602.262404,
+          "seconds": 1.493657,
           "anchor": null,
-          "peak_rss_mb": 492.96875,
-          "rss_start_mb": 59.203125,
-          "delta_rss_mb": 433.765625
+          "peak_rss_mb": 478.34375,
+          "rss_start_mb": 58.40625,
+          "delta_rss_mb": 419.9375
         },
         {
           "step": "read_counts",
-          "t0": 1785692846.242572,
-          "t1": 1785692846.926576,
-          "seconds": 0.684004,
+          "t0": 1785773602.265855,
+          "t1": 1785773602.956946,
+          "seconds": 0.691091,
           "anchor": 2700,
-          "peak_rss_mb": 592.09375,
-          "rss_start_mb": 504.71875,
-          "delta_rss_mb": 87.375
+          "peak_rss_mb": 596.96875,
+          "rss_start_mb": 492.0,
+          "delta_rss_mb": 104.96875
         },
         {
           "step": "create_object",
-          "t0": 1785692846.930432,
-          "t1": 1785692847.22995,
-          "seconds": 0.299518,
+          "t0": 1785773602.96113,
+          "t1": 1785773603.254965,
+          "seconds": 0.293835,
           "anchor": 13714,
-          "peak_rss_mb": 682.375,
-          "rss_start_mb": 645.09375,
-          "delta_rss_mb": 37.28125
+          "peak_rss_mb": 668.265625,
+          "rss_start_mb": 596.96875,
+          "delta_rss_mb": 71.296875
         },
         {
           "step": "sctransform",
-          "t0": 1785692847.333039,
-          "t1": 1785692901.60713,
-          "seconds": 54.274091,
+          "t0": 1785773603.353075,
+          "t1": 1785773656.305203,
+          "seconds": 52.952128,
           "anchor": 3000,
-          "peak_rss_mb": 3107.921875,
-          "rss_start_mb": 682.421875,
-          "delta_rss_mb": 2425.5
+          "peak_rss_mb": 3111.46875,
+          "rss_start_mb": 668.265625,
+          "delta_rss_mb": 2443.203125
         },
         {
           "step": "pca_on_sct",
-          "t0": 1785692901.607219,
-          "t1": 1785692902.857521,
-          "seconds": 1.250302,
+          "t0": 1785773656.305295,
+          "t1": 1785773656.459529,
+          "seconds": 0.154234,
           "anchor": 14.2162,
-          "peak_rss_mb": 3108.484375,
-          "rss_start_mb": 3107.921875,
-          "delta_rss_mb": 0.5625
+          "peak_rss_mb": 3114.453125,
+          "rss_start_mb": 3111.484375,
+          "delta_rss_mb": 2.96875
         }
       ],
       "log": "tutorials/benchmark/logs/pbmc3k_sctransform.seurat.1.log"
@@ -77,60 +77,60 @@
       "repeat": 2,
       "threads": null,
       "exit_code": 0,
-      "wall_seconds": 57.733078956604004,
-      "process_peak_rss_mb": 3101.765625,
-      "baseline_rss_mb": 0.171875,
-      "n_samples": 867,
+      "wall_seconds": 55.77556610107422,
+      "process_peak_rss_mb": 3117.921875,
+      "baseline_rss_mb": 0.125,
+      "n_samples": 841,
       "steps": [
         {
           "step": "library_load",
-          "t0": 1785692902.980206,
-          "t1": 1785692904.460374,
-          "seconds": 1.480168,
+          "t0": 1785773656.581161,
+          "t1": 1785773658.053568,
+          "seconds": 1.472407,
           "anchor": null,
-          "peak_rss_mb": 481.375,
-          "rss_start_mb": 59.078125,
-          "delta_rss_mb": 422.296875
+          "peak_rss_mb": 494.8125,
+          "rss_start_mb": 58.390625,
+          "delta_rss_mb": 436.421875
         },
         {
           "step": "read_counts",
-          "t0": 1785692904.462984,
-          "t1": 1785692905.163453,
-          "seconds": 0.700469,
+          "t0": 1785773658.056139,
+          "t1": 1785773658.756579,
+          "seconds": 0.70044,
           "anchor": 2700,
-          "peak_rss_mb": 624.453125,
-          "rss_start_mb": 492.640625,
-          "delta_rss_mb": 131.8125
+          "peak_rss_mb": 611.453125,
+          "rss_start_mb": 506.515625,
+          "delta_rss_mb": 104.9375
         },
         {
           "step": "create_object",
-          "t0": 1785692905.167557,
-          "t1": 1785692905.461434,
-          "seconds": 0.293877,
+          "t0": 1785773658.760809,
+          "t1": 1785773659.058691,
+          "seconds": 0.297882,
           "anchor": 13714,
-          "peak_rss_mb": 670.046875,
-          "rss_start_mb": 624.453125,
-          "delta_rss_mb": 45.59375
+          "peak_rss_mb": 684.078125,
+          "rss_start_mb": 611.453125,
+          "delta_rss_mb": 72.625
         },
         {
           "step": "sctransform",
-          "t0": 1785692905.55849,
-          "t1": 1785692959.349367,
-          "seconds": 53.790877,
+          "t0": 1785773659.15772,
+          "t1": 1785773712.076211,
+          "seconds": 52.918491,
           "anchor": 3000,
-          "peak_rss_mb": 3099.421875,
-          "rss_start_mb": 670.046875,
-          "delta_rss_mb": 2429.375
+          "peak_rss_mb": 3115.859375,
+          "rss_start_mb": 684.078125,
+          "delta_rss_mb": 2431.78125
         },
         {
           "step": "pca_on_sct",
-          "t0": 1785692959.34948,
-          "t1": 1785692960.591529,
-          "seconds": 1.242049,
+          "t0": 1785773712.076305,
+          "t1": 1785773712.229023,
+          "seconds": 0.152718,
           "anchor": 14.2162,
-          "peak_rss_mb": 3101.765625,
-          "rss_start_mb": 3099.421875,
-          "delta_rss_mb": 2.34375
+          "peak_rss_mb": 3117.921875,
+          "rss_start_mb": 3115.859375,
+          "delta_rss_mb": 2.0625
         }
       ],
       "log": "tutorials/benchmark/logs/pbmc3k_sctransform.seurat.2.log"
