@@ -372,7 +372,15 @@ def cmd_scripts(args: argparse.Namespace) -> int:
     LOGS.mkdir(exist_ok=True)
     names = (list(TUTORIALS) if args.tutorial == "all"
              else args.tutorial.split(","))
+    # Merge into whatever is already there. `run` writes one file per bench, so
+    # re-running one bench leaves the rest alone; this subcommand writes them
+    # all to a single file, and rewriting it from scratch would silently drop
+    # every tutorial not named on this invocation. Re-running one row of the
+    # table has to stay a safe thing to do.
+    dest = RESULTS / "tutorial_scripts.json"
     out = {"machine": machine(), "tutorials": {}}
+    if dest.exists():
+        out["tutorials"] = json.loads(dest.read_text()).get("tutorials", {})
     failures = 0
     for name in names:
         if name not in TUTORIALS:
@@ -394,8 +402,12 @@ def cmd_scripts(args: argparse.Namespace) -> int:
             failures += 0 if ok else 1
             pair[arm] = res
         out["tutorials"][name] = pair
-        (RESULTS / "tutorial_scripts.json").write_text(json.dumps(out, indent=2))
-    print(f"  -> {(RESULTS / 'tutorial_scripts.json').relative_to(ROOT)}")
+        # Canonical order, not measurement order — otherwise re-running one row
+        # moves it to the end and the report's table silently reshuffles.
+        out["tutorials"] = {k: out["tutorials"][k]
+                            for k in TUTORIALS if k in out["tutorials"]}
+        dest.write_text(json.dumps(out, indent=2))
+    print(f"  -> {dest.relative_to(ROOT)}")
     return 1 if failures else 0
 
 

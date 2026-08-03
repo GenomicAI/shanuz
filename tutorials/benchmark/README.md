@@ -33,13 +33,20 @@ python tutorials/benchmark/run_benchmarks.py run --bench pbmc3k_core
 python tutorials/benchmark/run_benchmarks.py run --bench ifnb_core --arm truecell --threads 1
 python tutorials/benchmark/run_benchmarks.py scripts --tutorial pbmc3k,de
 python tutorials/benchmark/make_report.py
-python tutorials/benchmark/compare_blas.py results_refblas results
+python tutorials/benchmark/compare_sweeps.py results_refblas results
+python tutorials/benchmark/compare_sweeps.py results_predensefix results --arm truecell
 ```
 
-`results_refblas/` holds a full sweep taken before R's BLAS was switched from
-the reference build it ships with to Accelerate. Keeping it is what let the
-report show that the swap changed no result anywhere while taking up to 12.9x
-off individual steps.
+Two earlier sweeps are kept alongside the current one, each because a claim in
+the report rests on being able to diff against it:
+
+| Directory | Taken before | What the diff shows |
+|---|---|---|
+| `results_refblas/` | R's BLAS was switched from the reference build it ships with to Accelerate | no result changed anywhere; up to 12.9x off individual steps |
+| `results_predensefix/` | `find_markers` stopped densifying before it filters | no anchor changed; `find_all_markers` 1.5–3.2x faster on 1/3 to 1/4 of the memory |
+
+Only the Truecell arm was re-run for the second, so its `*.seurat.json` files
+are the same runs as in `results/` — diff that one with `--arm truecell`.
 
 ## How it works
 
@@ -49,9 +56,9 @@ off individual steps.
 | `bench_truecell.py` | The Truecell arm — eight benches |
 | `bench_seurat.R` | The Seurat arm — the same eight, step for step |
 | `steps.py` / `steps.R` | The step recorder each arm writes its boundaries with |
-| `make_report.py` | Turns `results/*.json` into the tables in `PERFORMANCE.md` |
+| `make_report.py` | Turns `results/*.json` into the tables in `PERFORMANCE.md`, and computes the headline faster/slower tally so nobody has to count by hand |
 | `sweep.sh` | The full run, in the order the report is written from |
-| `compare_blas.py` | Diffs two sweeps — anchors first, then timings. Used for the reference-BLAS vs Accelerate comparison in `PERFORMANCE.md` section 2.1 |
+| `compare_sweeps.py` | Diffs two sweeps — anchors first, then timings. `--arm` picks which side to diff |
 
 **Time is measured inside each process; memory from outside.** R's `gc()` and
 Python's `tracemalloc` measure different things and neither sees the other's
