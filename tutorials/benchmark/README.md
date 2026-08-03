@@ -14,7 +14,15 @@ bash tutorials/benchmark/sweep.sh
 
 About 40 minutes on an M4 Pro. Run it on an otherwise idle machine — memory is
 sampled from outside the process, so anything else competing for cores or RAM
-lands in the numbers. Needs the datasets cached (any tutorial run downloads
+lands in the numbers.
+
+> **The last phase rewrites tutorial figures.** `run_benchmarks.py scripts`
+> runs the tutorial scripts as they ship, and those scripts draw figures into
+> `tutorials/figures*/` — which are committed. A sweep will therefore leave a
+> dirty working tree with a dozen or so modified PNGs that have nothing to do
+> with what you were measuring. Check `git status` afterwards and
+> `git checkout -- tutorials/figures*` unless you actually meant to regenerate
+> them. Needs the datasets cached (any tutorial run downloads
 them) and an R with Seurat, plus `presto`, `harmony`, `RANN`, `Rfast2` and
 `data.table`.
 
