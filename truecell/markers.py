@@ -19,6 +19,40 @@ from .lazy import is_lazy
 PSEUDOCOUNT = 1.0
 
 
+def _row_pct_positive(m) -> np.ndarray:
+    """Fraction of columns in which each row is positive."""
+    if sp.issparse(m):
+        return np.asarray((m > 0).sum(axis=1)).ravel() / m.shape[1]
+    return (m > 0).mean(axis=1)
+
+
+def _row_expm1_sum(m) -> np.ndarray:
+    """Row sums of ``expm1(m)``, without densifying a sparse ``m``.
+
+    ``expm1(0) == 0``, so the transform leaves the sparsity pattern untouched
+    and applies to the stored values alone. That is what lets the fold-change
+    pre-filter run on the sparse matrix instead of a dense copy of it.
+    """
+    if sp.issparse(m):
+        transformed = m.copy()
+        transformed.data = np.expm1(transformed.data)
+        return np.asarray(transformed.sum(axis=1)).ravel()
+    return np.expm1(m).sum(axis=1)
+
+
+def _dense_rows(m, rows: np.ndarray) -> np.ndarray:
+    """The given rows of ``m`` as a dense float array.
+
+    The per-gene tests below need dense vectors, and this is the only place they
+    get one. It runs *after* both pre-filters, so the array is (tested genes ×
+    cells) rather than (all genes × cells) — on PBMC 3k that is ~1.6k rows of
+    13.7k, and the difference is most of what `find_markers` used to cost.
+    """
+    if sp.issparse(m):
+        return m.tocsr()[rows, :].toarray().astype(float, copy=False)
+    return np.asarray(m)[rows, :].astype(float, copy=False)
+
+
 def _ident_sort_key(label: str):
     """Sort cluster labels numerically when they are all numeric.
 
@@ -319,14 +353,20 @@ def find_markers(
     idx_1 = [cell_idx_map[c] for c in cells_1]
     idx_2 = [cell_idx_map[c] for c in cells_2]
 
-    # A lazy layer indexes like a sparse one, so it takes the same branch --
-    # the dense fallback would materialise the whole store twice, once per group.
+    # Column-slice each group and leave it sparse. A lazy layer indexes like a
+    # sparse one and hands back a scipy CSC, so it takes the same branch -- the
+    # dense fallback would materialise the whole store twice, once per group.
+    #
+    # Nothing here is densified. Both pre-filters below (`min_pct` and
+    # `logfc_threshold`) are computable on the sparse matrices, and they are
+    # what decides the handful of genes that a dense array is finally built for.
     if sp.issparse(data) or is_lazy(data):
-        mat1 = data[:, idx_1].toarray().astype(float)  # (features × n1)
-        mat2 = data[:, idx_2].toarray().astype(float)  # (features × n2)
+        sub1 = data[:, idx_1]  # (features × n1)
+        sub2 = data[:, idx_2]  # (features × n2)
     else:
-        mat1 = np.asarray(data)[:, idx_1].astype(float)
-        mat2 = np.asarray(data)[:, idx_2].astype(float)
+        sub1 = np.asarray(data)[:, idx_1].astype(float)
+        sub2 = np.asarray(data)[:, idx_2].astype(float)
+    n1, n2 = sub1.shape[1], sub2.shape[1]
 
     # Restrict features
     if features is not None:
@@ -336,8 +376,8 @@ def find_markers(
         feat_mask = np.ones(len(feature_names), dtype=bool)
 
     # Percent cells expressing (> 0)
-    pct1 = (mat1 > 0).mean(axis=1)
-    pct2 = (mat2 > 0).mean(axis=1)
+    pct1 = _row_pct_positive(sub1)
+    pct2 = _row_pct_positive(sub2)
 
     # Pre-filter: gene must be expressed in at least min_pct of either group
     pct_mask = (pct1 >= min_pct) | (pct2 >= min_pct)
@@ -357,8 +397,8 @@ def find_markers(
     #
     # NOTE: the mean must be taken AFTER expm1, not before — expm1(mean(x)) is the
     # geometric-style mean and systematically compresses fold-changes (Jensen).
-    group1_mean = (np.expm1(mat1).sum(axis=1) + PSEUDOCOUNT) / mat1.shape[1]
-    group2_mean = (np.expm1(mat2).sum(axis=1) + PSEUDOCOUNT) / mat2.shape[1]
+    group1_mean = (_row_expm1_sum(sub1) + PSEUDOCOUNT) / n1
+    group2_mean = (_row_expm1_sum(sub2) + PSEUDOCOUNT) / n2
     avg_log2fc = np.log2(group1_mean) - np.log2(group2_mean)
 
     # Pre-filter by logfc_threshold
@@ -367,6 +407,17 @@ def find_markers(
         combined_mask = combined_mask & fc_mask_arr
 
     test_indices = np.where(combined_mask)[0]
+
+    # The pre-filters are done, so this is where the dense arrays the per-gene
+    # tests need get built — for the surviving genes only. `deseq2` is excluded
+    # because it never looks at them; it aggregates the counts layer itself.
+    if test_use != "deseq2" and len(test_indices) > 0:
+        mat1 = _dense_rows(sub1, test_indices)  # (tested genes × n1)
+        mat2 = _dense_rows(sub2, test_indices)  # (tested genes × n2)
+    # Nothing below reads the sparse slices, and the per-gene loops they would
+    # otherwise sit through run for seconds. Between them they hold about one
+    # copy of the layer, so dropping them here is worth the line.
+    del sub1, sub2
 
     # Per-cell covariates for the regression-based tests (LR / negbinom).
     latent = None
@@ -384,11 +435,11 @@ def find_markers(
         aucs = np.empty(len(test_indices))
         powers = np.empty(len(test_indices))
         avg_diff = np.empty(len(test_indices))
-        for i, fi in enumerate(test_indices):
-            auc, power = _roc_auc(mat1[fi, :], mat2[fi, :])
+        for i in range(len(test_indices)):
+            auc, power = _roc_auc(mat1[i, :], mat2[i, :])
             aucs[i] = auc
             powers[i] = power
-            avg_diff[i] = mat1[fi, :].mean() - mat2[fi, :].mean()
+            avg_diff[i] = mat1[i, :].mean() - mat2[i, :].mean()
         roc_res = pd.DataFrame(
             {
                 "myAUC": aucs,
@@ -420,9 +471,9 @@ def find_markers(
     p_vals = np.ones(len(test_indices))
 
     if test_use == "wilcox":
-        for i, fi in enumerate(test_indices):
-            x1 = mat1[fi, :]
-            x2 = mat2[fi, :]
+        for i in range(len(test_indices)):
+            x1 = mat1[i, :]
+            x2 = mat2[i, :]
             if x1.sum() == 0 and x2.sum() == 0:
                 p_vals[i] = 1.0
             else:
@@ -441,38 +492,38 @@ def find_markers(
                 p_vals[i] = p if not np.isnan(p) else 1.0
     elif test_use == "t":
         from scipy.stats import ttest_ind
-        for i, fi in enumerate(test_indices):
-            x1 = mat1[fi, :]
-            x2 = mat2[fi, :]
+        for i in range(len(test_indices)):
+            x1 = mat1[i, :]
+            x2 = mat2[i, :]
             _, p = ttest_ind(x1, x2, equal_var=False)
             p_vals[i] = p if not np.isnan(p) else 1.0
     elif test_use == "bimod":
-        for i, fi in enumerate(test_indices):
-            p_vals[i] = _bimod_pvalue(mat1[fi, :], mat2[fi, :])
+        for i in range(len(test_indices)):
+            p_vals[i] = _bimod_pvalue(mat1[i, :], mat2[i, :])
     elif test_use == "LR":
-        n1, n2 = mat1.shape[1], mat2.shape[1]
         group = np.concatenate([np.ones(n1), np.zeros(n2)])
-        for i, fi in enumerate(test_indices):
-            expr = np.concatenate([mat1[fi, :], mat2[fi, :]])
+        for i in range(len(test_indices)):
+            expr = np.concatenate([mat1[i, :], mat2[i, :]])
             p_vals[i] = _lr_pvalue(expr, group, latent)
     elif test_use == "mast":
-        n1, n2 = mat1.shape[1], mat2.shape[1]
         group = np.concatenate([np.ones(n1), np.zeros(n2)])
-        for i, fi in enumerate(test_indices):
-            expr = np.concatenate([mat1[fi, :], mat2[fi, :]])
+        for i in range(len(test_indices)):
+            expr = np.concatenate([mat1[i, :], mat2[i, :]])
             p_vals[i] = _mast_pvalue(expr, group, latent)
     elif test_use == "negbinom":
+        # Counts, not the data layer — and restricted to the tested genes for
+        # the same reason as above.
         counts_mat, _ = _get_expression_matrix(assay_obj, "counts")
-        if sp.issparse(counts_mat):
-            c1 = counts_mat[:, idx_1].toarray()
-            c2 = counts_mat[:, idx_2].toarray()
+        if sp.issparse(counts_mat) or is_lazy(counts_mat):
+            c1 = _dense_rows(counts_mat[:, idx_1], test_indices)
+            c2 = _dense_rows(counts_mat[:, idx_2], test_indices)
         else:
-            c1 = np.asarray(counts_mat)[:, idx_1]
-            c2 = np.asarray(counts_mat)[:, idx_2]
-        n1, n2 = c1.shape[1], c2.shape[1]
+            dense_counts = np.asarray(counts_mat)
+            c1 = dense_counts[np.ix_(test_indices, np.asarray(idx_1))]
+            c2 = dense_counts[np.ix_(test_indices, np.asarray(idx_2))]
         group = np.concatenate([np.ones(n1), np.zeros(n2)])
-        for i, fi in enumerate(test_indices):
-            cnts = np.concatenate([c1[fi, :], c2[fi, :]])
+        for i in range(len(test_indices)):
+            cnts = np.concatenate([c1[i, :], c2[i, :]])
             p_vals[i] = _negbinom_pvalue(cnts, group, latent)
     else:
         raise ValueError(

@@ -1,21 +1,27 @@
 #!/usr/bin/env python
-"""Compare two benchmark sweeps taken with different BLAS builds.
+"""Diff two benchmark sweeps, step by step.
 
-    python tutorials/benchmark/compare_blas.py results_refblas results
+    python tutorials/benchmark/compare_sweeps.py results_refblas results
+    python tutorials/benchmark/compare_sweeps.py old new --arm truecell
+
+Written for the reference-BLAS vs Accelerate comparison in `PERFORMANCE.md`
+section 2.1, and used since for any change that claims to make one arm faster —
+the question is the same either way, so the arm is a flag.
 
 Two things get compared, and the second matters more than the first:
 
-**Anchors.** Swapping the BLAS underneath R must not change what Seurat
-computes. Every step in the suite records a scalar summarising its result, so
-the two sweeps can be diffed on those directly. Anything that moves is either a
-last-place floating-point difference — worth seeing, not worth worrying about —
-or evidence that the faster BLAS is not computing the same thing, which would
-make every timing in the report irrelevant.
+**Anchors.** A change that is supposed to be a speed-up must not change what the
+code computes. Every step in the suite records a scalar summarising its result,
+so the two sweeps can be diffed on those directly. Anything that moves is either
+a last-place floating-point difference — worth seeing, not worth worrying about
+— or evidence that the faster version is not computing the same thing, which
+would make every timing in the report irrelevant.
 
-**Timings.** How much the swap actually bought, per step.
+**Timings.** How much the change actually bought, per step.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import statistics
 import sys
@@ -51,17 +57,25 @@ def relative(a, b) -> float | None:
 
 
 def main() -> int:
-    if len(sys.argv) != 3:
-        print(__doc__)
-        return 2
-    before, after = (HERE / sys.argv[1]), (HERE / sys.argv[2])
-    benches = sorted({p.stem.split(".")[0] for p in before.glob("*.seurat.json")})
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("before")
+    ap.add_argument("after")
+    ap.add_argument("--arm", default="seurat", choices=("seurat", "truecell"),
+                    help="which arm's runs to diff (default: seurat)")
+    args = ap.parse_args()
 
-    print(f"# Anchors: {before.name} vs {after.name}  (R arm)\n")
+    before, after = (HERE / args.before), (HERE / args.after)
+    arm = args.arm
+    if not (before.is_dir() and after.is_dir()):
+        print(f"no such sweep: {before if not before.is_dir() else after}")
+        return 2
+    benches = sorted({p.stem.split(".")[0] for p in before.glob(f"*.{arm}.json")})
+
+    print(f"# Anchors: {before.name} vs {after.name}  ({arm} arm)\n")
     identical = moved = 0
     worst: list[tuple] = []
     for bench in benches:
-        a, b = load(before, bench, "seurat"), load(after, bench, "seurat")
+        a, b = load(before, bench, arm), load(after, bench, arm)
         if not (a and b):
             continue
         for step in a:
@@ -82,9 +96,9 @@ def main() -> int:
         print(f"  {bench:20s} {step:20s} {va}  ->  {vb}"
               f"   (relative {rel:.2e})")
 
-    print(f"\n\n# Timings: {before.name} vs {after.name}  (R arm)\n")
+    print(f"\n\n# Timings: {before.name} vs {after.name}  ({arm} arm)\n")
     for bench in benches:
-        a, b = load(before, bench, "seurat"), load(after, bench, "seurat")
+        a, b = load(before, bench, arm), load(after, bench, arm)
         if not (a and b):
             continue
         print(f"\n## {bench}")

@@ -27,6 +27,12 @@ NON_PIPELINE = {"import", "library_load"}
 ASIDES = {"neighbours_annoy", "umap_unseeded", "scale_all_genes",
           "rescale_hvg", "morans_i_full"}
 
+# Excluded from the headline tally on top of ASIDES, because the two arms are
+# not doing the same arithmetic: `blas_gemm` writes R's `a %*% t(a)`, which
+# materialises the transpose, against numpy's `a @ a.T`, which passes a flag.
+# It stays in the tables — see section 2.1 — but it does not get a vote.
+NOT_LIKE_FOR_LIKE = {"blas_gemm"}
+
 
 def load(bench: str, arm: str) -> dict | None:
     p = RESULTS / f"{bench}.{arm}.json"
@@ -154,11 +160,50 @@ def script_table() -> list[str]:
     return out
 
 
+def tally(benches: list[str]) -> list[str]:
+    """The report's headline count, computed rather than eyeballed.
+
+    An earlier draft of `PERFORMANCE.md` asserted "faster at 24 of the 31
+    operations measured" from memory. The real figure was 50 of 68. Counting
+    is the one part of this that should never be done by hand.
+    """
+    faster = slower = tied = 0
+    losses: list[tuple[float, str, str]] = []
+    for bench in benches:
+        tc, sr = load(bench, "truecell"), load(bench, "seurat")
+        if not (tc and sr):
+            continue
+        for step, rec in tc["steps"].items():
+            if step in NON_PIPELINE or step in ASIDES or step in NOT_LIKE_FOR_LIKE:
+                continue
+            other = sr["steps"].get(step)
+            if other is None or rec["sec"] <= 0 or other["sec"] <= 0:
+                continue
+            r = other["sec"] / rec["sec"]
+            if r >= 1.05:
+                faster += 1
+            elif r <= 1 / 1.05:
+                slower += 1
+                losses.append((1 / r, bench, step))
+            else:
+                tied += 1
+    out = [f"\nAcross **{faster + slower + tied}** like-for-like step "
+           f"comparisons Truecell is faster in **{faster}**, slower in "
+           f"**{slower}**, and within 5% in **{tied}**.\n",
+           "Where it loses, worst first:\n",
+           "| Step | Bench | Slower by |", "|---|---|---:|"]
+    for gap, bench, step in sorted(losses, reverse=True):
+        out.append(f"| `{step}` | `{bench}` | {gap:.1f}x |")
+    return out
+
+
 def main() -> int:
     core = ["pbmc3k_core", "pbmc8k_core", "ifnb_core", "thp1_core"]
     heavy = ["blas_probe", "pbmc3k_sctransform", "pbmc3k_de",
              "ifnb_integration", "xenium_spatial"]
-    lines = ["## Scaling: the standard workflow, 2.7k to 20.7k cells"]
+    lines = ["## Tally"]
+    lines += tally(core + heavy)
+    lines.append("\n## Scaling: the standard workflow, 2.7k to 20.7k cells")
     lines += scaling_table(core)
     lines.append("\n## Step by step")
     for b in core:
