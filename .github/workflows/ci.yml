@@ -159,9 +159,22 @@ jobs:
           # pbmc3k test is picked up automatically, and a new test needing an
           # uncached dataset turns this job red until someone adds it below —
           # loud, and the right way round.
+          #
+          # `lazy_bpcells` and `de_tutorial` are excluded for a **different
+          # reason, and it is a weaker one**: both pass here, and their data is
+          # already cached. They were 65% of the runtime (136s and 102s of 364s
+          # locally; the first CI run took 16m33s for the eleven), and neither
+          # produces a labelled figure, which is the drift this job exists to
+          # catch. So they are a cost trim, not a coverage judgement — the code
+          # they exercise is real and no unit test covers it the same way, and
+          # out-of-core has a history here (see ROADMAP's T-lazy entry). They
+          # run in the full opt-in suite, which is a pre-release requirement
+          # precisely because this job is not the whole story. If this job ever
+          # gets a faster runner, put them back first.
           uv run pytest tests/test_tutorial_smoke.py -q \
             -k "not cbmc and not pbmc8k and not hashing and not thp1 \
-                and not ifnb and not panc8 and not xenium and not visium" \
+                and not ifnb and not panc8 and not xenium and not visium \
+                and not lazy_bpcells and not de_tutorial" \
             | tee smoke.log
           # A skip is a failure *here*. Every test this selects needs only the
           # dataset above, so the only ways to skip are a broken cache, a
