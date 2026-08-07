@@ -924,9 +924,12 @@ fig = dim_plot(
 </tr>
 </table>
 
-> Cluster index ordering differs between R and Truecell (Louvain is non-deterministic
-> by cluster ID), so the cluster-to-cell-type mapping uses different numeric keys.
-> The biological result — 9 identical cell types — is the same.
+> Cluster index ordering differs between R and Truecell (Louvain numbers its
+> clusters by size, and the sizes are not identical), so the cluster-to-cell-type
+> mapping uses different numeric keys. **Eight labels here against Seurat's
+> nine:** the DC population is inside CD14+ Mono at this resolution, so the last
+> cluster is the platelets — see Step 11's note. Every other type appears on both
+> sides, on cells that largely agree (ARI 0.899).
 
 ---
 

@@ -107,7 +107,8 @@ python tutorials/generate_plots.py     # writes tutorials/figures/
 - Normalize counts (`LogNormalize`), select highly variable genes (VST), and scale data
 - Run PCA, build the KNN/SNN neighbor graph, and cluster with Louvain
 - Embed with UMAP and visualize clusters
-- Find cluster markers with Wilcoxon rank-sum and annotate 9 cell types
+- Find cluster markers with Wilcoxon rank-sum and annotate 8 cell types
+  (Seurat's nine minus DC, which merges into CD14+ Mono at this resolution)
 
 **Key output figures** (in `tutorials/figures/`):
 

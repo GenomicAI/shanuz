@@ -349,6 +349,36 @@ def test_xenium_moransi_matches_seurats_weighting():
     assert centroids.radius() == pytest.approx(42.82543, abs=1e-5)   # R: 42.82543
 
 
+def test_cell_type_map_covers_exactly_the_clusters_produced():
+    """The hand-written map must have one entry per cluster, and no spares.
+
+    ``rename_idents`` is positional, so a map of the wrong *length* is worse than
+    one with a wrong name in it — every label from the mismatch onward slides to
+    a different cluster. The map carried Seurat's nine entries while this
+    pipeline resolves eight (DC merges into CD14+ Mono at resolution 0.5), which
+    captioned the 14-cell platelet cluster "DC" in the annotated UMAP and left
+    "Platelet" unused. It shipped in 1.0.0, and `pbmc3k_tutorial.md` printed the
+    corrected eight-entry map beside the figure drawn from the stale one.
+
+    Checked separately from the marker test below because it localises the fault:
+    this one says the map is the wrong shape, that one says a name is on the
+    wrong cluster.
+    """
+    if not (DATA_ROOT / "pbmc3k").is_dir():
+        pytest.skip("dataset 'pbmc3k' not cached")
+
+    sys.path.insert(0, str(REPO_ROOT))
+    from tutorials.generate_plots import CELL_TYPE_MAP, run_pipeline_unlabelled
+
+    pbmc, _ = run_pipeline_unlabelled()
+    produced = {str(i) for i in pbmc.idents}
+    assert set(CELL_TYPE_MAP) == produced, (
+        f"CELL_TYPE_MAP keys {sorted(CELL_TYPE_MAP)} do not match the clusters "
+        f"the pipeline produced {sorted(produced)} — rename_idents is positional, "
+        f"so the labels are now on the wrong clusters."
+    )
+
+
 def test_cell_type_map_matches_the_markers():
     """Every hardcoded label must lead on its own canonical marker.
 
@@ -360,12 +390,17 @@ def test_cell_type_map_matches_the_markers():
     figures still rendered, still looked like a PBMC UMAP, and were wrong.
 
     This asserts the labels against the data instead of trusting the map.
+
+    Iterates the *map* rather than the marker panel. The panel carries DC, which
+    no cluster currently earns, and asking where FCER1A peaks is then a question
+    about the clustering rather than about the labelling — it was the previous
+    version's only failure, and it reported a naming fault for a merge.
     """
     if not (DATA_ROOT / "pbmc3k").is_dir():
         pytest.skip("dataset 'pbmc3k' not cached")
 
     sys.path.insert(0, str(REPO_ROOT))
-    from tutorials.generate_plots import CELL_TYPE_MARKER, run_pipeline
+    from tutorials.generate_plots import CELL_TYPE_MAP, CELL_TYPE_MARKER, run_pipeline
 
     pbmc, _, _ = run_pipeline()
     assay = pbmc.assays[pbmc.active_assay]
@@ -374,7 +409,11 @@ def test_cell_type_map_matches_the_markers():
     X = np.asarray(data.todense() if hasattr(data, "todense") else data, dtype=float)
     idents = np.asarray([str(i) for i in pbmc.idents])
 
-    for label, marker in CELL_TYPE_MARKER.items():
+    missing = set(CELL_TYPE_MAP.values()) - set(CELL_TYPE_MARKER)
+    assert not missing, f"no discriminative marker declared for {sorted(missing)}"
+
+    for label in CELL_TYPE_MAP.values():
+        marker = CELL_TYPE_MARKER[label]
         row = X[features.index(marker)]
         means = {lab: row[idents == lab].mean() for lab in set(idents)}
         winner = max(means, key=means.get)

@@ -37,14 +37,23 @@ from truecell.plotting import (
 FIGURES = Path(__file__).parent / "figures"
 FIGURES.mkdir(exist_ok=True)
 
-# Seurat's `new.cluster.ids` for pbmc3k at resolution 0.5, in cluster order.
-# Verified against the clusters this pipeline actually produces rather than
-# copied: cluster 1 is LYZ 5.07 / CD14 1.51 (monocytes), cluster 2 is IL7R 1.63
-# (memory T), cluster 3 is MS4A1 2.14 (B), cluster 4 is NKG7 3.41 with GNLY low
-# (CD8 T, against cluster 6's GNLY 4.28 for NK). An earlier version of this map
-# had 1<->2 and 3<->4 transposed, which put monocyte names on the T-cell
-# compartment in every labelled figure. `test_cell_type_map_matches_the_markers`
-# now fails if the numbering drifts again.
+# Cluster number -> cell type, for the clusters *this* pipeline produces at
+# resolution 0.5. Eight, not Seurat's nine: DC is absorbed into CD14+ Mono at
+# this resolution, so the last cluster is the platelets. This must stay in step
+# with the `cell_type_map` in Step 12 of `pbmc3k_tutorial.md`, which the figures
+# below illustrate — the two are the same map written twice.
+#
+# `rename_idents` is positional, so a wrong *length* here is worse than a wrong
+# name: carrying Seurat's ninth entry shifted every label from position 7 on,
+# and the platelet cluster (14 cells, PPBP 5.85) was captioned "DC" in the
+# annotated UMAP while no cluster carried "Platelet" at all. Before that, 1<->2
+# and 3<->4 were transposed and the monocyte compartment wore T-cell names.
+# Both shipped. `test_cell_type_map_matches_the_markers` now pins the labels
+# *and* the cluster ids against the data — but it is opt-in and does not run in
+# CI, which is why the second one survived a release. Run it before changing
+# anything here:
+#
+#   TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py -k cell_type
 CELL_TYPE_MAP = {
     "0": "Naive CD4 T",
     "1": "CD14+ Mono",
@@ -53,14 +62,18 @@ CELL_TYPE_MAP = {
     "4": "CD8 T",
     "5": "FCGR3A+ Mono",
     "6": "NK",
-    "7": "DC",
-    "8": "Platelet",
+    "7": "Platelet",
 }
 
 # The marker each label must lead on, for the guard test. Chosen for being
 # *discriminative*, not merely canonical: IL7R is the textbook CD4 marker but is
 # expressed by both T subsets, and S100A4 peaks in monocytes, so neither
 # separates naive from memory. CCR7 and IL7R do.
+#
+# DC keeps its entry although no cluster currently carries the label: this is the
+# panel, not a description of what the pipeline resolved. FCER1A is the reason DC
+# cannot simply be re-added to the map on sight — it peaks in CD14+ Mono here
+# (0.164, against 0.000 in the platelet cluster), which is what "absorbed" means.
 CELL_TYPE_MARKER = {
     "Naive CD4 T": "CCR7",
     "CD14+ Mono": "CD14",
@@ -82,7 +95,14 @@ def _save(fig, name):
     print(f"  Saved {path.name}")
 
 
-def run_pipeline(data_dir=None):
+def run_pipeline_unlabelled(data_dir=None):
+    """The pipeline up to clustering, idents still numeric.
+
+    Split out so the guard test can ask which clusters the pipeline actually
+    resolved. Once ``rename_idents`` has run that question cannot be asked —
+    the numbering is gone, and a map of the wrong length looks exactly like a
+    map of the right one.
+    """
     print("Running pipeline...")
     counts, genes, cells = pbmc3k(data_dir=data_dir)
     pbmc = create_truecell_object(
@@ -102,6 +122,11 @@ def run_pipeline(data_dir=None):
     find_neighbors(pbmc, dims=range(10), k_param=20)
     find_clusters(pbmc, resolution=0.5, algorithm=1, random_seed=0)
     run_umap(pbmc, dims=range(10), reduction_name="umap", seed=42)
+    return pbmc, hvg
+
+
+def run_pipeline(data_dir=None):
+    pbmc, hvg = run_pipeline_unlabelled(data_dir)
     all_markers = find_all_markers(pbmc, only_pos=True, min_pct=0.25, logfc_threshold=0.25)
     pbmc.rename_idents(CELL_TYPE_MAP)
     print("Pipeline complete.")
