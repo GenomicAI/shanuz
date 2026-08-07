@@ -18,6 +18,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`add_module_score` is now verified against Seurat as an equality, not a
+  correlation.** Every prior comparison was correlation-based and structurally
+  had to be: `AddModuleScore` picks control genes with `sample()`, R's RNG is
+  not NumPy's, so the two cannot produce the same number. Pearson 0.9995 is a
+  real result, but it is the RNG-limited one — it cannot separate a faithful
+  port from one whose binning is subtly wrong, because binning error and
+  sampling noise land in the same residual.
+
+  `nbin=1` puts every gene in one bin and `ctrl` = pool size draws all of it;
+  `sample(n, n)` is a permutation, so the control **set** is forced and only its
+  summation order is free. In that regime the two tools agree to
+  **6.66e-15 across 20,729 cells** — floating-point associativity over 18,649
+  genes, against 1.8e-01 between two R seeds at `ctrl = 8`. The binning, control
+  selection and mean subtraction are exact.
+
+  Also adds the first coverage of the multi-program path and of any settings
+  other than the defaults: three programs in one call at `nbin=12, ctrl=40`
+  (Pearson 0.9972 / 0.9988 / 0.9986), with a guard against column
+  transposition — programs are identified by position alone, so a swap would
+  leave every correlation high and every label wrong.
+
+  Six mutants, all caught. Two survived the first pass, both because the new
+  tests fabricated the R side from Python's own column and so could not detect a
+  change in how Python computed it — the same defect shape this repo has hit
+  before. Closed by asserting the pipeline's settings produce a column that
+  differs from a default-settings recomputation.
+
 ### Fixed
 
 - **The R verify scripts now serialize anchors at full float64 precision.**
