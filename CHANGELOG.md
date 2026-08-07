@@ -18,6 +18,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **CI runs the PBMC 3k tutorials against real data.** A new `tutorials` job
+  caches the 28 MB dataset and runs the eleven smoke tests that need only it —
+  six tutorial scripts end to end, plus the marker table, the object-model round
+  trip, the dim-reduc extras and both cell-type-map guards. Until now
+  `test_tutorial_smoke.py` ran nowhere but a developer's machine, and the entry
+  above is what that cost.
+
+  Two details are the point rather than decoration. **A skip fails the job:**
+  every selected test needs only the cached dataset, so a skip can only mean a
+  broken cache, a misspelt `TRUECELL_TUTORIAL_SMOKE`, or a new test wanting a
+  dataset this job does not fetch — all of which would otherwise produce a green
+  tick for a job that verified nothing. And the selection **deselects the eight
+  uncached datasets** instead of selecting pbmc3k by name: an allow-list reads
+  better but would let a pbmc3k test added later under another name silently
+  never run, which is precisely the failure being fixed.
+
+  The other datasets total ~200 MB and stay developer-run, so
+  `TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py` before a
+  release is still the rule, not a formality.
+
 ### Fixed
 
 - **The annotated PBMC 3k UMAP captioned the platelet cluster "DC".** Shipped in
