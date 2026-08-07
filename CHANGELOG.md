@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-08
+
+Ten weeks of plotting work, a domain-expert review, and the release-readiness
+run that found the defect below. The API additions are backwards compatible;
+the fixes change output, which is the point of them.
+
+**If you are on 1.0.0, the reasons to move are the corrections**, not the
+features: the categorical palette could give two clusters the same colour,
+`vln_plot` drew the wrong violin three ways, `aggregate_expression` left raw
+sums where Seurat log-normalizes, and `_get_expression_matrix` returned the
+wrong layer with mislabelled features.
+
 ### Added
 
 - **CI runs the PBMC 3k tutorials against real data.** A new `tutorials` job
@@ -2064,7 +2076,10 @@ Tagged but never published to PyPI; `0.1.1` was the first release on PyPI.
 - Spatial primitives: `FOV`, `Centroids`, `Segmentation`, `Molecules`.
 - Plotting, I/O, AnnData interop, and the bundled example datasets.
 
-[Unreleased]: https://github.com/GenomicAI/truecell/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/GenomicAI/truecell/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/GenomicAI/truecell/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/GenomicAI/truecell/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/GenomicAI/truecell/compare/v0.2.0...v0.9.0
 [0.2.0]: https://github.com/GenomicAI/truecell/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/GenomicAI/truecell/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/GenomicAI/truecell/releases/tag/v0.1.0
