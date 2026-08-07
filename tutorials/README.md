@@ -9,7 +9,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Truecel
 
 | # | Tutorial | Dataset | Key Concepts | Complexity |
 |---|----------|---------|--------------|-----------|
-| 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers. **Compared end to end**, both sides running their own pipeline: the same 2,638 barcodes survive QC, 1,998/2,000 variable features shared, PCA matched \|r\| **0.9988**, clusters at **ARI 0.938** (8 vs 9 — one 32-cell DC population), and on the two clusters whose cells match exactly the marker tables are **identical gene sets** agreeing to 4.6e-14 | Beginner |
+| 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers. **Compared end to end**, both sides running their own pipeline: the same 2,638 barcodes survive QC, 1,998/2,000 variable features shared, PCA matched \|r\| **0.9988**, clusters at **ARI 0.899** (8 vs 9 — one 32-cell DC population), and on the two clusters whose cells match exactly the marker tables are **identical gene sets** agreeing to 4.6e-14 | Beginner |
 | 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation. **Both stages compared by barcode**: same 7,475 cells after QC, global clusters at **ARI 0.977**, and the T/NK compartment handed to stage 2 matches at **Jaccard 0.9991** (4,631 of 4,635 cells) — subclusters then at ARI 0.916 and subset labels **98.2%** concordant | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison · WNN joint clustering. **Compared per protein and per cell**: CLR to **4.2e-15**, WNN modality weights at Pearson **0.9847** over 8,617 shared barcodes, cell-type labels **99.29%** concordant, all cluster counts identical. Settled the long-open progenitor question — it was a labelling difference, not a WNN one | Advanced |
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize. The **fitted model is compared per gene** against Seurat's `SCTModel` feature attributes — `detection_rate`/`gmean` to machine precision, intercept and theta at **Spearman 1.0000**, the 3,848 non-overdispersed genes exactly the same set, residual variance at 0.9986; both arms now agree on cluster count (12 and 11) | Advanced |
@@ -131,7 +131,8 @@ pipeline from the same 10x bytes; nothing is pinned across them.
 | The 2,000 variable features | **1,998 shared**; the two swaps are genes 0.03 apart in a LOESS fit, at ranks 1,982–2,000 |
 | PCA, the 10 dims clustering uses | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
 | kNN graph | **52,760 = 2,638 × 20 on both** |
-| Clusters at resolution 0.5 | truecell **8**, Seurat **9** — ARI **0.938**, 2,554/2,638 cells agree |
+| Clusters at resolution 0.5 | truecell **8**, Seurat **9** — ARI **0.899**, 2,519/2,638 cells agree |
+| Clusters across the sweep | 0.4 → 9 vs 9 (ARI 0.896) · 0.8 → 11 vs 11 (0.826) · 1.2 → 12 vs 12 (0.800). The cluster **count** matches at every resolution except 0.5 |
 | The one cluster Seurat has and truecell does not | its 32 DC cells land, **all 32**, in truecell's CD14+ Mono cluster |
 | Markers on the two clusters whose cells match exactly | **identical gene sets** (151/151 and 242/242), `avg_log2FC` to 4.9e-15 and 4.6e-14 respectively |
 

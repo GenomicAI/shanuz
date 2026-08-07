@@ -18,7 +18,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The PBMC 3k guided tutorial documented a clustering ARI of 0.938 while
+  measuring 0.899**, across six files (`tutorials/README.md` ×2,
+  `pbmc3k_tutorial.md` ×2, `docs/fidelity.md`, `docs/quickstart.md`). The
+  associated concordance figures were stale too — 2,554/2,638 cells and 0.968,
+  against a measured 2,519 and 0.955.
+
+  The likely cause is the graph fixes in #67–#71, which moved cells between
+  clusters — the same drift the DE tutorial's `deseq2 top50` band caught at the
+  time (25 → 22). This tutorial had **no band on its headline number**, so it
+  went stale in six documents instead of failing once. Every swept resolution
+  now carries a declared band, checked by `--report`.
+
+  Verified this predates the change: R's vector-form `FindClusters` produces a
+  partition identical to the single 0.5 call, and the tutorial's four handoff
+  outputs are byte-identical to what `main` produces.
+
 ### Changed
+
+- **The guided clustering tutorial scans four resolutions instead of one.**
+  Choosing a resolution means running a few and comparing them, so a fidelity
+  claim pinned to a single setting says less than it appears to. Both sides now
+  use the vector idiom — `find_clusters(pbmc, resolution=[0.4, 0.8, 1.2, 0.5])`
+  and `FindClusters(pbmc, resolution = c(...))` — and every resolution is scored
+  against R:
+
+  | resolution | truecell | Seurat | ARI |
+  |---:|---:|---:|---:|
+  | 0.4 | 9 | 9 | 0.8958 |
+  | 0.5 | 8 | 9 | 0.8987 |
+  | 0.8 | 11 | 11 | 0.8264 |
+  | 1.2 | 12 | 12 | 0.7995 |
+
+  Two readings. The **cluster count matches exactly at 0.4, 0.8 and 1.2**, so
+  the 8-vs-9 split this tutorial describes is specific to resolution 0.5 rather
+  than a standing property of the port. And agreement falls as resolution rises,
+  which is expected: finer partitions put more boundaries in play.
+
+  0.5 is given **last** deliberately, since Seurat leaves the object on the last
+  resolution in the sequence and every step below the clustering call is written
+  against it. The four handoff outputs are byte-identical to before, and a test
+  pins the ordering, because reordering the list would silently re-point UMAP,
+  the markers, the annotation and the handoff without raising.
 
 - **`add_module_score` is now verified against Seurat as an equality, not a
   correlation.** Every prior comparison was correlation-based and structurally

@@ -26,12 +26,17 @@ import pytest
 
 TUTORIALS = Path(__file__).parent.parent / "tutorials"
 
-# Reads that carry no float into a comparison. Each is exempt for a stated
-# reason; adding to this set should require one.
+# `dtype=str` parses no floats at all, so `float_precision` cannot apply — the
+# rule is general rather than a per-file carve-out. It covers the DE tutorial's
+# hex reader (floats arrive via `float.fromhex`) and any read of purely
+# categorical columns, such as the resolution sweep's cluster labels.
+GENERALLY_EXEMPT = ("dtype=str",)
+
+# Reads that carry no float into a comparison for a file-specific reason. Each is
+# exempt for a stated reason; adding to this set should require one.
 EXEMPT = {
     ("anchors_tutorial.py", "metadata.csv"): "cell labels, no floats compared",
     ("visium_tutorial.py", "header=header"): "wrapped in len() — a row count",
-    ("pbmc3k_de_tutorial.py", "dtype=str"): "the hex reader; floats via float.fromhex",
 }
 
 READ_CSV = re.compile(r"read_csv\(")
@@ -67,6 +72,8 @@ def _offending_calls(path: Path) -> list[str]:
         call = _call_text(source, m.end() - 1)
         if "float_precision" in call:
             continue
+        if any(marker in call for marker in GENERALLY_EXEMPT):
+            continue
         if any(name == path.name and marker in call
                for (name, marker) in EXEMPT):
             continue
@@ -91,6 +98,10 @@ def test_the_exemptions_still_exist():
     If one of the exempt calls is edited away, the entry stops matching anything
     and quietly permits a real offender in the same file.
     """
+    for marker in GENERALLY_EXEMPT:
+        assert any(marker in p.read_text() for p in TUTORIALS.glob("*.py")), (
+            f"general exemption {marker!r} no longer matches anything — remove it")
+
     for (name, marker), reason in EXEMPT.items():
         path = TUTORIALS / name
         assert path.exists(), f"{name} is gone; drop its exemption ({reason})"

@@ -78,7 +78,8 @@ Real, understood, and not going away:
 
 **Louvain cluster counts drift by one.** Both tools run the same algorithm at the
 same resolution and land on different local optima. On PBMC 3k, truecell finds 8
-clusters to Seurat's 9 at ARI 0.938. On ifnb RPCA, Seurat's deeper modularity
+clusters to Seurat's 9 at ARI 0.899 — and the count matches exactly at
+resolutions 0.4, 0.8 and 1.2, so the 8-vs-9 split is specific to 0.5. On ifnb RPCA, Seurat's deeper modularity
 search buys 0.17 % modularity by splitting CD14 Mono along the batch — and
 truecell's coarser partition then scores **ARI 0.92 against the annotations to
 Seurat's 0.74**. The coarser answer is the better one there.

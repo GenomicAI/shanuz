@@ -58,7 +58,21 @@ pbmc <- RunPCA(pbmc, npcs = 50, verbose = FALSE)
 # that belongs to annoy rather than to either implementation. The same trap cost
 # `pbmc3k_objects_verify.R` a false negative of 182 SNN edges.
 pbmc <- FindNeighbors(pbmc, dims = 1:10, k.param = 20, nn.method = "rann", verbose = FALSE)
-pbmc <- FindClusters(pbmc, resolution = 0.5, algorithm = 1, verbose = FALSE)
+# The vector form, matching the Python side's RESOLUTION_SWEEP. Each resolution
+# lands in its own `RNA_snn_res.<r>` column, and Seurat leaves the object on the
+# **last** one given — last as given, not largest — so 0.5 stays here at the end
+# and every step below sees the partition it always saw.
+pbmc <- FindClusters(pbmc, resolution = c(0.4, 0.8, 1.2, 0.5), algorithm = 1,
+                     verbose = FALSE)
+res_cols <- c("RNA_snn_res.0.4", "RNA_snn_res.0.8",
+              "RNA_snn_res.1.2", "RNA_snn_res.0.5")
+write.csv(
+  data.frame(cell = colnames(pbmc),
+             setNames(lapply(res_cols, function(c) as.character(pbmc[[c]][, 1])),
+                      res_cols),
+             check.names = FALSE, stringsAsFactors = FALSE),
+  file.path(FIG, "r_resolutions.csv"), row.names = FALSE)
+cat("Wrote r_resolutions.csv (", paste(res_cols, collapse = ", "), ")\n")
 pbmc <- RunUMAP(pbmc, dims = 1:10, verbose = FALSE)
 cat(sprintf("PBMC 3k: %d cells -> %d after QC, %d clusters\n",
             n_cells_raw, ncol(pbmc), length(levels(pbmc))))

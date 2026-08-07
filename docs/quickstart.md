@@ -122,7 +122,7 @@ variances agree to three decimals; see [Fidelity](fidelity.md#what-actually-diff
 clusters: [692, 515, 458, 344, 301, 159, 155, 14]
 ```
 
-Eight clusters, against Seurat's nine on the same data, at **ARI 0.938** — the
+Eight clusters, against Seurat's nine on the same data, at **ARI 0.899** — the
 extra one is a 32-cell dendritic-cell population Seurat's deeper modularity
 search separates.
 

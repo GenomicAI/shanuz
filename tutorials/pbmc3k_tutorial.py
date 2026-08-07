@@ -45,7 +45,7 @@ from truecell.preprocessing import (
 )
 from truecell.reduction import run_pca
 from truecell.neighbors import find_neighbors
-from truecell.clustering import find_clusters
+from truecell.clustering import _res_label, find_clusters
 from truecell.umap import run_umap
 from truecell.markers import find_markers, find_all_markers
 
@@ -75,6 +75,34 @@ EXPECTED = {
     },
     # Number of clusters expected (resolution=0.5 → ~9)
     "n_clusters_expected": 9,
+}
+
+#: The resolutions this tutorial scans, in the order they are handed to
+#: `find_clusters`. Choosing a resolution means running a few and comparing
+#: them, so a fidelity claim pinned to one point says less than it appears to.
+#:
+#: **0.5 must stay last.** Seurat leaves the object on the last resolution in
+#: the sequence, and every step after the clustering call — UMAP, markers,
+#: annotation, the handoff CSV — is written against 0.5. Reordering this list
+#: silently re-points all of them.
+RESOLUTION_SWEEP = [0.4, 0.8, 1.2, 0.5]
+
+#: Clustering agreement, per resolution, as declared ranges rather than prose.
+#:
+#: These exist because the number they guard **drifted unnoticed**. This file
+#: documented ARI 0.938 at resolution 0.5; the measured value is 0.899, and the
+#: graph fixes in #67-#71 are the likely cause — they moved cells between
+#: clusters, which is exactly what the DE tutorial's `deseq2 top50` band caught
+#: at the time (25 -> 22). The guided tutorial had no band, so its headline
+#: number went stale in six documents instead.
+#:
+#: Bounds are wide enough to absorb a Louvain local-optimum shift and narrow
+#: enough that a real regression fails. Re-measure before widening.
+CLUSTER_BANDS = {
+    "ARI at 0.4": (0.85, 0.95),
+    "ARI at 0.5": (0.85, 0.95),
+    "ARI at 0.8": (0.78, 0.90),
+    "ARI at 1.2": (0.75, 0.88),
 }
 
 
@@ -244,10 +272,22 @@ def run_tutorial(data_dir: str | None = None) -> None:
     print(f"  Graphs: {list(pbmc.graphs)}")
 
     # -----------------------------------------------------------------------
-    section("10. Find Clusters (resolution=0.5)")
+    section("10. Find Clusters (resolutions 0.4 / 0.8 / 1.2 / 0.5)")
     # -----------------------------------------------------------------------
+    # Seurat's `FindClusters(obj, resolution = c(...))` idiom: run several, look
+    # at them, then pick. Each lands in its own `RNA_snn_res.<r>` column.
+    #
+    # 0.5 is given **last** on purpose. Seurat leaves the object on the last
+    # resolution in the sequence — last as given, not largest — so every step
+    # below this one sees exactly the partition it saw before this sweep
+    # existed, and the tutorial's published numbers (9 clusters, ARI 0.938,
+    # the marker tables) are unaffected. A resolution's partition does not
+    # depend on the ones before it, so 0.5 here is the same 0.5 as a lone call.
     t0 = time.time()
-    find_clusters(pbmc, resolution=0.5, algorithm=1, random_seed=0)
+    find_clusters(pbmc, resolution=RESOLUTION_SWEEP, algorithm=1, random_seed=0)
+    for res in RESOLUTION_SWEEP:
+        col = f"RNA_snn_res.{_res_label(res)}"
+        print(f"    resolution {res:<4} -> {pbmc.meta_data[col].nunique()} clusters")
     cluster_counts = pbmc.meta_data["seurat_clusters"].value_counts().sort_index()
     n_clusters = len(cluster_counts)
     print(f"  {n_clusters} clusters found  ({time.time() - t0:.1f}s)")
@@ -459,6 +499,14 @@ def write_anchors(pbmc, all_markers) -> None:
         cells[f"PC_{k + 1}"] = emb[:, k]
     cells.to_csv(FIGURES / "py_cell_meta.csv", index=False)
 
+    # Every resolution from the sweep, so the R side can be scored at each rather
+    # than only at the one the rest of this file happens to use.
+    res_cols = [f"RNA_snn_res.{_res_label(r)}" for r in RESOLUTION_SWEEP]
+    pd.DataFrame(
+        {"cell": list(pbmc.cell_names()),
+         **{c: md[c].astype(str).to_numpy() for c in res_cols}}
+    ).to_csv(FIGURES / "py_resolutions.csv", index=False)
+
     rna = pbmc.assays["RNA"]
     # truecell stores the VST statistics on the assay's meta_data under the names
     # HVFInfo() uses, so these columns carry straight through to the R side of
@@ -581,6 +629,40 @@ def report() -> None:
     print("\n  PCA — the 10 dims the clustering runs on, matched on |r|")
     print(f"    mean |r| {matched.mean():.6f}   min |r| {matched.min():.6f}   "
           f"in order: {'yes' if list(rows) == list(cols) else 'NO — reordered'}")
+
+    # ---- 3b. the same comparison across the resolution sweep ---------------
+    # A single resolution is one point on a curve users routinely scan. Scoring
+    # only 0.5 leaves open whether agreement is a property of the port or of
+    # that setting — so every resolution in RESOLUTION_SWEEP is scored here.
+    py_res_path, r_res_path = (FIGURES / "py_resolutions.csv",
+                               FIGURES / "r_resolutions.csv")
+    if py_res_path.exists() and r_res_path.exists():
+        pr = pd.read_csv(py_res_path, dtype=str).set_index("cell")
+        rr = pd.read_csv(r_res_path, dtype=str).set_index("cell")
+        shared_cells = pr.index.intersection(rr.index)
+        out_of_band: list[tuple] = []
+        print("\n  Resolution stability — the whole sweep, not just the one "
+              "the rest of this file uses")
+        print(f"    {'resolution':>11}{'truecell':>10}{'R':>5}{'ARI':>9}"
+              f"{'concordance':>13}")
+        print(f"    {'-' * 48}")
+        for res in sorted(RESOLUTION_SWEEP):
+            col = f"RNA_snn_res.{_res_label(res)}"
+            if col not in pr.columns or col not in rr.columns:
+                continue
+            mr = match_partitions(pr.loc[shared_cells, col],
+                                  rr.loc[shared_cells, col])
+            flag = "  <- the one used below" if res == RESOLUTION_SWEEP[-1] else ""
+            band = CLUSTER_BANDS.get(f"ARI at {res}")
+            if band and not (band[0] <= mr["ari"] <= band[1]):
+                flag = f"  OUT OF BAND [{band[0]}, {band[1]}]"
+                out_of_band.append((res, mr["ari"], band))
+            print(f"    {res:>11}{mr['n_a']:>10}{mr['n_b']:>5}"
+                  f"{mr['ari']:>9.4f}{mr['concordance']:>13.4f}{flag}")
+        if out_of_band:
+            print("\n    A clustering ARI outside its declared band is either a "
+                  "regression or a\n    band that was never re-measured — see "
+                  "CLUSTER_BANDS. Do not widen it\n    without saying why.")
 
     # ---- 4. clusters: match the partitions, then score ---------------------
     m = match_partitions(p["cluster"], r["cluster"])
