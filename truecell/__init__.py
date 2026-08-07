@@ -43,7 +43,7 @@ from .hto import hto_demux
 from .multiseq import multiseq_demux
 from .mixscape import calc_perturb_sig, run_mixscape, mixscape_lda
 from .markers import find_markers, find_all_markers, find_conserved_markers
-from .aggregate import aggregate_expression
+from .aggregate import aggregate_expression, average_expression
 from .sctransform import sctransform
 from .module_score import add_module_score, cell_cycle_scoring, CC_GENES
 from .spatial import (
@@ -192,6 +192,7 @@ __all__ = [
     "find_all_markers",
     "find_conserved_markers",
     "aggregate_expression",
+    "average_expression",
     "jack_straw",
     "score_jackstraw",
     "sctransform",

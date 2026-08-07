@@ -105,6 +105,33 @@ search is a difference in the *reference*, not in either implementation. The
 verify scripts pass `nn.method = "rann"`; skipping that once cost one script a
 false negative of 182 SNN edges.
 
+## What is deliberately not compared, and why { #not-compared }
+
+**UMAP coordinates.** `run_umap` is validated as an *implementation
+correspondence* — same algorithm, same parameters, same input embedding — and its
+output coordinates are deliberately excluded from every agreement metric in this
+project. That is a statement about UMAP, not about the port.
+
+A UMAP embedding is not identified up to anything stronger than its topology. The
+optimisation is stochastic and non-convex, so the layout is fixed only up to
+rotation, reflection and the particular local optimum a run lands in; R Seurat
+drives [`uwot`](https://github.com/jlmelville/uwot) and truecell drives
+[`umap-learn`](https://umap-learn.readthedocs.io), and the two differ in
+initialisation strategy, neighbour-graph construction and optimisation detail.
+Two runs of the *same* library on the same data with different seeds already
+disagree on coordinates. A coordinate-level agreement number would therefore
+measure the seed and the library, and a *high* one would be the surprising
+result.
+
+What carries the weight instead is everything either side of it: the neighbour
+graph the embedding is computed from is compared directly, and the cluster
+assignments plotted on it are scored by ARI. If those agree, the picture agrees
+in the only sense a UMAP picture means anything — which clusters exist and which
+cells are in them, not where on the page they landed.
+
+The same reasoning applies to any figure-level comparison: plots are checked for
+*what they encode*, never for pixel agreement.
+
 ## Numbers that move are declared as bands { #bands }
 
 A comparison that legitimately varies used to carry a prose caveat — "expect

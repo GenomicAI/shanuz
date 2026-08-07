@@ -58,6 +58,28 @@ cat(sprintf("Shared cells: %d  (%s)\n", ncol(obj),
             paste(names(table(Idents(obj))), table(Idents(obj)),
                   sep = "=", collapse = " ")))
 
+# A second, exact copy of each table, for the comparisons that need bit-identity.
+#
+# `write.csv` renders doubles at 15 significant digits, which does not round-trip
+# float64 — so a Python side reading it is comparing against a value R has
+# already perturbed by a few ULP, and "identical" can never be measured. Raising
+# the digit count does not fix it: R's own `sprintf("%.17g", x)` is not correctly
+# rounded, and emits digits denoting a *different* double (0.1234567890123456789
+# comes back as ...571 where the shortest exact form is ...568). Verified in both
+# languages.
+#
+# `%a` is C99 hex float — a transcription of the IEEE-754 bits rather than a
+# decimal approximation of them — so it is exact by construction, and Python
+# reads it with `float.fromhex`. The human-readable CSV above is kept as it is,
+# because the vignette quotes from it.
+write_exact <- function(df, path) {
+  out <- as.data.frame(lapply(df, function(col) {
+    if (is.numeric(col)) sprintf("%a", col) else as.character(col)
+  }), stringsAsFactors = FALSE)
+  rownames(out) <- rownames(df)
+  write.csv(out, path)
+}
+
 # logfc.threshold = 0 and min.pct = 0 so the comparison sees every gene rather
 # than only the ones that survive a filter whose *input* is the number under
 # test. Seurat's defaults would hide exactly the disagreement worth seeing.
@@ -72,6 +94,7 @@ for (tt in TESTS) {
     next
   }
   write.csv(res, file.path(FIG, sprintf("r_%s.csv", tolower(tt))))
+  write_exact(res, file.path(FIG, sprintf("r_%s_exact.csv", tolower(tt))))
   cat(sprintf("  %-9s %6d genes  %6.1fs\n", tt, nrow(res),
               as.numeric(difftime(Sys.time(), t0, units = "secs"))))
 }

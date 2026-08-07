@@ -24,6 +24,13 @@ Two numbers to know before reading a result table:
 
 ::: truecell.markers.find_conserved_markers
 
-## Pseudobulk
+## Group summaries
+
+`AggregateExpression` **sums raw counts** and is what pseudobulk differential
+expression wants. `AverageExpression` **means the back-transformed values** and
+is what a per-group expression summary wants. They are different functions, not
+two scalings of one — see each docstring.
 
 ::: truecell.aggregate.aggregate_expression
+
+::: truecell.aggregate.average_expression

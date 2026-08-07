@@ -18,7 +18,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`aggregate_expression(return_object=True)` left raw sums in the `data`
+  layer.** Seurat's `AggregateExpression(return.seurat = TRUE)` runs
+  `NormalizeData` over the pseudobulk, so its `data` holds
+  `log1p(sums / colSums × 10000)`. Truecell copied the sums across unchanged,
+  which every downstream function reading that layer would have taken for
+  normalized expression — library-size confounded and off by orders of
+  magnitude (14 where Seurat has 6.98).
+
+  `normalization_method` and `scale_factor` now match Seurat's arguments, with
+  `normalization_method=None` to opt out.
+
+  This is the one place the two group-summary functions genuinely diverge:
+  `average_expression` writes a plain `log1p` of the means with no library-size
+  step, and that was already right. Both verified against Seurat 5.5.1.
+
+  Found by pinning `aggregate_expression` against R for the first time. Its nine
+  existing tests all compared Python to a Python re-derivation of the same
+  formula — the shape of coverage that cannot catch a convention mismatch, and
+  the reason the CLR defect once survived its own unit test.
+
+- **`_get_expression_matrix` returned the wrong layer, and mislabelled the right
+  one.** Two defects in one function, both reachable from
+  `find_markers(layer=...)`, `aggregate_expression` and `average_expression`.
+
+  The Assay5 layer dict is keyed `scale.data`; the Python argument is
+  `scale_data`. Only the dotted spelling was matched, so the underscore form
+  missed the dict and **fell through to the `data` fallback** — a matrix of the
+  right shape, no warning, and normalized values where scaled ones were asked
+  for.
+
+  The dotted spelling then hit the second defect: the matrix came back paired
+  with the assay's *full* feature list. `scale.data` holds only the scaled
+  subset (`scale_data()` defaults to the variable features, as R's `ScaleData`
+  does), so a 10-row matrix was labelled with 30 names and every row read as a
+  different gene. This is the defect fixed in `reduction.py` under #66; the same
+  one survived here. Each layer is now labelled with its own features.
+
+  `reduction.py`, and therefore PCA, was never affected — it has its own
+  accessor.
+
 ### Added
+
+- **`average_expression`, mirroring Seurat's `AverageExpression`.** Seurat ships
+  two group-summary functions and Truecell had only `aggregate_expression`.
+  They are not two scalings of one thing: `AggregateExpression` sums raw counts,
+  while `AverageExpression` averages the **back-transformed** `data` layer —
+  `mean(expm1(x))`, not `mean(x)` and not `expm1(mean(x))`. On a small Poisson
+  object the first gene reads 332.84 under one and 3.17 under the other.
+
+  The back-transform applies to the `data` layer alone; `counts` and
+  `scale.data` are not log-normalized and are averaged as they stand. All three
+  layers, `features=`, multi-column `group_by` and `return_object` were pinned
+  against Seurat 5.5.1 — worst absolute difference 6.8e-13 on values of order
+  300. `return_object` leaves the averages in `counts` and writes `log1p` of
+  them to `data`, as Seurat's `return.seurat = TRUE` does, rather than
+  re-normalizing a matrix that is already an average.
+
+  The `expm1` transform is shared with `find_markers`' fold-change path rather
+  than copied, since Seurat's fold change is the same back-transform and a
+  divergence between the two would be undetectable downstream.
+
+- **`find_clusters` accepts several resolutions, and writes the per-resolution
+  column Seurat writes.** `FindClusters(obj, resolution = c(0.4, 0.8, 1.2))` is
+  the standard idiom for choosing a resolution — run a few, compare, then pick —
+  and it had no Truecell equivalent. `find_clusters(obj, resolution=[0.4, 0.8,
+  1.2])` now runs each in turn.
+
+  The larger fix is underneath it and applies at the default settings: Truecell
+  wrote **only** `seurat_clusters`, never the `{graph}_res.{resolution}` column,
+  so a ported script reading `obj[["RNA_snn_res.0.5"]]` raised `KeyError`. That
+  column is now written for a single resolution too.
+
+  Three conventions were pinned against Seurat 5.5.1 rather than assumed, and
+  one of them is a trap. The column label is R's number formatting, not
+  Python's: `str(1.0)` is `"1.0"` where R's `as.character(1.0)` is `"1"`, so a
+  naive implementation names the column `RNA_snn_res.1.0` and the ported script
+  still fails. `_res_label` reproduces R's rule — render fixed and scientific,
+  keep the shorter, ties to fixed — and is checked against R on 21 values from
+  1e-7 to 1234567. The object is left on the **last** resolution given, not the
+  largest (`resolution=[1.2, 0.8, 0.4]` ends on 0.4). And each resolution is
+  clustered from the same seed rather than a running stream, so a partition does
+  not depend on what preceded it or on the order asked for.
+
+  `cluster_name` is supported, matching Seurat's `cluster.name`.
 
 - **`split_by` on `dim_plot`, `feature_plot` and `vln_plot`.** Seurat uses three
   *different* mechanisms for this, which is the part worth getting right; each
