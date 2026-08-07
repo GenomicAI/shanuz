@@ -1070,8 +1070,13 @@ regime. Don't "simplify" them.
     eight clusters, so the platelet cluster was captioned "DC" throughout 1.0.0 —
     and the test caught none of it, because `test_tutorial_smoke.py` is opt-in and
     excluded from CI. A correct assertion nobody runs is not a guard. It is now
-    paired with `test_cell_type_map_covers_exactly_the_clusters_produced`, but the
-    standing gap is the gate, not the assertion. `dot_plot` — the last plotting export with no tutorial
+    paired with `test_cell_type_map_covers_exactly_the_clusters_produced`, and
+    the gate itself is closed for this dataset: the `tutorials` CI job caches
+    PBMC 3k and runs every pbmc3k smoke test on each pull request, treating a
+    *skip* as a failure so it cannot go green having checked nothing. The other
+    datasets (~200 MB) stay developer-run, so
+    `TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py` before a
+    release is still the rule. `dot_plot` — the last plotting export with no tutorial
     coverage — was folded into the same gallery, and drawing it is what exposed
     the mislabelling.
 - **Wave 3 — ✅ complete.**

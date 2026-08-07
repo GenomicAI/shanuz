@@ -89,6 +89,93 @@ jobs:
           name: coverage-xml
           path: coverage.xml
 
+  tutorials:
+    name: Run the PBMC 3k tutorials against real data
+    # The `test` job runs 1,179 unit tests and cannot see any of this. The
+    # tutorials are scripts run end to end against a real dataset, gated behind
+    # `TRUECELL_TUTORIAL_SMOKE=1` because most of them need ~200 MB of cached
+    # data — so until now nothing here ran in CI at all.
+    #
+    # That gap shipped a defect. `test_cell_type_map_matches_the_markers` was
+    # written to stop the pbmc3k figure labels drifting, was correct, and never
+    # executed: when the cluster count went 9 -> 8 the hardcoded label map kept
+    # nine entries, and the whole of 1.0.0 went out with the 14-cell platelet
+    # cluster captioned "DC" in the tutorial's headline UMAP. It was found by
+    # running the suite by hand before cutting 1.1.0. Twice now a labelled
+    # figure has been published wrong, and both times the guard existed.
+    #
+    # PBMC 3k alone, because it is 28 MB against the full set's ~200 MB and it
+    # is where the labelled figures come from. The other datasets stay
+    # developer-run; this is the slice that pays for itself.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Create venv and install
+        run: uv sync --all-extras --locked --python 3.12
+
+      - name: Cache the PBMC 3k dataset
+        uses: actions/cache@v4
+        with:
+          path: ~/.truecell_data/pbmc3k
+          # Static key on purpose. The obvious alternative, hashing
+          # `truecell/datasets.py`, throws the cache away on every unrelated
+          # edit to that module — it holds every other downloader too. **Bump
+          # the suffix by hand if `_PBMC3K_URLS` changes**, since nothing else
+          # will notice that the bytes behind the key are different.
+          key: truecell-data-pbmc3k-v1
+
+      - name: Fetch the dataset if the cache missed
+        # Idempotent: `pbmc3k()` downloads only when matrix.mtx is absent, so on
+        # a cache hit this is a load and a discard. Kept as its own step so a
+        # 10x Genomics outage reads as "the download failed" rather than as a
+        # tutorial failure thirty lines into a pytest log.
+        run: uv run python -c "from truecell.datasets import pbmc3k; pbmc3k()"
+
+      - name: Verify the dataset is actually there
+        # Without this, a fetch that half-succeeded leaves every test to skip
+        # itself on `dataset not cached` and the job is green having run
+        # nothing — which is the exact failure this job exists to end.
+        run: test -f ~/.truecell_data/pbmc3k/filtered_gene_bc_matrices/hg19/matrix.mtx
+
+      - name: Run the PBMC 3k tutorials end to end
+        shell: bash
+        env:
+          TRUECELL_TUTORIAL_SMOKE: "1"
+        run: |
+          set -o pipefail
+          # Deselecting the datasets we do *not* cache, rather than selecting
+          # the ones we do. An allow-list (`-k "pbmc3k or cell_type"`) reads
+          # more naturally and is the wrong choice: a pbmc3k test added later
+          # under any other name would quietly never run here, which is the
+          # shape of the defect this job exists to prevent. Inverted, a new
+          # pbmc3k test is picked up automatically, and a new test needing an
+          # uncached dataset turns this job red until someone adds it below —
+          # loud, and the right way round.
+          uv run pytest tests/test_tutorial_smoke.py -q \
+            -k "not cbmc and not pbmc8k and not hashing and not thp1 \
+                and not ifnb and not panc8 and not xenium and not visium" \
+            | tee smoke.log
+          # A skip is a failure *here*. Every test this selects needs only the
+          # dataset above, so the only ways to skip are a broken cache, a
+          # misspelt opt-in variable, or a new test wanting a dataset this job
+          # does not fetch — and all three produce a green tick for a job that
+          # checked nothing. Exit 5 (pytest collected nothing) already fails
+          # the step on its own.
+          if grep -qE "[0-9]+ skipped" smoke.log; then
+            echo "::error::a smoke test skipped — the dataset cache or the" \
+                 "TRUECELL_TUTORIAL_SMOKE gate is not working, so this job" \
+                 "verified nothing"
+            exit 1
+          fi
+
   freshdeps:
     # The interpolation is load-bearing: an explicit `name:` overrides the
     # default matrix suffix, so without it both legs would report under one
