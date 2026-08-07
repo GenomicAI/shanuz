@@ -376,7 +376,7 @@ def _read_feature_matrix(path, features):
     """Read an R feature × dim CSV and align its rows to ``features`` by name."""
     if not Path(path).exists():
         return None
-    df = pd.read_csv(path).set_index("feature")
+    df = pd.read_csv(path, float_precision="round_trip").set_index("feature")
     df.index = [_r_feature_key(i) for i in df.index]
     # Set equality, not just "every Python feature is present": R holding extra
     # features means it selected a different HVG set, which the old one-sided
@@ -513,7 +513,7 @@ def report_concordance(obj, summary, verbose=True) -> dict | None:
         path = FIGURES / name
         if not path.exists():
             return None
-        frame = pd.read_csv(path).set_index("cell")
+        frame = pd.read_csv(path, float_precision="round_trip").set_index("cell")
         check_same_cells(cells, frame, source=f"figures_dimreduc/{name}")
         return frame.reindex(cells)
 
@@ -527,7 +527,7 @@ def report_concordance(obj, summary, verbose=True) -> dict | None:
     # --- JackStraw ---------------------------------------------------------
     pcs_path = FIGURES / "r_jackstraw_pcs.csv"
     if pcs_path.exists():
-        r_pcs = pd.read_csv(pcs_path)
+        r_pcs = pd.read_csv(pcs_path, float_precision="round_trip")
         r_emp = _read_feature_matrix(FIGURES / "r_jackstraw_p.csv",
                                      obj.reductions["pca"].features())
         py_scores = summary["pc_scores"]

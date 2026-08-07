@@ -373,8 +373,8 @@ def report():
     print("=" * 74)
 
     # ---- 1. the CLR transform, which depends on nothing stochastic ----------
-    py = pd.read_csv(FIGURES / "py_adt_clr.csv").set_index("protein")
-    r = pd.read_csv(FIGURES / "r_adt_clr.csv").set_index("protein")
+    py = pd.read_csv(FIGURES / "py_adt_clr.csv", float_precision="round_trip").set_index("protein")
+    r = pd.read_csv(FIGURES / "r_adt_clr.csv", float_precision="round_trip").set_index("protein")
     prot = py.index.intersection(r.index)
     print(f"\n  ADT CLR normalisation — {len(prot)} proteins, no RNG anywhere")
     print(f"  {'statistic':<12}{'max|diff|':>14}")
@@ -384,8 +384,8 @@ def report():
         print(f"  {col:<12}{d:>14.3e}")
 
     # ---- 2. the WNN weights, per cell, on shared barcodes -------------------
-    pw = pd.read_csv(FIGURES / "py_cell_weights.csv").set_index("cell")
-    rw = pd.read_csv(FIGURES / "r_cell_weights.csv").set_index("cell")
+    pw = pd.read_csv(FIGURES / "py_cell_weights.csv", float_precision="round_trip").set_index("cell")
+    rw = pd.read_csv(FIGURES / "r_cell_weights.csv", float_precision="round_trip").set_index("cell")
     cells = pw.index.intersection(rw.index)
     pw, rw = pw.loc[cells], rw.loc[cells]
     a, b = pw["ADT.weight"].to_numpy(), rw["ADT.weight"].to_numpy()

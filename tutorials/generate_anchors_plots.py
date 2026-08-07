@@ -28,8 +28,8 @@ BLUE, ORANGE, GREY = "#3b6ea5", "#d1873b", "#8a8a8a"
 
 
 def _load(reduction):
-    r = pd.read_csv(FIG / f"r_anchors_{reduction}.csv")
-    p = pd.read_csv(FIG / f"py_anchors_{reduction}.csv")
+    r = pd.read_csv(FIG / f"r_anchors_{reduction}.csv", float_precision="round_trip")
+    p = pd.read_csv(FIG / f"py_anchors_{reduction}.csv", float_precision="round_trip")
     return r, p
 
 

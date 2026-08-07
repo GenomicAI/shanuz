@@ -190,8 +190,8 @@ def main(data_dir=None):
     mat1, mat2, feats = _group_matrices(obj, groups)
     before = pd.Series(_old_formula(mat1, mat2), index=feats)
 
-    py = pd.read_csv(FIGURES / "py_wilcox.csv", index_col=0)
-    r = pd.read_csv(r_wilcox, index_col=0)
+    py = pd.read_csv(FIGURES / "py_wilcox.csv", index_col=0, float_precision="round_trip")
+    r = pd.read_csv(r_wilcox, index_col=0, float_precision="round_trip")
     after = py["avg_log2FC"]
     r_fc = r["avg_log2FC"]
 
@@ -200,8 +200,8 @@ def main(data_dir=None):
 
     rows = []
     for test in TEST_MAP:
-        p = pd.read_csv(FIGURES / f"py_{test}.csv", index_col=0)
-        rr = pd.read_csv(FIGURES / f"r_{test.lower()}.csv", index_col=0)
+        p = pd.read_csv(FIGURES / f"py_{test}.csv", index_col=0, float_precision="round_trip")
+        rr = pd.read_csv(FIGURES / f"r_{test.lower()}.csv", index_col=0, float_precision="round_trip")
         rows.append({"test": test, **compare(p, rr, test)})
     table = pd.DataFrame(rows).set_index("test")
     _save(test_concordance(table), "py_03_test_concordance.png")

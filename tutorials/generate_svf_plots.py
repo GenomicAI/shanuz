@@ -59,7 +59,7 @@ def _r_moransi():
     """R's Moran's I per gene, from the verify script's anchors, if present."""
     path = FIGURES / "r_moransi.csv"
     if path.exists():
-        return pd.read_csv(path, index_col=0)["observed"]
+        return pd.read_csv(path, index_col=0, float_precision="round_trip")["observed"]
     return None
 
 

@@ -1038,7 +1038,7 @@ on this dataset:
 | PCA (10 dims) | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
 | kNN graph | **52,760 on both** (2,638 × 20) |
 | Clusters | 8 vs 9 — **ARI 0.938**, concordance 0.968 (see Step 11) |
-| Markers, where the clusters hold identical cells | **identical gene sets** (151/151, 242/242), `avg_log2FC` to 4.9e-15 |
+| Markers, where the clusters hold identical cells | **identical gene sets** (151/151, 242/242), `avg_log2FC` to 4.9e-15 and 4.6e-14 respectively |
 
 That last row is the one to read carefully. Two clusters — B cells and
 Platelets — came out with exactly the same membership on both sides, and on

@@ -324,7 +324,7 @@ def _read_r_scores(path, column, cells):
     of ``subset``, and trusting it to match would make every downstream number
     quietly wrong rather than loudly absent.
     """
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, float_precision="round_trip")
     series = frame.set_index(frame.columns[0])[column]
     missing = [c for c in cells if c not in series.index]
     if missing:
@@ -533,10 +533,10 @@ def report_concordance(summary, figures=FIGURES):
 
     comp_path = figures / "r_sketch_composition.csv"
     if comp_path.exists():
-        out["sketch_composition"] = pd.read_csv(comp_path)
+        out["sketch_composition"] = pd.read_csv(comp_path, float_precision="round_trip")
     proj_path = figures / "r_projection.csv"
     if proj_path.exists() and "projected" in summary:
-        frame = pd.read_csv(proj_path).set_index("cell")
+        frame = pd.read_csv(proj_path, float_precision="round_trip").set_index("cell")
         shared = [c for c in cells if c in frame.index]
         position = {c: i for i, c in enumerate(cells)}
         py = np.array([str(summary["projected"][position[c]]) for c in shared])

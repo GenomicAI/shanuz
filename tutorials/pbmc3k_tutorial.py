@@ -522,8 +522,8 @@ def report() -> None:
     print("truecell vs Seurat 5.5.1 — PBMC 3k guided clustering, end to end")
     print("=" * 78)
 
-    pc = pd.read_csv(FIGURES / "py_cell_meta.csv").set_index("cell")
-    rc = pd.read_csv(FIGURES / "r_cell_meta.csv").set_index("cell")
+    pc = pd.read_csv(FIGURES / "py_cell_meta.csv", float_precision="round_trip").set_index("cell")
+    rc = pd.read_csv(FIGURES / "r_cell_meta.csv", float_precision="round_trip").set_index("cell")
 
     # ---- 1. did QC keep the same cells, with the same metrics? -------------
     only_py = pc.index.difference(rc.index)
@@ -541,8 +541,8 @@ def report() -> None:
         print(f"  {col:<18}{d:>14.3e}")
 
     # ---- 2. the VST statistics and the 2,000 it selected -------------------
-    ph = pd.read_csv(FIGURES / "py_hvg.csv").set_index("gene")
-    rh = pd.read_csv(FIGURES / "r_hvg.csv").set_index("gene")
+    ph = pd.read_csv(FIGURES / "py_hvg.csv", float_precision="round_trip").set_index("gene")
+    rh = pd.read_csv(FIGURES / "r_hvg.csv", float_precision="round_trip").set_index("gene")
     genes = ph.index.intersection(rh.index)
     print(f"\n  Variable features (VST) — {len(genes)} shared genes "
           f"of {len(ph)} / {len(rh)}")
@@ -635,8 +635,8 @@ def report() -> None:
         print(f"    {ct:<16}{py_ct.get(ct, 0):>9}{r_ct.get(ct, 0):>9}")
 
     # ---- 6. markers, on the matched clusters -------------------------------
-    pm = pd.read_csv(FIGURES / "py_markers.csv")
-    rm = pd.read_csv(FIGURES / "r_markers.csv")
+    pm = pd.read_csv(FIGURES / "py_markers.csv", float_precision="round_trip")
+    rm = pd.read_csv(FIGURES / "r_markers.csv", float_precision="round_trip")
     pm["cluster"] = pm["cluster"].astype(str)
     rm["cluster"] = rm["cluster"].astype(str)
     print(f"\n  Markers — {len(pm)} rows truecell, {len(rm)} R "

@@ -383,7 +383,7 @@ from the same 10x bytes.
 
 | Stage | truecell vs Seurat 5.5.1 |
 |---|---|
-| QC | **the same 7,475 barcodes**; nCount and nFeature exact, percent.mt to 5.8e-15 |
+| QC | **the same 7,475 barcodes**; nCount and nFeature exact, percent.mt to 5.3e-15 |
 | Normalized data | total to 8.2e-13 relative · kNN graph **149,500 on both** |
 | Stage 1 clusters | 13 vs 12 · **ARI 0.977** · 7,341/7,475 cells agree |
 | Broad lineage, per cell | **0.9858** |

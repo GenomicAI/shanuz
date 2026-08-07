@@ -20,6 +20,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Every tutorial CSV read now round-trips float64.** pandas' default CSV
+  *reader* is not correctly rounded — it misparses about a third of random
+  doubles by an ULP. `to_csv` was never at fault; it already writes the shortest
+  round-trippable form. So a tutorial that wrote a value, handed it to R, read
+  both back and reported "these agree exactly" was partly measuring the parser.
+
+  37 call sites across 16 tutorials now pass `float_precision="round_trip"`.
+  Three reads are exempt with stated reasons (cell labels, a row count, and the
+  DE hex reader, which parses via `float.fromhex`).
+
+  Six reported figures moved, all at the ULP level and most of them downward —
+  PBMC 8k's `percent.mt` 5.773e-15 → 5.329e-15, PBMC 3k's VST mean relative
+  difference 1.548e-14 → 4.973e-15, SCTransform's `detection_rate` 5.6e-16 →
+  5.0e-16. **No declared band moved and all nine `--report` runs still exit
+  zero.** The affected vignettes carry the measured values.
+
+  `tests/test_tutorial_csv_precision.py` pins the convention so the next
+  `pd.read_csv` cannot quietly reintroduce it, and checks that the three
+  exemptions still match something rather than silently widening the lint.
+
+  Not fixed here, because it is not lintable from Python: R's `write.csv`
+  renders 15 significant digits and raising it does not help — R's own
+  `sprintf("%.17g")` is not correctly rounded either. Where bit-identity is the
+  actual question the R script writes a C99 hex-float side table, as
+  `pbmc3k_de_verify.R` does.
+
+- **Corrected a marker-agreement bound in the PBMC 3k docs.** They stated
+  `avg_log2FC` agreement "to 4.9e-15" for both clusters whose cells match
+  exactly. That covers the 151-gene cluster (4.88e-15); the 242-gene one is
+  **4.62e-14**, an order of magnitude larger. Both figures are now given. This
+  predates the reader fix — the bound was simply the smaller of the two.
+
 - **`aggregate_expression(return_object=True)` left raw sums in the `data`
   layer.** Seurat's `AggregateExpression(return.seurat = TRUE)` runs
   `NormalizeData` over the pseudobulk, so its `data` holds

@@ -363,7 +363,7 @@ def report_concordance(query, predictions, r_calls_path=None, verbose=True) -> d
                   "`Rscript tutorials/panc8_reference_mapping_verify.R` first.")
         return None
 
-    r = pd.read_csv(path).set_index("cell")
+    r = pd.read_csv(path, float_precision="round_trip").set_index("cell")
     cells = query.cell_names()
     r = r.reindex(cells)
     truth = np.asarray(query.meta_data[CELLTYPE]).astype(str)

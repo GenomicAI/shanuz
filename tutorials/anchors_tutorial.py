@@ -172,8 +172,8 @@ def compare(reduction):
     r_path = FIG / f"r_anchors_{reduction}.csv"
     if not r_path.exists():
         return None
-    r = pd.read_csv(r_path)
-    p = pd.read_csv(FIG / f"py_anchors_{reduction}.csv")
+    r = pd.read_csv(r_path, float_precision="round_trip")
+    p = pd.read_csv(FIG / f"py_anchors_{reduction}.csv", float_precision="round_trip")
     r_pairs = set(zip(r["cell1"], r["cell2"]))
     p_pairs = set(zip(p["cell1"], p["cell2"]))
     shared = r_pairs & p_pairs
