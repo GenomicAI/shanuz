@@ -121,6 +121,8 @@ tutorials/figures/py_hvg.csv
 tutorials/figures/r_hvg.csv
 tutorials/figures/py_markers.csv
 tutorials/figures/r_markers.csv
+tutorials/figures/py_resolutions.csv
+tutorials/figures/r_resolutions.csv
 tutorials/figures/py_anchors.json
 tutorials/figures/r_anchors.json
 # PBMC 8k subclustering tutorial — global + T/NK compartment handoff

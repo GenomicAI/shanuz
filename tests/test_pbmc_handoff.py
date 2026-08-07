@@ -216,3 +216,64 @@ def test_numeric_anchor_names_agree_across_the_two_sides():
             f"{module} and {script} disagree about the anchor set: "
             f"only python {sorted(py_keys - r_keys)}, only R {sorted(r_keys - py_keys)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# The resolution sweep
+# ---------------------------------------------------------------------------
+
+def test_the_sweep_ends_on_the_resolution_everything_downstream_uses():
+    """0.5 must be last in RESOLUTION_SWEEP.
+
+    `find_clusters` leaves the object on the **last** resolution given, and UMAP,
+    the markers, the cell-type annotation and `py_cell_meta.csv` are all written
+    against 0.5. Reordering the list silently re-points every one of them, and
+    nothing downstream would raise — the tutorial would simply start describing a
+    different clustering while still calling it resolution 0.5.
+    """
+    from tutorials.pbmc3k_tutorial import RESOLUTION_SWEEP
+
+    assert RESOLUTION_SWEEP[-1] == 0.5
+
+
+def test_both_languages_sweep_the_same_resolutions():
+    """The list lives in two files; a drift between them is invisible.
+
+    If R swept {0.4, 0.7, 0.5} and Python {0.4, 0.8, 0.5}, the comparison would
+    simply skip the columns that did not line up and report the ones that did —
+    fewer rows, no error, no sign that anything was missed.
+    """
+    import re
+
+    from tutorials.pbmc3k_tutorial import RESOLUTION_SWEEP
+
+    r_text = (TUTORIALS / "pbmc3k_verify.R").read_text()
+    call = re.search(r"FindClusters\(pbmc,\s*resolution\s*=\s*c\(([^)]*)\)", r_text)
+    assert call, "pbmc3k_verify.R no longer calls FindClusters with a vector"
+    r_values = [float(v) for v in call.group(1).split(",")]
+
+    assert r_values == RESOLUTION_SWEEP, (
+        f"R sweeps {r_values}, Python sweeps {RESOLUTION_SWEEP}; the comparison "
+        "would silently score only the overlap")
+
+
+def test_every_swept_resolution_has_a_declared_band():
+    """A resolution scored with no band is one that can drift unnoticed.
+
+    Which is not hypothetical here: this tutorial's ARI at 0.5 was documented as
+    0.938 across six files while measuring 0.899, because there was no band on it.
+    """
+    from tutorials.pbmc3k_tutorial import CLUSTER_BANDS, RESOLUTION_SWEEP
+
+    for res in RESOLUTION_SWEEP:
+        assert f"ARI at {res}" in CLUSTER_BANDS, f"resolution {res} has no band"
+
+
+def test_the_bands_are_not_vacuous():
+    """A band spanning [0, 1] would pass anything and prove nothing."""
+    from tutorials.pbmc3k_tutorial import CLUSTER_BANDS
+
+    for name, (low, high) in CLUSTER_BANDS.items():
+        assert high > low, f"{name}: empty band"
+        assert high - low <= 0.20, f"{name}: band too wide to catch a regression"
+        assert 0.0 <= low and high <= 1.0, f"{name}: ARI is bounded by 1"

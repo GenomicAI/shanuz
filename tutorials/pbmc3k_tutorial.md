@@ -544,11 +544,44 @@ find_clusters(
 
 > Both use Louvain community detection via `igraph`. At `resolution = 0.5`
 > Seurat returns **9** clusters here and truecell **8** — the two runs agree
-> about 2,554 of the 2,638 cells (**ARI 0.938**), and the single cluster
+> about 2,519 of the 2,638 cells (**ARI 0.899**), and the single cluster
 > Seurat has and truecell does not is a 32-cell dendritic-cell population whose
 > cells land, **all 32 of them**, in truecell's CD14+ Mono cluster. DCs are
 > monocyte-lineage, so this is one borderline split at this resolution, not a
 > scattered disagreement.
+
+### The whole sweep, not one point on it
+
+Picking a resolution means running a few and comparing them, so a fidelity claim
+pinned to a single setting says less than it looks like it does. The tutorial
+runs `find_clusters(pbmc, resolution=[0.4, 0.8, 1.2, 0.5])` — Seurat's own
+vector idiom — and scores every one against R:
+
+| resolution | truecell | Seurat | ARI | concordance |
+|---:|---:|---:|---:|---:|
+| 0.4 | 9 | 9 | 0.8958 | 0.9602 |
+| **0.5** | **8** | **9** | **0.8987** | **0.9549** |
+| 0.8 | 11 | 11 | 0.8264 | 0.9174 |
+| 1.2 | 12 | 12 | 0.7995 | 0.8647 |
+
+Two things worth reading off this. **The cluster count matches exactly at 0.4,
+0.8 and 1.2** — the 8-vs-9 split described above is specific to resolution 0.5,
+not a standing property of the port. And **agreement falls as resolution rises**
+(0.90 → 0.83 → 0.80), which is what you would expect: finer partitions put more
+boundaries in play, and each is another chance for the two Louvain runs to land
+in different local optima.
+
+0.5 is given **last** on purpose. Seurat leaves the object on the last
+resolution in the sequence, so every step below — UMAP, markers, annotation, the
+handoff — sees exactly the partition it saw before this sweep existed. The four
+outputs this tutorial writes are byte-identical to what it produced without it.
+
+Each ARI now carries a **declared band** (`CLUSTER_BANDS`), for a reason: this
+file documented ARI **0.938** at resolution 0.5 while measuring 0.899, across six
+documents. The number had drifted — most likely with the graph fixes in #67–#71,
+which moved cells between clusters — and with no band on it, nothing failed.
+That is the same drift the DE tutorial's `deseq2 top50` band *did* catch at the
+time (25 → 22).
 >
 > Where it comes from is traceable: the two runs keep the **same 2,638
 > barcodes** and agree on the per-gene VST means to 4.8e-14 and observed
@@ -1037,7 +1070,7 @@ on this dataset:
 | Variable features | **1,998 of 2,000 shared**, rank Spearman 0.9999 |
 | PCA (10 dims) | matched \|r\| mean **0.9988**, min 0.9946, no reordering |
 | kNN graph | **52,760 on both** (2,638 × 20) |
-| Clusters | 8 vs 9 — **ARI 0.938**, concordance 0.968 (see Step 11) |
+| Clusters | 8 vs 9 — **ARI 0.899**, concordance 0.955 (see Step 11) |
 | Markers, where the clusters hold identical cells | **identical gene sets** (151/151, 242/242), `avg_log2FC` to 4.9e-15 and 4.6e-14 respectively |
 
 That last row is the one to read carefully. Two clusters — B cells and
