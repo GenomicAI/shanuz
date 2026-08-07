@@ -20,6 +20,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The annotated PBMC 3k UMAP captioned the platelet cluster "DC".** Shipped in
+  1.0.0. `tutorials/generate_plots.py` carried Seurat's nine `new.cluster.ids`
+  while this pipeline resolves eight — DC merges into CD14+ Mono at resolution
+  0.5 — and `rename_idents` is positional, so every label from position 7 on
+  slid by one. The 14-cell platelet cluster (PPBP 5.85, FCER1A 0.00) was
+  labelled DC, and "Platelet" was never applied to anything.
+
+  What makes this one worth reading twice: **the rest of the repository already
+  had it right.** `pbmc3k_tutorial.md` prints the corrected eight-entry map
+  directly beside the figure drawn from the stale one, and `tutorials/README.md`
+  states that all 32 DC cells land in CD14+ Mono. One file lagged, and it was
+  the file that draws the pictures. Seven figures are regenerated here — the
+  label set also changes the alphabetical palette assignment, so the two
+  cluster-coloured panels move too. `10_marker_heatmap.png` correctly does not:
+  it restores cluster numbers before drawing.
+
+  The guard test existed and was correct. It never ran: `test_tutorial_smoke.py`
+  is opt-in and excluded from CI by design, so nothing failed. It now also
+  asserts that the map's keys are exactly the cluster ids produced, which
+  catches a length mismatch directly instead of inferring it from a marker
+  landing in the wrong place — the old assertion reported this defect as
+  "FCER1A is highest in CD14+ Mono", which describes the clustering rather than
+  the labelling and reads like a false alarm.
+
 - **The PBMC 3k guided tutorial documented a clustering ARI of 0.938 while
   measuring 0.899**, across six files (`tutorials/README.md` ×2,
   `pbmc3k_tutorial.md` ×2, `docs/fidelity.md`, `docs/quickstart.md`). The
