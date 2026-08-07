@@ -349,10 +349,25 @@ def report_concordance(py_anchors=None, r_anchors=None):
         print(f"\n  variable features selected out of core: "
               f"{overlap}/{len(r_hvg)} shared with Seurat")
 
+    def _cell(value, width: int = 26) -> str:
+        """One value for the table below, never cut mid-number."""
+        # A 1-element list is how the R side carries a scalar; unwrap it so the
+        # number gets the whole column instead of spending two characters on
+        # brackets, which is what pushed these past the old 22-char slice.
+        if isinstance(value, (list, tuple)) and len(value) == 1:
+            value = value[0]
+        text = repr(value) if isinstance(value, float) else str(value)
+        return text if len(text) <= width else text[:width - 1] + "…"
+
     print(f"\n{'-' * 74}\nReported, not matched — the two designs differ here on "
           f"purpose\n{'-' * 74}")
+    # Values are elided with an ellipsis rather than cut at a fixed width. Once
+    # the R reference started carrying full float64 precision, a hard slice at 22
+    # characters was cutting "1.0153110547861388e-06" to "…e-0" — dropping the
+    # exponent's digit and turning 1e-06 into something a reader would misread as
+    # 1e-0. A number is either shown whole or visibly abbreviated.
     for name, py, r in reported:
-        print(f"  {name:<38} truecell {str(py)[:22]:<24} Seurat {str(r)[:22]}")
+        print(f"  {name:<38} truecell {_cell(py):<26} Seurat {_cell(r)}")
     return matched, differed, reported, overlap
 
 

@@ -40,9 +40,15 @@ STORE <- file.path(FIG, "bpcells_store")
 
 HEAD <- 20L
 anchors <- list()
-# No rounding, and `digits = NA` on write_json below: at 10 decimal places a
+# No rounding, and `digits = 22` on write_json below: at 10 decimal places a
 # mean of 0.0034 carries a 3e-8 relative floor, which is larger than several of
 # the differences under test and would be mistaken for one.
+#
+# This said `digits = NA` and the reasoning above was right about the *problem*
+# and wrong about the *fix*. NA is not "max precision": jsonlite's `digits`
+# counts decimal places, and NA round-trips fewer doubles than an explicit 17 —
+# on a 2,000-value spread of realistic magnitudes it loses about half of them,
+# against 0 for 17 or 22. Measured, not assumed.
 add <- function(name, value) anchors[[name]] <<- I(as.numeric(value))
 addc <- function(name, value) anchors[[name]] <<- I(as.character(value))
 
@@ -185,6 +191,6 @@ add("markers.n_genes", nrow(mk))
 write.csv(h_bp, file.path(FIG, "r_hvf_info.csv"))
 writeLines(VariableFeatures(o_bp), file.path(FIG, "r_variable_features.txt"))
 jsonlite::write_json(anchors, file.path(FIG, "r_anchors.json"),
-                     auto_unbox = TRUE, digits = NA, pretty = TRUE)
+                     auto_unbox = TRUE, digits = 22, pretty = TRUE)
 cat("\nWrote", file.path(FIG, "r_anchors.json"), "\n")
 cat("Compare with: python tutorials/lazy_bpcells_tutorial.py --report\n")

@@ -20,6 +20,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The R verify scripts now serialize anchors at full float64 precision.**
+  Four scripts wrote their JSON references at `digits = NA`, `12` or `15`, each
+  of which truncates. Measured against R Seurat 5.5.1 on a 2,000-value spread of
+  realistic magnitudes: `NA` and `12` lose about half the values, `15` loses
+  ~12%, and **`17` and `22` are exact**. All four now use `22`, matching
+  `visium_verify.R`, which had already worked this out.
+
+  Two things about jsonlite's `digits` are worth stating because both are
+  counter-intuitive and both were assumed wrong somewhere in this repo:
+  it counts **decimal places, not significant digits** — so whether a setting is
+  lossy depends on the *magnitude* of the value — and **`NA` is not "max
+  precision"**; it round-trips fewer doubles than an explicit `17`.
+
+  What actually moved: the out-of-core reference gained precision on **203 of
+  309** values (`1.63587331771851` → `1.6358733177185059`), Xenium spatial on
+  **37 of 60** (`24.073884121202` → `24.073884121202223`), and Xenium SVF on 4
+  of 81 Moran's I values. The object-model reference moved on **0 of 160**,
+  because it already rounds every float to 6 dp on both sides — `NA` was losing
+  nothing there, and is changed only so the next unrounded anchor does not
+  inherit a trap.
+
+  **No comparison outcome changed**: 91/91 object-model anchors, all Xenium
+  deterministic anchors, and every out-of-core and SVF anchor still match, now
+  against R's true values rather than truncated ones.
+
+- **The out-of-core report no longer cuts numbers mid-digit.** Once the R
+  reference carried full precision, a hard 22-character slice rendered
+  `1.0153110547861388e-06` as `1.0153110547861388e-0`, dropping the exponent's
+  last digit — a reader would take 1e-06 for 1e-0. Values are now shown whole or
+  elided with an ellipsis, and a 1-element list from the R side is unwrapped so
+  the number gets the column instead of the brackets.
+
 - **Every tutorial CSV read now round-trips float64.** pandas' default CSV
   *reader* is not correctly rounded — it misparses about a third of random
   doubles by an ULP. `to_csv` was never at fault; it already writes the shortest
