@@ -20,6 +20,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`find_clusters` accepts several resolutions, and writes the per-resolution
+  column Seurat writes.** `FindClusters(obj, resolution = c(0.4, 0.8, 1.2))` is
+  the standard idiom for choosing a resolution — run a few, compare, then pick —
+  and it had no Truecell equivalent. `find_clusters(obj, resolution=[0.4, 0.8,
+  1.2])` now runs each in turn.
+
+  The larger fix is underneath it and applies at the default settings: Truecell
+  wrote **only** `seurat_clusters`, never the `{graph}_res.{resolution}` column,
+  so a ported script reading `obj[["RNA_snn_res.0.5"]]` raised `KeyError`. That
+  column is now written for a single resolution too.
+
+  Three conventions were pinned against Seurat 5.5.1 rather than assumed, and
+  one of them is a trap. The column label is R's number formatting, not
+  Python's: `str(1.0)` is `"1.0"` where R's `as.character(1.0)` is `"1"`, so a
+  naive implementation names the column `RNA_snn_res.1.0` and the ported script
+  still fails. `_res_label` reproduces R's rule — render fixed and scientific,
+  keep the shorter, ties to fixed — and is checked against R on 21 values from
+  1e-7 to 1234567. The object is left on the **last** resolution given, not the
+  largest (`resolution=[1.2, 0.8, 0.4]` ends on 0.4). And each resolution is
+  clustered from the same seed rather than a running stream, so a partition does
+  not depend on what preceded it or on the order asked for.
+
+  `cluster_name` is supported, matching Seurat's `cluster.name`.
+
 - **`split_by` on `dim_plot`, `feature_plot` and `vln_plot`.** Seurat uses three
   *different* mechanisms for this, which is the part worth getting right; each
   was probed against Seurat 5.5.1 rather than assumed.
