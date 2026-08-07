@@ -149,7 +149,13 @@ write.csv(svf, file.path(FIG, "r_moransi.csv"))
 
 anchors <- list(container = container, toy = toy, moransi = moransi)
 out <- file.path(FIG, "r_anchors.json")
-write(toJSON(anchors, auto_unbox = TRUE, digits = 15, pretty = TRUE), out)
+# Precision: `digits = 22`, not NA / 12 / 15. jsonlite's `digits` counts
+# *decimal places*, so the setting that matters depends on magnitude, and NA is
+# not "max precision" — it round-trips fewer doubles than an explicit 17. On a
+# 2,000-value spread of realistic magnitudes: NA and 12 lose about half, 15
+# loses ~12%, and 17 and 22 are exact. 22 is used here for the same reason
+# visium_verify.R uses it.
+write(toJSON(anchors, auto_unbox = TRUE, digits = 22, pretty = TRUE), out)
 cat("Wrote", out, "\n")
 cat(sprintf("  top %d: %s\n", TOP_N, paste(moransi$top_genes, collapse = ", ")))
 cat(sprintf("  I range: %.4f .. %.4f\n", moransi$i_min, moransi$i_max))

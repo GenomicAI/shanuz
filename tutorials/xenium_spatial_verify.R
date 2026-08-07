@@ -182,5 +182,5 @@ anchors <- list(
   composition_chisq_p = chisq_p, composition = comp_json,
   n_clusters = n_clusters, n_niches = length(unique(obj$niches)))
 write_json(anchors, file.path(FIG, "r_reference.json"),
-           auto_unbox = TRUE, pretty = TRUE, digits = 12)
+           auto_unbox = TRUE, pretty = TRUE, digits = 22)
 cat("\nwrote", file.path(FIG, "r_reference.json"), "\n")

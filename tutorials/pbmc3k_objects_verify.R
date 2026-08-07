@@ -255,6 +255,15 @@ anchors$join_all_layers <- tryCatch({
 # ---------------------------------------------------------------------------
 dir.create(FIGURES, showWarnings = FALSE, recursive = TRUE)
 out <- file.path(FIGURES, "r_anchors.json")
-write(toJSON(anchors, auto_unbox = TRUE, digits = NA, null = "null"), out)
+# Precision: `digits = 22`, not NA / 12 / 15. jsonlite's `digits` counts
+# *decimal places*, so the setting that matters depends on magnitude, and NA is
+# not "max precision" — it round-trips fewer doubles than an explicit 17. On a
+# 2,000-value spread of realistic magnitudes: NA and 12 lose about half, 15
+# loses ~12%, and 17 and 22 are exact. 22 is used here for the same reason
+# visium_verify.R uses it.
+# Every float here is already rounded to 6 dp on both sides, so NA was not
+# actually losing anything today. Changed anyway: NA is a trap for the next
+# anchor added without rounding, and it costs nothing to close.
+write(toJSON(anchors, auto_unbox = TRUE, digits = 22, null = "null"), out)
 cat("wrote", out, "\n")
 cat("commands logged by Seurat:", paste(names(obj@commands), collapse = ", "), "\n")
