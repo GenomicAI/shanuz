@@ -1072,9 +1072,11 @@ regime. Don't "simplify" them.
     excluded from CI. A correct assertion nobody runs is not a guard. It is now
     paired with `test_cell_type_map_covers_exactly_the_clusters_produced`, and
     the gate itself is closed for this dataset: the `tutorials` CI job caches
-    PBMC 3k and runs every pbmc3k smoke test on each pull request, treating a
-    *skip* as a failure so it cannot go green having checked nothing. The other
-    datasets (~200 MB) stay developer-run, so
+    PBMC 3k and runs nine of its eleven smoke tests on each pull request,
+    treating a *skip* as a failure so it cannot go green having checked nothing.
+    `lazy_bpcells` and `pbmc3k_de` are held out for runtime (65% of it) and are
+    covered only by the full opt-in run. The other datasets (~200 MB) stay
+    developer-run, so
     `TRUECELL_TUTORIAL_SMOKE=1 pytest tests/test_tutorial_smoke.py` before a
     release is still the rule. `dot_plot` — the last plotting export with no tutorial
     coverage — was folded into the same gallery, and drawing it is what exposed

@@ -155,9 +155,11 @@ The second is **opt-in rather than skip-when-missing**, so a skip always means
 nobody asked, never that it passed. Run it before cutting a release — a green
 unit suite says nothing about whether the tutorials still work end to end.
 
-The `tutorials` CI job covers the **PBMC 3k slice only** (11 tests, dataset
-cached, a skip counts as a failure). Everything needing one of the other eight
-datasets — ~200 MB in total — still runs nowhere but a developer's machine, so
+The `tutorials` CI job covers **part of the PBMC 3k slice** (9 of its 11 tests,
+dataset cached, a skip counts as a failure). `lazy_bpcells` and `pbmc3k_de` are
+held out for runtime, so out-of-core and the DE tutorial are verified *only* by
+the command above. Everything needing one of the other eight datasets — ~200 MB
+in total — still runs nowhere but a developer's machine, so
 the pre-release run above is not optional. The rule exists because it was
 skipped: 1.0.0 shipped with the platelet cluster captioned "DC" in the pbmc3k
 headline figure, under a guard that was correct and had never executed.

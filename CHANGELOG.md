@@ -21,11 +21,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **CI runs the PBMC 3k tutorials against real data.** A new `tutorials` job
-  caches the 28 MB dataset and runs the eleven smoke tests that need only it —
-  six tutorial scripts end to end, plus the marker table, the object-model round
-  trip, the dim-reduc extras and both cell-type-map guards. Until now
-  `test_tutorial_smoke.py` ran nowhere but a developer's machine, and the entry
-  above is what that cost.
+  caches the 28 MB dataset and runs nine smoke tests against it — four tutorial
+  scripts end to end (guided, SCTransform, dim-reduc, objects), plus the marker
+  table, the object-model round trip, the dim-reduc extras and both
+  cell-type-map guards. Until now `test_tutorial_smoke.py` ran nowhere but a
+  developer's machine, and the entry above is what that cost.
+
+  `lazy_bpcells` and `pbmc3k_de` are deliberately **not** in it. Both pass and
+  both have their data cached; they were 65% of the runtime (136s and 102s of
+  364s locally, and the first CI run measured **16m33s** for all eleven), and
+  neither draws a labelled figure. That is a cost trim rather than a coverage
+  judgement, and it is the weaker half of this change: the full opt-in suite is
+  the only thing that runs them, which is why the pre-release run stays a
+  requirement.
 
   Two details are the point rather than decoration. **A skip fails the job:**
   every selected test needs only the cached dataset, so a skip can only mean a
