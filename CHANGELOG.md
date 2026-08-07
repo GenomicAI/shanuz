@@ -318,6 +318,53 @@ wrong layer with mislabelled features.
 
   `cluster_name` is supported, matching Seurat's `cluster.name`.
 
+### Performance
+
+- **`find_markers` filters before it densifies.** It built a dense
+  (all genes × cells) float64 array per group and only then computed the
+  `min_pct` and `logfc_threshold` masks that reduce it to the genes actually
+  tested. Both masks are computable on the sparse matrix — `expm1(0) == 0`, so
+  the fold-change transform preserves the sparsity pattern and applies to the
+  stored values alone — so they now run first and only the survivors are
+  densified. On PBMC 3k that is ~1.6k rows of 13.7k.
+
+  `find_all_markers` calls this once per cluster, so the saving grows with
+  cluster count as well as with *n*:
+
+  | dataset (clusters) | time | peak memory |
+  |---|---|---|
+  | ifnb (15) | 25.37s → **8.03s** | 9420 MB → **3580 MB** |
+  | pbmc8k (9) | 12.71s → **6.32s** | 9253 MB → **2406 MB** |
+  | thp1 (7) | 45.52s → **23.87s** | 10620 MB → 9428 MB |
+  | pbmc3k (8) | 2.36s → **1.54s** | |
+
+  The marker tables are **byte-identical** before and after across all eight
+  tests on PBMC 3k, and all 76 step anchors match across the benchmark suite.
+
+- **A cross-language benchmark suite** — `tutorials/benchmark/`, reported in
+  [`PERFORMANCE.md`](tutorials/benchmark/PERFORMANCE.md). The tutorials
+  established that Truecell and Seurat agree; nothing measured what each answer
+  costs. Eight benches — the standard workflow on four datasets from 2.7k to
+  20.7k cells, SCTransform, integration, the DE suite, Moran's I and a pure-BLAS
+  control — mirrored step for step in both languages.
+
+  Time is measured inside each process and memory from outside: R's `gc()` and
+  Python's `tracemalloc` measure different things and neither sees the other's
+  allocator, so the parent samples the child's process-tree RSS every 50 ms.
+  **Every step reports an anchor**, so the report can show both arms did the same
+  work before comparing how long they took — which is why the Truecell arm runs
+  first and the R arm adopts its cluster assignment. Without that the two sides
+  cluster differently and `find_all_markers` would be timing 9 one-vs-rest tests
+  against 12.
+
+  Truecell is faster in **50 of 68** step comparisons and slower in 17. Read the
+  report rather than that ratio: it loses the standard end-to-end workflow by
+  1.4×, and the machine, the BLAS both stacks link, and the presence of `presto`
+  are all load-bearing — R linked against Accelerate/vecLib is a different
+  measurement from the reference BLAS it ships with.
+
+### Added
+
 - **`split_by` on `dim_plot`, `feature_plot` and `vln_plot`.** Seurat uses three
   *different* mechanisms for this, which is the part worth getting right; each
   was probed against Seurat 5.5.1 rather than assumed.
