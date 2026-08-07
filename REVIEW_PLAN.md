@@ -142,7 +142,7 @@ about.
 **Fix.** Add Spearman ρ and Kendall τ on `avg_log2FC`, plus top-*k* overlap by
 logFC at k = 10/25/50 alongside the existing top-50-by-p.
 
-### T3 — pseudobulk has no R-verified tutorial
+### T3 — pseudobulk has no R-verified tutorial  ◐ RISK CLOSED BY TESTS
 
 `AggregateExpression` appears in **zero** R verify scripts. `aggregate_expression`
 has nine tests in `tests/test_pseudobulk_conserved.py` and every one of them
@@ -153,10 +153,19 @@ verified against a Python-side re-derivation of its own formula, and therefore
 unable to detect a convention mismatch. That is the defect this project's whole
 validation strategy was designed around after §defect.
 
-I did spot-check the convention against R and **the sum-of-counts default
-matches**, so this is a coverage gap rather than a known defect. But `group.by`
-with multiple columns, the `layer` argument, `return.seurat`, and the interaction
-with multiple assays are all unexercised against the reference.
+**It was a defect, not just a coverage gap.** Pinning against R found that
+`return_object=True` left the raw sums in the `data` layer where Seurat writes
+`log1p(sums / colSums × 10000)` — 14 against Seurat's 6.98. Fixed, with
+`normalization_method` / `scale_factor` matching Seurat's arguments. The
+sum-of-counts default and multi-column `group_by` were already right.
+
+Also learned: **Seurat's `AggregateExpression` has no `layer` argument** and
+always sums `counts`. Truecell's is a superset with a matching default — not a
+fidelity break, now documented as deliberate.
+
+`tests/test_pseudobulk_vs_r.py` pins six behaviours against R. The full tutorial
+below is still worth building for the DE half, but the *silent-defect* risk is
+closed.
 
 **Fix.** A paired pseudobulk tutorial (#19), ifnb CTRL-vs-STIM per cell type,
 with declared anchors: the aggregated matrices agree to floating point, then the

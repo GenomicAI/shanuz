@@ -44,6 +44,8 @@ def aggregate_expression(
     features: Optional[list[str]] = None,
     layer: str = "counts",
     return_object: bool = False,
+    normalization_method: str = "LogNormalize",
+    scale_factor: float = 10000.0,
 ):
     """Sum counts within cell groups to form a pseudobulk profile.
 
@@ -57,11 +59,31 @@ def aggregate_expression(
     assays        : assay name(s) to aggregate (default: the active assay).
     features      : restrict to these features (default: all).
     layer         : layer to aggregate (default ``"counts"`` — pseudobulk is
-                    defined on raw counts).
+                    defined on raw counts). Seurat's ``AggregateExpression`` has
+                    no such argument and always sums ``counts``; this is a
+                    superset with a matching default.
     return_object : if True, return a new :class:`Truecell` object with one "cell"
                     per group; if False (default), return a ``pd.DataFrame``
                     (features × groups), or a ``dict`` of them when several
                     assays are requested.
+    normalization_method : how to fill the returned object's ``data`` layer when
+                    ``return_object=True``. ``"LogNormalize"`` (Seurat's default)
+                    or ``None`` to leave ``data`` as the raw sums.
+    scale_factor  : the scale factor for that normalization (Seurat: 10000).
+
+    Notes
+    -----
+    ``return_object=True`` **normalizes**, which is easy to miss and was wrong
+    here until it was checked against R: Seurat's ``return.seurat = TRUE`` runs
+    ``NormalizeData`` over the pseudobulk, so ``data`` holds
+    ``log1p(sums / colSums × 10000)`` and not the sums. Leaving the sums in
+    ``data`` — which is what this did — hands every downstream function that
+    reads that layer un-normalized library-size-confounded values.
+
+    This is the one place ``AggregateExpression`` and ``AverageExpression``
+    diverge on their object output: :func:`average_expression` writes plain
+    ``log1p`` of the averages, with no library-size step. Verified against
+    Seurat 5.5.1 for both.
 
     Returns
     -------
@@ -106,7 +128,14 @@ def aggregate_expression(
         )
 
     if return_object:
-        return _to_truecell(seurat, agg_frames, labels, groups, group_cols)
+        obj = _to_truecell(seurat, agg_frames, labels, groups, group_cols)
+        if normalization_method is not None:
+            from .preprocessing import normalize_data
+            for name in assay_names:
+                normalize_data(obj, assay=name,
+                               normalization_method=normalization_method,
+                               scale_factor=scale_factor)
+        return obj
 
     if len(assay_names) == 1:
         return agg_frames[assay_names[0]]

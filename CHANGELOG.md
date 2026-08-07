@@ -20,6 +20,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`aggregate_expression(return_object=True)` left raw sums in the `data`
+  layer.** Seurat's `AggregateExpression(return.seurat = TRUE)` runs
+  `NormalizeData` over the pseudobulk, so its `data` holds
+  `log1p(sums / colSums × 10000)`. Truecell copied the sums across unchanged,
+  which every downstream function reading that layer would have taken for
+  normalized expression — library-size confounded and off by orders of
+  magnitude (14 where Seurat has 6.98).
+
+  `normalization_method` and `scale_factor` now match Seurat's arguments, with
+  `normalization_method=None` to opt out.
+
+  This is the one place the two group-summary functions genuinely diverge:
+  `average_expression` writes a plain `log1p` of the means with no library-size
+  step, and that was already right. Both verified against Seurat 5.5.1.
+
+  Found by pinning `aggregate_expression` against R for the first time. Its nine
+  existing tests all compared Python to a Python re-derivation of the same
+  formula — the shape of coverage that cannot catch a convention mismatch, and
+  the reason the CLR defect once survived its own unit test.
+
 - **`_get_expression_matrix` returned the wrong layer, and mislabelled the right
   one.** Two defects in one function, both reachable from
   `find_markers(layer=...)`, `aggregate_expression` and `average_expression`.
