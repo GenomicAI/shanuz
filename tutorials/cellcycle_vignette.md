@@ -178,6 +178,43 @@ extremely tightly, and the discrete phase is robust to the residual wobble:
 > (Agreement with Papalexi's *published* phase — a different pipeline — is 0.88,
 > for context.)
 
+### Taking the RNG out, so the algorithm can be checked exactly
+
+The correlations above are the strongest result available *while the control set
+is random* — and that is a real limit, not a formality. A correlation of 0.9995
+cannot separate a faithful port from one whose binning is subtly wrong, because
+binning error and sampling noise land in the same residual.
+
+There is one regime where the randomness disappears. `nbin = 1` puts every gene
+in a single bin, and `ctrl` equal to the pool size then draws that whole bin:
+`sample(n, n)` is a permutation, so the control **set** is forced and only its
+summation order is free. Scored that way, the two tools must produce the same
+number, not a correlated one:
+
+| | max \|Δ\| across 20,729 cells |
+|---|---:|
+| `nbin = 1`, `ctrl` = pool (control set forced) | **6.66e-15** |
+| `ctrl = 8` (bins ≈ 8 genes), two seeds in R alone | 1.8e-01 |
+
+6.66e-15 is floating-point associativity over 18,649 genes — R shows 6.2e-15
+between two of *its own* seeds in this regime, and truecell 3.6e-15. So the
+binning, the control-set selection and the mean subtraction are exact; the
+0.9995 above is the RNG and nothing else.
+
+There is no exact regime in the general case, which is worth stating so nobody
+looks for one: `cut()` produces uneven bins, R errors if `ctrl` exceeds the
+smallest bin's population, and no single `ctrl` both fits the smallest and
+exhausts the largest.
+
+### Three programs in one call, at non-default settings
+
+Everything above runs one program at a time at `nbin = 24, ctrl = 100`. Scoring
+S, G2/M and interferon in a single call at `nbin = 12, ctrl = 40` exercises both
+the multi-program path and settings nothing had used: Pearson 0.9972 / 0.9988 /
+0.9986, with column order preserved. Order is the part worth pinning — programs
+are identified by position alone, so a transposition would leave every
+correlation high and every label wrong.
+
 The scores correlate at Pearson ≥ 0.998 — the algorithm is faithfully ported, and
 the only reason the numbers are not bit-identical is the random control set.
 **96.62 % of cells get the same phase call**, and the ~3.4 % that differ sit right

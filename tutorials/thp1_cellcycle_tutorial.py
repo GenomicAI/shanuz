@@ -102,6 +102,24 @@ IFN_PROGRAM = [
 ]
 IFN_NAME = "IFN.Response"
 
+#: The same interferon program scored in the deterministic regime (``nbin=1``,
+#: ``ctrl`` = the whole pool), where the control set is forced and the two tools
+#: must agree on the number rather than merely correlate.
+EXACT_NAME = "IFN.Exact"
+
+#: Prefix for the three-programs-in-one-call check. `add_module_score` appends a
+#: 1-based index per program, as `AddModuleScore` does, so this yields
+#: ``Multi1`` (S), ``Multi2`` (G2M), ``Multi3`` (IFN) — and the *order* is the
+#: part worth pinning, since nothing but position identifies which is which.
+MULTI_NAME = "Multi"
+
+#: Summation-order slack for the deterministic regime. Two seeds of the same
+#: forced control set differ by 6.2e-15 in R and 3.6e-15 in truecell — floating
+#: point associativity over ~13k genes, not disagreement. Bounded well below the
+#: 1.8e-1 that separates two seeds at ctrl = 8, so a genuine binning defect
+#: cannot hide under it.
+EXACT_TOLERANCE = 1e-11
+
 
 def section(title: str) -> None:
     print(f"\n{'=' * 70}\n{title}\n{'=' * 70}")
@@ -222,6 +240,20 @@ def run_scoring(obj, seed=1):
     cell_cycle_scoring(obj, s_features=s_genes, g2m_features=g2m_genes, seed=seed)
     add_module_score(obj, features={IFN_NAME: ifn_genes}, seed=seed)
 
+    # The same program with the RNG taken out — see the note in the R script.
+    # `nbin=1` puts every gene in one bin and `ctrl=pool` draws all of it, so the
+    # control set is forced and only its summation order is random. That turns a
+    # correlation into an equality: this is the one comparison here that tests
+    # the *algorithm* rather than the algorithm plus two different RNGs.
+    n_features = len(obj.assays["RNA"].features())
+    add_module_score(obj, features={EXACT_NAME: ifn_genes},
+                     nbin=1, ctrl=n_features, seed=seed)
+
+    # Three programs in one call, at non-default nbin/ctrl. Both the multi-program
+    # path and any setting other than (24, 100) were previously unexercised.
+    add_module_score(obj, features=[s_genes, g2m_genes, ifn_genes],
+                     name=MULTI_NAME, nbin=12, ctrl=40, seed=seed)
+
     FIGURES.mkdir(exist_ok=True)
     (FIGURES / "s_genes.txt").write_text("\n".join(s_genes) + "\n")
     (FIGURES / "g2m_genes.txt").write_text("\n".join(g2m_genes) + "\n")
@@ -285,6 +317,35 @@ def report_concordance(obj, r_calls_path=None, verbose=True) -> dict | None:
         "ifn_score": score_correlation(meta[IFN_NAME].to_numpy(), r["R_IFN"].to_numpy()),
     }
 
+    # The deterministic regime, compared as an equality rather than a correlation.
+    if "R_IFN_exact" in r.columns and EXACT_NAME in meta.columns:
+        diff = np.abs(meta[EXACT_NAME].to_numpy() - r["R_IFN_exact"].to_numpy())
+        out["exact"] = {
+            "max_abs_diff": float(np.nanmax(diff)),
+            "within_tolerance": bool(np.nanmax(diff) <= EXACT_TOLERANCE),
+            "n_cells": int(np.isfinite(diff).sum()),
+        }
+
+    # Three programs from one call. Compared per position, because position is
+    # the only thing identifying which program a column holds — a transposition
+    # here would leave every correlation high and every label wrong.
+    multi = [f"{MULTI_NAME}{i}" for i in (1, 2, 3)]
+    if all(c in meta.columns for c in multi) and "R_Multi1" in r.columns:
+        out["multi"] = {
+            col: score_correlation(meta[col].to_numpy(),
+                                   r[f"R_Multi{i}"].to_numpy())
+            for i, col in enumerate(multi, start=1)
+        }
+        # Guard against the transposition the per-position check would otherwise
+        # miss if two programs happened to score alike: each Python column must
+        # correlate with its own R column better than with either other one.
+        out["multi_not_transposed"] = all(
+            out["multi"][multi[i]]["pearson"] >= max(
+                score_correlation(meta[multi[i]].to_numpy(),
+                                  r[f"R_Multi{j + 1}"].to_numpy())["pearson"]
+                for j in range(3) if j != i)
+            for i in range(3))
+
     if verbose:
         section("R-vs-Python concordance (shared counts & gene lists)")
         board = build_scoreboard([
@@ -301,6 +362,23 @@ def report_concordance(obj, r_calls_path=None, verbose=True) -> dict | None:
         print("  pearson/spearman: score agreement — high despite the control-gene")
         print("                    RNG differing between NumPy and R (scores are not")
         print("                    expected to be identical, only to track).")
+
+        if "multi" in out:
+            print(f"\n  Three programs from one call (nbin=12, ctrl=40) — "
+                  f"non-default settings and the multi-program path:")
+            for i, col in enumerate([f"{MULTI_NAME}{k}" for k in (1, 2, 3)], 1):
+                print(f"    {col} (program {i}): pearson "
+                      f"{out['multi'][col]['pearson']:.4f}")
+            print(f"    column order preserved: {out['multi_not_transposed']}")
+
+        if "exact" in out:
+            print(f"\n  With the RNG removed (nbin=1, ctrl=pool — the control set "
+                  f"is forced,\n  so only summation order varies): max |Δ| = "
+                  f"{out['exact']['max_abs_diff']:.3e} over "
+                  f"{out['exact']['n_cells']} cells")
+            print(f"  within {EXACT_TOLERANCE:.0e}: {out['exact']['within_tolerance']}")
+            print("  This is the one line here that tests the algorithm rather than")
+            print("  the algorithm plus two different random number generators.")
     return out
 
 

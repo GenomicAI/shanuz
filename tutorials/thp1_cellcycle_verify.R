@@ -80,6 +80,39 @@ obj <- AddModuleScore(obj, features = list(ifn_genes), name = "IFN.Response",
 # AddModuleScore appends the program index to `name`; a single program -> "...1".
 ifn_col <- if ("IFN.Response1" %in% colnames(obj[[]])) "IFN.Response1" else "IFN.Response"
 
+# ---- 2b. The same function with the RNG taken out of it ----------------------
+#
+# Every comparison above is correlation-based, and has to be: AddModuleScore
+# picks its control genes with `sample()`, R's RNG is not NumPy's, so the two
+# tools cannot produce the same score for the same cell. Pearson 0.998 is a real
+# result but it is the *RNG-limited* one — it cannot distinguish a faithful port
+# from one whose binning is subtly wrong, because binning error and sampling
+# noise both land in the same residual.
+#
+# `nbin = 1` puts every gene in one bin, and `ctrl` equal to the pool size then
+# draws the entire bin. `sample(n, n)` is a permutation, so the control *set* is
+# forced and only its summation order is random. That makes the score
+# deterministic up to floating-point associativity — measured at 6.2e-15 between
+# two seeds here, against 1.8e-1 at ctrl = 8 — and lets the algorithm be compared
+# exactly instead of correlated.
+#
+# ctrl cannot exceed the bin population (R errors), which is why the general case
+# has no exact regime: `cut()` gives uneven bins, so no single ctrl both fits the
+# smallest and exhausts the largest.
+pool_n <- nrow(obj)
+obj <- AddModuleScore(obj, features = list(ifn_genes), name = "IFN.Exact",
+                      nbin = 1, ctrl = pool_n, seed = 1)
+exact_col <- if ("IFN.Exact1" %in% colnames(obj[[]])) "IFN.Exact1" else "IFN.Exact"
+
+# ---- 2c. Several programs in one call, at non-default nbin/ctrl ---------------
+# The defaults (nbin = 24, ctrl = 100) are the only settings any comparison has
+# ever run at, and a multi-program call is a different code path from three
+# single-program ones — Seurat names the columns by position, which is exactly
+# the kind of convention that goes wrong silently.
+multi <- list(readLines(S_TXT), readLines(G2M_TXT), ifn_genes)
+obj <- AddModuleScore(obj, features = multi, name = "Multi",
+                      nbin = 12, ctrl = 40, seed = 1)
+
 # ---- 3. Per-cell calls for the Python concordance report (write first) --------
 calls <- data.frame(
   cell        = colnames(obj),
@@ -87,6 +120,10 @@ calls <- data.frame(
   R_S_Score   = as.numeric(obj$S.Score),
   R_G2M_Score = as.numeric(obj$G2M.Score),
   R_IFN       = as.numeric(obj[[ifn_col]][, 1]),
+  R_IFN_exact = as.numeric(obj[[exact_col]][, 1]),
+  R_Multi1    = as.numeric(obj[["Multi1"]][, 1]),
+  R_Multi2    = as.numeric(obj[["Multi2"]][, 1]),
+  R_Multi3    = as.numeric(obj[["Multi3"]][, 1]),
   stringsAsFactors = FALSE
 )
 write.csv(calls, file.path(FIG, "r_calls.csv"), row.names = FALSE)

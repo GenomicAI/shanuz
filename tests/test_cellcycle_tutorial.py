@@ -188,3 +188,167 @@ def test_report_concordance_absent_returns_none(scored):
     _tut, obj, _summary, tmp = scored
     missing = tmp / "nope.csv"
     assert tut.report_concordance(obj, r_calls_path=missing, verbose=False) is None
+
+
+# ---------------------------------------------------------------------------
+# The deterministic regime and the multi-program call
+# ---------------------------------------------------------------------------
+
+def test_the_deterministic_regime_is_actually_deterministic(scored):
+    """`nbin=1` + `ctrl=pool` must remove the seed from the answer.
+
+    This is the premise the exact comparison rests on: with one bin and a draw
+    that exhausts it, `sample(n, n)` is a permutation, so the control *set* is
+    forced and only its summation order is random. If that stopped being true —
+    a different default, a change to the pool — the exact comparison would
+    quietly become a loose one, and nothing else here would notice.
+    """
+    from truecell import add_module_score
+
+    _tut, obj, _summary, _tmp = scored
+    genes = list(obj.assays["RNA"].features())
+    program = [g for g in tut.IFN_PROGRAM if g in genes][:5]
+    if len(program) < 2:
+        pytest.skip("synthetic fixture carries too few IFN genes")
+
+    seen = []
+    for seed in (1, 4242):
+        add_module_score(obj, features={"Probe": program},
+                         nbin=1, ctrl=len(genes), seed=seed)
+        seen.append(np.asarray(obj.meta_data["Probe"], dtype=float).copy())
+    assert np.max(np.abs(seen[0] - seen[1])) <= tut.EXACT_TOLERANCE
+
+
+def test_the_default_regime_is_not_deterministic(scored):
+    """The control: at default settings the seed *does* move the score.
+
+    Without this, a bug that ignored `seed` entirely would make the test above
+    pass for the wrong reason.
+    """
+    from truecell import add_module_score
+
+    _tut, obj, _summary, _tmp = scored
+    genes = list(obj.assays["RNA"].features())
+    program = [g for g in tut.IFN_PROGRAM if g in genes][:5]
+    if len(program) < 2:
+        pytest.skip("synthetic fixture carries too few IFN genes")
+
+    seen = []
+    for seed in (1, 4242):
+        add_module_score(obj, features={"Probe2": program}, nbin=4, ctrl=3,
+                         seed=seed)
+        seen.append(np.asarray(obj.meta_data["Probe2"], dtype=float).copy())
+    assert np.max(np.abs(seen[0] - seen[1])) > tut.EXACT_TOLERANCE
+
+
+def test_scoring_writes_the_exact_and_multi_columns(scored):
+    _tut, obj, _summary, _tmp = scored
+    assert tut.EXACT_NAME in obj.meta_data.columns
+    for i in (1, 2, 3):
+        assert f"{tut.MULTI_NAME}{i}" in obj.meta_data.columns
+
+
+def test_exact_comparison_flags_a_difference_above_tolerance(scored):
+    """The exact check must be able to fail, not just to pass."""
+    _tut, obj, _summary, tmp = scored
+    meta, cells = obj.meta_data, obj.cell_names()
+    base = dict(cell=cells, R_Phase=np.asarray(meta[tut.PHASE_COL]),
+                R_S_Score=np.asarray(meta[tut.S_COL]),
+                R_G2M_Score=np.asarray(meta[tut.G2M_COL]),
+                R_IFN=np.asarray(meta[tut.IFN_NAME]))
+
+    exact = np.asarray(meta[tut.EXACT_NAME], dtype=float)
+    pd.DataFrame({**base, "R_IFN_exact": exact}).to_csv(tmp / "r_calls.csv",
+                                                        index=False)
+    assert tut.report_concordance(obj, verbose=False)["exact"]["within_tolerance"]
+
+    nudged = exact.copy()
+    nudged[0] += 1e-6            # far above EXACT_TOLERANCE, far below any score
+    pd.DataFrame({**base, "R_IFN_exact": nudged}).to_csv(tmp / "r_calls.csv",
+                                                          index=False)
+    out = tut.report_concordance(obj, verbose=False)
+    assert not out["exact"]["within_tolerance"]
+    assert out["exact"]["max_abs_diff"] == pytest.approx(1e-6, rel=1e-6)
+
+
+def test_transposed_multi_columns_are_detected(scored):
+    """Two programs swapped must be caught.
+
+    A transposition leaves every per-position correlation *high* whenever the
+    programs score similarly, so `pearson > 0.9` on each column proves nothing.
+    What catches it is that each Python column has to match its own R column
+    better than it matches either of the others.
+    """
+    _tut, obj, _summary, tmp = scored
+    meta, cells = obj.meta_data, obj.cell_names()
+    cols = [np.asarray(meta[f"{tut.MULTI_NAME}{i}"], dtype=float) for i in (1, 2, 3)]
+    base = dict(cell=cells, R_Phase=np.asarray(meta[tut.PHASE_COL]),
+                R_S_Score=np.asarray(meta[tut.S_COL]),
+                R_G2M_Score=np.asarray(meta[tut.G2M_COL]),
+                R_IFN=np.asarray(meta[tut.IFN_NAME]),
+                R_IFN_exact=np.asarray(meta[tut.EXACT_NAME], dtype=float))
+
+    pd.DataFrame({**base, "R_Multi1": cols[0], "R_Multi2": cols[1],
+                  "R_Multi3": cols[2]}).to_csv(tmp / "r_calls.csv", index=False)
+    assert tut.report_concordance(obj, verbose=False)["multi_not_transposed"]
+
+    # Programs 1 and 2 swapped on the R side.
+    pd.DataFrame({**base, "R_Multi1": cols[1], "R_Multi2": cols[0],
+                  "R_Multi3": cols[2]}).to_csv(tmp / "r_calls.csv", index=False)
+    assert not tut.report_concordance(obj, verbose=False)["multi_not_transposed"]
+
+
+def test_run_scoring_actually_uses_the_deterministic_settings(scored):
+    """`run_scoring` must compute the EXACT column in the deterministic regime.
+
+    Mutation testing caught this gap: dropping `nbin=1, ctrl=n_features` from
+    `run_scoring` left every other test in this file green, because they all
+    fabricate the R side *from Python's own column* — so a column computed the
+    wrong way still matched itself. The property has to be asserted on the
+    pipeline's output, not on a hand-made call with the right arguments.
+
+    Seed-invariance is the property that *defines* the regime, but it cannot be
+    the assertion here: this fixture carries few enough genes that ctrl=100
+    exhausts every bin at the defaults too, so both columns come out
+    seed-invariant (2.2e-15) and the check would not discriminate. Asserting
+    that the EXACT column differs from a default-settings recomputation does
+    discriminate, because nbin=1 draws a different control set.
+    """
+    from truecell import add_module_score
+
+    _tut, obj, _summary, _tmp = scored
+    tut.run_scoring(obj, seed=1)
+    exact = np.asarray(obj.meta_data[tut.EXACT_NAME], dtype=float).copy()
+
+    genes = set(obj.assays["RNA"].features())
+    program = [g for g in tut.IFN_PROGRAM if g in genes]
+    add_module_score(obj, features={"DfltExact": program}, seed=1)
+    at_defaults = np.asarray(obj.meta_data["DfltExact"], dtype=float)
+
+    assert np.max(np.abs(exact - at_defaults)) > tut.EXACT_TOLERANCE
+
+
+def test_run_scoring_uses_non_default_settings_for_the_multi_call(scored):
+    """The multi call must run at nbin=12/ctrl=40, not at the defaults.
+
+    Also from mutation testing: reverting those arguments changed nothing any
+    test could see. Recomputing the same three programs at the defaults and
+    requiring a difference pins the settings themselves.
+    """
+    from truecell import add_module_score
+
+    _tut, obj, _summary, _tmp = scored
+    tut.run_scoring(obj, seed=1)
+    stored = [np.asarray(obj.meta_data[f"{tut.MULTI_NAME}{i}"], dtype=float).copy()
+              for i in (1, 2, 3)]
+
+    genes = set(obj.assays["RNA"].features())
+    programs = [[g for g in CC_GENES["s_genes"] if g in genes],
+                [g for g in CC_GENES["g2m_genes"] if g in genes],
+                [g for g in tut.IFN_PROGRAM if g in genes]]
+    add_module_score(obj, features=programs, name="Dflt", seed=1)
+    at_defaults = [np.asarray(obj.meta_data[f"Dflt{i}"], dtype=float)
+                   for i in (1, 2, 3)]
+
+    assert any(np.max(np.abs(s - d)) > tut.EXACT_TOLERANCE
+               for s, d in zip(stored, at_defaults))
