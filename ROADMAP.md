@@ -1065,7 +1065,13 @@ regime. Don't "simplify" them.
     LYZ 5.07/CD14 1.51, cluster 3 is MS4A1 2.14), corrected in both files,
     figures regenerated, and guarded by `test_cell_type_map_matches_the_markers`,
     which asserts each label leads on its own discriminative marker rather than
-    trusting the map. `dot_plot` — the last plotting export with no tutorial
+    trusting the map. **That guard did not hold, and the reason is worth
+    recording:** the map broke again a release later — carrying nine entries for
+    eight clusters, so the platelet cluster was captioned "DC" throughout 1.0.0 —
+    and the test caught none of it, because `test_tutorial_smoke.py` is opt-in and
+    excluded from CI. A correct assertion nobody runs is not a guard. It is now
+    paired with `test_cell_type_map_covers_exactly_the_clusters_produced`, but the
+    standing gap is the gate, not the assertion. `dot_plot` — the last plotting export with no tutorial
     coverage — was folded into the same gallery, and drawing it is what exposed
     the mislabelling.
 - **Wave 3 — ✅ complete.**

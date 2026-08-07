@@ -36,6 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cluster-coloured panels move too. `10_marker_heatmap.png` correctly does not:
   it restores cluster numbers before drawing.
 
+  Two prose claims counted the same nine and are corrected here: the caption
+  directly beneath the figure said *"the biological result — 9 identical cell
+  types — is the same"*, and `tutorials/README.md` said the tutorial annotates
+  nine. Both contradicted Step 11 and the fidelity table on the same page. The
+  caption also attributed the differing cluster numbering to Louvain being
+  "non-deterministic by cluster ID"; both tools in fact number clusters by
+  descending size (R: 711, 478, 471, 344, 270, 164, 154, 32, 14 — truecell:
+  692, 515, 458, 344, 301, 159, 155, 14), so the keys differ because the sizes
+  do. R's cluster 7 is the 32-cell DC and its 8 the 14-cell platelets; truecell's
+  7 is those same platelets, which is the whole defect in one line.
+
   The guard test existed and was correct. It never ran: `test_tutorial_smoke.py`
   is opt-in and excluded from CI by design, so nothing failed. It now also
   asserts that the map's keys are exactly the cluster ids produced, which
