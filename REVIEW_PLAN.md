@@ -169,7 +169,7 @@ The tutorial measures implementation concordance on a shared computation. Anyone
 who knows pseudobulk will check this, and getting it wrong costs more than the
 tutorial gains.
 
-### T4 — `add_module_score` is R-verified only through cell-cycle
+### T4 — `add_module_score` is R-verified only through cell-cycle  ◐ PART 1 WAS ALREADY DONE
 
 > *"I breathe and eat gene module scores in my analyses."* (comment 11.3)
 
@@ -202,7 +202,7 @@ Follows P1. Once `find_clusters` takes a sequence, the guided-clustering tutoria
 should show the idiom and compare against R at each resolution, so the fidelity
 claim covers the parameter range users actually scan rather than one point in it.
 
-### T6 — UMAP fidelity framing lives in one vignette
+### T6 — UMAP fidelity framing lives in one vignette  ✅ DONE
 
 > *"UMAP is not mathematically unique, so comparing coordinates may not be so
 > relevant… emphasize that UMAP was evaluated as implementation fidelity only."*
@@ -239,8 +239,8 @@ and it converts an absence into a stated design decision.
 | 1 | ~~**P1** — multi-resolution `find_clusters` + `{graph}_res.{r}` column + `cluster_name`~~ **done** | — | Medium |
 | 2 | ~~**T1 + T2** — adjusted-p and logFC-rank comparison in the DE tutorial~~ **done** | — | Small |
 | 3 | ~~**P2** — `average_expression`, reusing `_row_expm1_sum`~~ **done** | — | Small |
-| 4 | **T6** — UMAP fidelity statement promoted to shared docs | Nothing | Small |
-| 5 | **T4.1** — label the cell-cycle result as a module-score result | Nothing | Trivial |
+| 4 | ~~**T6** — UMAP fidelity statement promoted to shared docs~~ **done** | — | Small |
+| 5 | ~~**T4.1** — label the cell-cycle result as a module-score result~~ **already true in the package** | — | — |
 | 6 | **T5** — resolution-stability coverage in the guided tutorial | 1 | Small |
 | 7 | **T4.2** — arbitrary-program module-score verification | Nothing | Medium |
 | 8 | **T3** — paired pseudobulk tutorial (#19) | 3 (if it uses `average_expression`) | Medium |
