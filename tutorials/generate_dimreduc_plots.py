@@ -58,7 +58,7 @@ def _save(fig, name):
 def _r_pcs():
     """R's per-PC JackStraw reference, if the verify script has run."""
     path = FIGURES / "r_jackstraw_pcs.csv"
-    return pd.read_csv(path) if path.exists() else None
+    return pd.read_csv(path, float_precision="round_trip") if path.exists() else None
 
 
 def jackstraw_scores(summary):

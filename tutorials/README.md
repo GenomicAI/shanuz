@@ -9,7 +9,7 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Truecel
 
 | # | Tutorial | Dataset | Key Concepts | Complexity |
 |---|----------|---------|--------------|-----------|
-| 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers. **Compared end to end**, both sides running their own pipeline: the same 2,638 barcodes survive QC, 1,998/2,000 variable features shared, PCA matched \|r\| **0.9988**, clusters at **ARI 0.938** (8 vs 9 — one 32-cell DC population), and on the two clusters whose cells match exactly the marker tables are **identical gene sets** to 4.9e-15 | Beginner |
+| 1 | [PBMC 3k — Guided Clustering](pbmc3k_tutorial.md) | 3,000 PBMCs · 10x Genomics (2016) | QC · Normalization · HVG/VST · PCA · Louvain · UMAP · Markers. **Compared end to end**, both sides running their own pipeline: the same 2,638 barcodes survive QC, 1,998/2,000 variable features shared, PCA matched \|r\| **0.9988**, clusters at **ARI 0.938** (8 vs 9 — one 32-cell DC population), and on the two clusters whose cells match exactly the marker tables are **identical gene sets** agreeing to 4.6e-14 | Beginner |
 | 2 | [PBMC 8k — Advanced Subclustering](advanced_pbmc8k_subclustering.md) | 8,400 PBMCs · GRCh38 · 10x Genomics | All of Tutorial 1 + subclustering, hierarchical cell-type gating, T/NK annotation. **Both stages compared by barcode**: same 7,475 cells after QC, global clusters at **ARI 0.977**, and the T/NK compartment handed to stage 2 matches at **Jaccard 0.9991** (4,631 of 4,635 cells) — subclusters then at ARI 0.916 and subset labels **98.2%** concordant | Intermediate |
 | 3 | [CBMC CITE-seq — Multimodal](multimodal_citeseq.md) | 8,600 CBMCs · RNA + 13 surface proteins | Multi-assay objects · CLR normalization · Protein feature plots · RNA-protein comparison · WNN joint clustering. **Compared per protein and per cell**: CLR to **4.2e-15**, WNN modality weights at Pearson **0.9847** over 8,617 shared barcodes, cell-type labels **99.29%** concordant, all cluster counts identical. Settled the long-open progenitor question — it was a labelling difference, not a WNN one | Advanced |
 | 4 | [PBMC 3k — SCTransform](sctransform_vignette.md) | 3,000 PBMCs · 10x Genomics (2016) | Regularized NB normalization · Pearson residuals · `vars.to.regress` · 30-PC workflow · SCT-vs-LogNormalize. The **fitted model is compared per gene** against Seurat's `SCTModel` feature attributes — `detection_rate`/`gmean` to machine precision, intercept and theta at **Spearman 1.0000**, the 3,848 non-overdispersed genes exactly the same set, residual variance at 0.9986; both arms now agree on cluster count (12 and 11) | Advanced |
@@ -133,7 +133,7 @@ pipeline from the same 10x bytes; nothing is pinned across them.
 | kNN graph | **52,760 = 2,638 × 20 on both** |
 | Clusters at resolution 0.5 | truecell **8**, Seurat **9** — ARI **0.938**, 2,554/2,638 cells agree |
 | The one cluster Seurat has and truecell does not | its 32 DC cells land, **all 32**, in truecell's CD14+ Mono cluster |
-| Markers on the two clusters whose cells match exactly | **identical gene sets** (151/151 and 242/242), `avg_log2FC` to 4.9e-15 |
+| Markers on the two clusters whose cells match exactly | **identical gene sets** (151/151 and 242/242), `avg_log2FC` to 4.9e-15 and 4.6e-14 respectively |
 
 The DC split is the honest caveat: at resolution 0.5 a 32-cell dendritic-cell
 population sits on the boundary, and the two runs land on opposite sides of it.
@@ -181,7 +181,7 @@ tutorials/pbmc8k_subclustering_verify.R` then
 
 | Step | truecell vs Seurat |
 |------|------------------|
-| Cells surviving QC | **the same 7,475 barcodes**, metrics exact to 5.8e-15 |
+| Cells surviving QC | **the same 7,475 barcodes**, metrics exact to 5.3e-15 |
 | Stage 1 — global clusters | truecell **13**, Seurat **12**; ARI **0.977**, 7,341/7,475 cells agree |
 | Broad lineage label, per cell | **0.9858** |
 | **The compartment handed to stage 2** | **Jaccard 0.9991** — 4,631 of 4,635 T/NK cells are the same barcodes |

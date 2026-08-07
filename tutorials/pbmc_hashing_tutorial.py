@@ -247,7 +247,7 @@ def report_concordance(obj, r_calls_path=None, verbose=True) -> dict | None:
                   "`Rscript tutorials/pbmc_hashing_verify.R` first.")
         return None
 
-    r = pd.read_csv(path).set_index("cell")
+    r = pd.read_csv(path, float_precision="round_trip").set_index("cell")
     cells = obj.cell_names()
     r = r.reindex(cells)
     meta = obj.meta_data

@@ -277,7 +277,7 @@ of the resolution difference:
 | Genes v2 calls non-overdispersed | 3,848 | 3,848 — the *same* genes (Jaccard 1.0000) | ✅ |
 | Regularized intercept vs R (Spearman) | — | 1.0000 | ✅ |
 | Residual variance vs R (Spearman) | — | 0.9986 (Pearson 0.9996) | ✅ |
-| `detection_rate` · `gmean` vs R | — | max abs diff 5.6e-16 · 1.2e-12 | ✅ |
+| `detection_rate` · `gmean` vs R | — | max abs diff 5.0e-16 · 1.2e-12 | ✅ |
 | Residual clips (`sqrt(N)` · `sqrt(N/30)`) | ±51.9615 · ±9.4868 | identical | ✅ |
 
 **These numbers are reproduced, not recorded.** Everything in the table above

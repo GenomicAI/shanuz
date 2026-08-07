@@ -306,8 +306,8 @@ def report():
 
     # `keep_default_na=False` because gene symbols include literal "NA"-like
     # tokens that pandas would otherwise read as missing.
-    py = pd.read_csv(FIGURES / "py_sct_model.csv", keep_default_na=False)
-    r = pd.read_csv(FIGURES / "r_sct_model.csv", keep_default_na=False)
+    py = pd.read_csv(FIGURES / "py_sct_model.csv", keep_default_na=False, float_precision="round_trip")
+    r = pd.read_csv(FIGURES / "r_sct_model.csv", keep_default_na=False, float_precision="round_trip")
     # `Read10X` rewrites "_" to "-" in gene symbols and truecell's loader does
     # not, so one gene (RP11-442N24__B.1) spells differently on the two sides.
     # That belongs to the two file readers, not to SCTransform — normalise to

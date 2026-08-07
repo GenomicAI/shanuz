@@ -389,8 +389,8 @@ def report() -> None:
     print("truecell vs Seurat 5.5.1 — PBMC 8k, global clustering then T/NK subclustering")
     print("=" * 78)
 
-    pc = pd.read_csv(FIGURES / "py_cell_meta.csv").set_index("cell")
-    rc = pd.read_csv(FIGURES / "r_cell_meta.csv").set_index("cell")
+    pc = pd.read_csv(FIGURES / "py_cell_meta.csv", float_precision="round_trip").set_index("cell")
+    rc = pd.read_csv(FIGURES / "r_cell_meta.csv", float_precision="round_trip").set_index("cell")
 
     # ---- 1. did QC keep the same cells? ------------------------------------
     only_py, only_r = pc.index.difference(rc.index), rc.index.difference(pc.index)
@@ -443,8 +443,8 @@ def report() -> None:
     # The load-bearing check. Everything downstream is conditioned on this set,
     # so two compartments of the same size drawn from different clusters would
     # make every later number incomparable while looking fine.
-    pt = pd.read_csv(FIGURES / "py_tnk_cells.csv").set_index("cell")
-    rt = pd.read_csv(FIGURES / "r_tnk_cells.csv").set_index("cell")
+    pt = pd.read_csv(FIGURES / "py_tnk_cells.csv", float_precision="round_trip").set_index("cell")
+    rt = pd.read_csv(FIGURES / "r_tnk_cells.csv", float_precision="round_trip").set_index("cell")
     sp_, sr = set(pt.index), set(rt.index)
     inter, union = sp_ & sr, sp_ | sr
     print(f"\n  The T/NK compartment — truecell {len(sp_)} cells, R {len(sr)}")
