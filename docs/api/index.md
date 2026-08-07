@@ -28,7 +28,7 @@ the reason this reference exists rather than a signature dump.
 | `NormalizeData`, `FindVariableFeatures`, `ScaleData`, `SCTransform` | `normalize_data`, `find_variable_features`, `scale_data`, `sctransform` | [Preprocessing](preprocessing.md) |
 | `RunPCA`, `RunUMAP`, `RunTSNE`, `JackStraw` | `run_pca`, `run_umap`, `run_tsne`, `jack_straw` | [Dimensional reduction](dimreduc.md) |
 | `FindNeighbors`, `FindClusters`, `FindMultiModalNeighbors` | `find_neighbors`, `find_clusters`, `find_multi_modal_neighbors` | [Graphs and clustering](clustering.md) |
-| `FindMarkers`, `FindAllMarkers`, `AggregateExpression` | `find_markers`, `find_all_markers`, `aggregate_expression` | [Differential expression](markers.md) |
+| `FindMarkers`, `FindAllMarkers`, `AggregateExpression`, `AverageExpression` | `find_markers`, `find_all_markers`, `aggregate_expression`, `average_expression` | [Differential expression](markers.md) |
 | `IntegrateLayers`, `FindIntegrationAnchors`, `MapQuery` | `integrate_layers`, `find_integration_anchors`, `map_query` | [Integration and mapping](integration.md) |
 | `AddModuleScore`, `CellCycleScoring` | `add_module_score`, `cell_cycle_scoring` | [Signature scoring](scoring.md) |
 | `HTODemux`, `MULTIseqDemux`, `RunMixscape` | `hto_demux`, `multiseq_demux`, `run_mixscape` | [Demultiplexing and screens](demux.md) |

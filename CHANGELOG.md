@@ -18,7 +18,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`_get_expression_matrix` returned the wrong layer, and mislabelled the right
+  one.** Two defects in one function, both reachable from
+  `find_markers(layer=...)`, `aggregate_expression` and `average_expression`.
+
+  The Assay5 layer dict is keyed `scale.data`; the Python argument is
+  `scale_data`. Only the dotted spelling was matched, so the underscore form
+  missed the dict and **fell through to the `data` fallback** — a matrix of the
+  right shape, no warning, and normalized values where scaled ones were asked
+  for.
+
+  The dotted spelling then hit the second defect: the matrix came back paired
+  with the assay's *full* feature list. `scale.data` holds only the scaled
+  subset (`scale_data()` defaults to the variable features, as R's `ScaleData`
+  does), so a 10-row matrix was labelled with 30 names and every row read as a
+  different gene. This is the defect fixed in `reduction.py` under #66; the same
+  one survived here. Each layer is now labelled with its own features.
+
+  `reduction.py`, and therefore PCA, was never affected — it has its own
+  accessor.
+
 ### Added
+
+- **`average_expression`, mirroring Seurat's `AverageExpression`.** Seurat ships
+  two group-summary functions and Truecell had only `aggregate_expression`.
+  They are not two scalings of one thing: `AggregateExpression` sums raw counts,
+  while `AverageExpression` averages the **back-transformed** `data` layer —
+  `mean(expm1(x))`, not `mean(x)` and not `expm1(mean(x))`. On a small Poisson
+  object the first gene reads 332.84 under one and 3.17 under the other.
+
+  The back-transform applies to the `data` layer alone; `counts` and
+  `scale.data` are not log-normalized and are averaged as they stand. All three
+  layers, `features=`, multi-column `group_by` and `return_object` were pinned
+  against Seurat 5.5.1 — worst absolute difference 6.8e-13 on values of order
+  300. `return_object` leaves the averages in `counts` and writes `log1p` of
+  them to `data`, as Seurat's `return.seurat = TRUE` does, rather than
+  re-normalizing a matrix that is already an average.
+
+  The `expm1` transform is shared with `find_markers`' fold-change path rather
+  than copied, since Seurat's fold change is the same back-transform and a
+  divergence between the two would be undetectable downstream.
 
 - **`find_clusters` accepts several resolutions, and writes the per-resolution
   column Seurat writes.** `FindClusters(obj, resolution = c(0.4, 0.8, 1.2))` is

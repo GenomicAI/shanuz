@@ -26,18 +26,32 @@ def _row_pct_positive(m) -> np.ndarray:
     return (m > 0).mean(axis=1)
 
 
-def _row_expm1_sum(m) -> np.ndarray:
-    """Row sums of ``expm1(m)``, without densifying a sparse ``m``.
+def expm1_keeping_sparsity(m):
+    """``expm1(m)``, without densifying a sparse ``m``.
 
     ``expm1(0) == 0``, so the transform leaves the sparsity pattern untouched
     and applies to the stored values alone. That is what lets the fold-change
     pre-filter run on the sparse matrix instead of a dense copy of it.
+
+    Shared with :func:`truecell.aggregate.average_expression`, which un-does the
+    same log1p normalization before averaging. The two must agree — Seurat's
+    fold change and its ``AverageExpression`` are the same back-transform — and a
+    second copy of these three lines is exactly the kind of divergence nothing
+    downstream could detect.
     """
     if sp.issparse(m):
         transformed = m.copy()
         transformed.data = np.expm1(transformed.data)
+        return transformed
+    return np.expm1(m)
+
+
+def _row_expm1_sum(m) -> np.ndarray:
+    """Row sums of ``expm1(m)``, without densifying a sparse ``m``."""
+    transformed = expm1_keeping_sparsity(m)
+    if sp.issparse(transformed):
         return np.asarray(transformed.sum(axis=1)).ravel()
-    return np.expm1(m).sum(axis=1)
+    return transformed.sum(axis=1)
 
 
 def _dense_rows(m, rows: np.ndarray) -> np.ndarray:
@@ -845,25 +859,54 @@ def _deseq2_pseudobulk(
 # Helper
 # ------------------------------------------------------------------
 
+def _layer_aliases(layer: Optional[str]) -> tuple[str, ...]:
+    """The spellings a layer name can arrive as.
+
+    Seurat's layer is ``scale.data`` and the Python API argument is
+    ``scale_data``; both reach here, and the Assay5 layer dict is keyed with the
+    dotted form. Matching only one spelling means the other misses the dict and
+    falls through to the ``data`` fallback below — silently, with the right
+    shape, which is the whole problem.
+    """
+    if layer is None:
+        return ()
+    if layer in ("scale_data", "scale.data"):
+        return ("scale.data", "scale_data")
+    return (layer,)
+
+
 def _get_expression_matrix(assay_obj, layer: Optional[str]):
-    """Return (matrix features×cells, feature_names) using best available layer."""
+    """Return (matrix features×cells, feature_names) using best available layer.
+
+    The names returned are the **layer's own**, not the assay's. Only
+    ``scale.data`` holds a subset — ``scale_data()`` defaults to the variable
+    features, as R's ``ScaleData`` does — so handing back the full assay feature
+    list alongside a matrix a fraction of its height mislabels every row. That is
+    the defect fixed in ``reduction.py`` under #66; this function had the same
+    one, reachable through ``find_markers(layer=...)`` and the two aggregation
+    functions.
+    """
     from .assay5 import Assay5
 
     if isinstance(assay_obj, Assay5):
-        feature_names = assay_obj._all_feature_names
-        if layer is not None and layer in assay_obj.layers:
-            return assay_obj.layers[layer], feature_names
+        for key in _layer_aliases(layer):
+            if key in assay_obj.layers:
+                names = assay_obj._layer_features.get(
+                    key, assay_obj._all_feature_names)
+                return assay_obj.layers[key], list(names)
         for candidate in ("data", "counts"):
             if candidate in assay_obj.layers:
-                return assay_obj.layers[candidate], feature_names
+                names = assay_obj._layer_features.get(
+                    candidate, assay_obj._all_feature_names)
+                return assay_obj.layers[candidate], list(names)
         raise ValueError("No expression data layer found in Assay5.")
     else:
         feature_names = assay_obj._feature_names
         from ._sparse import is_matrix_empty
         if layer == "counts":
             return assay_obj.counts, feature_names
-        if layer == "scale_data" or layer == "scale.data":
-            return assay_obj.scale_data, feature_names
+        if layer in ("scale_data", "scale.data"):
+            return assay_obj.scale_data, assay_obj.features("scale_data")
         # Prefer log-normalized data
         if not is_matrix_empty(assay_obj.data):
             return assay_obj.data, feature_names

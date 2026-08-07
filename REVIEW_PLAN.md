@@ -62,7 +62,7 @@ class of convention the project has been bitten by before:
   let the RNG run on? This determines whether resolution *k*'s partition depends
   on how many resolutions preceded it. Test it; do not assume.
 
-### P2 — `average_expression` does not exist
+### P2 — `average_expression` does not exist  ✅ DONE
 
 Seurat ships **two** group-summary functions and Truecell has only one:
 
@@ -238,7 +238,7 @@ and it converts an absence into a stated design decision.
 |---|---|---|---|
 | 1 | ~~**P1** — multi-resolution `find_clusters` + `{graph}_res.{r}` column + `cluster_name`~~ **done** | — | Medium |
 | 2 | ~~**T1 + T2** — adjusted-p and logFC-rank comparison in the DE tutorial~~ **done** | — | Small |
-| 3 | **P2** — `average_expression`, reusing `_row_expm1_sum` | Pin R semantics (done for the base case) | Small |
+| 3 | ~~**P2** — `average_expression`, reusing `_row_expm1_sum`~~ **done** | — | Small |
 | 4 | **T6** — UMAP fidelity statement promoted to shared docs | Nothing | Small |
 | 5 | **T4.1** — label the cell-cycle result as a module-score result | Nothing | Trivial |
 | 6 | **T5** — resolution-stability coverage in the guided tutorial | 1 | Small |
@@ -252,6 +252,30 @@ gets an anchor and a declared tolerance, and every new branch gets mutation-test
 rather than trusted because the suite is green. Marker code has now hidden a real
 defect behind a green suite twice, and T1 exists because a validated-looking DE
 comparison silently omitted a whole column.
+
+---
+
+## Found while doing the work: `_get_expression_matrix` had two defects  ✅ FIXED
+
+Not in the review. Surfaced while building `average_expression`, which needed to
+read the `scale.data` layer.
+
+1. **`layer="scale_data"` silently returned the `data` layer.** The Assay5 layer
+   dict is keyed `scale.data`; only that spelling was matched, so the underscore
+   form missed and fell through to the `data` fallback. Right shape, no warning,
+   normalized values where scaled ones were asked for.
+2. **`layer="scale.data"` returned a 10-row matrix labelled with 30 names.**
+   `scale.data` holds only the scaled subset, so every row read as a different
+   gene. Identical in kind to the defect fixed in `reduction.py` under #66 — the
+   same one had survived in this function.
+
+Reachable from `find_markers(layer=...)`, `aggregate_expression` and
+`average_expression`. **`reduction.py` and therefore PCA were never affected** —
+it has its own accessor, which is where #66 was fixed.
+
+The full suite passed both before and after the fix, which is the point: nothing
+depended on the broken behaviour, and nothing tested the correct behaviour
+either. Nine mutants now cover it.
 
 ---
 
