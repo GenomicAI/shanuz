@@ -97,7 +97,7 @@ layer differs. Pin each against R.
 
 ## Validation gaps
 
-### T1 — `p_val_adj` is never compared. Anywhere.  ⬅ she is exactly right
+### T1 — `p_val_adj` is never compared. Anywhere.  ✅ DONE (with T2)
 
 > *"maybe we should show whether identical adj p-values occur (sometimes, people
 > base their manual annotation on adj p-values)"* (comment 7)
@@ -128,7 +128,7 @@ writing `NaN` for un-runnable tests and `0` for underflow (168 genes on PBMC 3k)
 and already records that naively including the underflow zeros made a
 perfectly-agreeing Wilcoxon score 0/50. That logic applies unchanged here.
 
-### T2 — logFC is compared by max-abs-diff, never by rank
+### T2 — logFC is compared by max-abs-diff, never by rank  ✅ DONE
 
 The tutorial computes `log2fc_max_abs_diff` (a worst-case bound) and Spearman on
 raw p, but no rank correlation on `avg_log2FC`. Comments 3 and 11.1.
@@ -237,7 +237,7 @@ and it converts an absence into a stated design decision.
 | # | Work | Depends on | Size |
 |---|---|---|---|
 | 1 | ~~**P1** — multi-resolution `find_clusters` + `{graph}_res.{r}` column + `cluster_name`~~ **done** | — | Medium |
-| 2 | **T1 + T2** — adjusted-p and logFC-rank comparison in the DE tutorial | Nothing | Small |
+| 2 | ~~**T1 + T2** — adjusted-p and logFC-rank comparison in the DE tutorial~~ **done** | — | Small |
 | 3 | **P2** — `average_expression`, reusing `_row_expm1_sum` | Pin R semantics (done for the base case) | Small |
 | 4 | **T6** — UMAP fidelity statement promoted to shared docs | Nothing | Small |
 | 5 | **T4.1** — label the cell-cycle result as a module-score result | Nothing | Trivial |
@@ -252,3 +252,40 @@ gets an anchor and a declared tolerance, and every new branch gets mutation-test
 rather than trusted because the suite is green. Marker code has now hidden a real
 defect behind a green suite twice, and T1 exists because a validated-looking DE
 comparison silently omitted a whole column.
+
+---
+
+## Found while doing the work: the R↔Python CSV handoff was lossy on both sides
+
+Not in the review, and it affects **every** tutorial that compares numbers
+through a CSV, not just the DE one. Fixed in the DE tutorial; the others are
+untouched and should be checked.
+
+| Direction | Default behaviour | Round-trips float64? |
+|---|---|---|
+| R `write.csv` | 15 significant digits | **No** |
+| R `sprintf("%.17g")` | not correctly rounded — emits digits denoting a *different* double | **No** |
+| R `sprintf("%a")` (C99 hex) | transcribes the IEEE-754 bits | **Yes** |
+| pandas `to_csv` | shortest round-trippable repr | Yes |
+| pandas `read_csv` (default) | misparses ~⅓ of random doubles by an ULP | **No** |
+| pandas `read_csv(float_precision="round_trip")` | correctly rounded | **Yes** |
+
+The R formatter result is the surprising one: raising the digit count does not
+help, because R's `sprintf` is not correctly rounded at high precision.
+`0.1234567890123456789` (shortest exact form `…568`) comes back as `…571`, a
+different double, and Python parses R's own string to that different double too.
+
+**Consequence.** Any claim of the form "these agree exactly" made by reading two
+CSVs is, before this fix, partly a measurement of the two languages' text
+formatters. Tolerance-based claims are unaffected as long as the tolerance is
+well above ~1e-15 relative, which most of the declared bands are.
+
+**How to apply.** Read every CSV with `float_precision="round_trip"`, and where
+bit-identity is actually the question, have R write a `%a` side table.
+
+**Scope of the remaining exposure:** `grep -rn "read_csv" tutorials/*.py | grep -v
+float_precision` finds **42 call sites across 17 files**. The tutorials making
+the strongest exactness claims are the ones to check first — the object model
+("91 of 91 anchors, no tolerance"), the Visium container ("24 of 24, coordinates
+to max|Δx| = 0"), out-of-core ("bit-identical" on-disk vs in-memory) and spatial
+statistics (Moran's I to 1.6e-14). Filed as a background task; not started.
