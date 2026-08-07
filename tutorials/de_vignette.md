@@ -257,18 +257,71 @@ previous version of this note called them.
 
 | Test | Genes | max \|Δlog2FC\| | p Spearman (all) | p Spearman (detected >5 %) | Top 50 |
 |---|---|---|---|---|---|
-| `wilcox` | 13,712 | 6.4e-15 | **1.000000** | 1.0000 | 50/50 |
-| `t` | 13,712 | 6.4e-15 | 0.999980 | 1.0000 | 50/50 |
-| `bimod` | 13,712 | 6.4e-15 | 0.999994 | 1.0000 | 50/50 |
-| `LR` | 13,712 | 6.4e-15 | 0.999975 | 1.0000 | 50/50 |
-| `negbinom` | 11,466 | 6.4e-15 | 0.694339 | **0.9165** | 50/50 |
-| `roc` | 13,712 | 6.4e-15 | *AUC 5.0e-04* | — | — |
-| `mast` | 13,712 | 6.4e-15 | 0.947061 | **0.9979** | 50/50 |
-| `deseq2` | 13,712 | *3.47* | 0.476954 | 0.1959 | 22/50 |
+| `wilcox` | 13,712 | 6.2e-15 | **1.000000** | 1.0000 | 50/50 |
+| `t` | 13,712 | 6.2e-15 | 0.999980 | 1.0000 | 50/50 |
+| `bimod` | 13,712 | 6.2e-15 | 0.999994 | 1.0000 | 50/50 |
+| `LR` | 13,712 | 6.2e-15 | 0.999975 | 1.0000 | 50/50 |
+| `negbinom` | 11,466 | 6.2e-15 | 0.694340 | **0.9165** | 50/50 |
+| `roc` | 13,712 | 6.2e-15 | *AUC 5.0e-04* | — | — |
+| `mast` | 13,712 | 6.2e-15 | 0.947038 | **0.9979** | 50/50 |
+| `deseq2` | 13,712 | *3.47* | 0.476942 | 0.1959 | 22/50 |
+
+> The last digits of these moved slightly when the CSV round-trip was fixed (see
+> *The two columns a person actually reads*, below): they had been read back
+> through a misparsing float reader. The change is at the ULP level and no band
+> moved, but the table is the measured one, not the previous one.
 
 `deseq2`'s row is the pseudobulk-vs-per-cell divergence described above, not a
 defect; its fold change differs too because a pseudobulk fold change is computed
 on summed counts.
+
+### The two columns a person actually reads
+
+The table above scores the statistic. It does not score the two numbers someone
+annotating clusters looks at: the fold change they sort by, and the **adjusted**
+p-value they threshold on. Neither was compared until an expert reviewer pointed
+out that the max-difference bound and a set overlap answer neither question.
+
+| Test | logFC Spearman | logFC Kendall | Top 50 by \|logFC\| | `p_val_adj` to 6 s.f. | Same call at 0.05 | Genes differing |
+|---|---|---|---|---|---|---|
+| `wilcox` | **1.000000** | **1.000000** | 50/50 | 0.9933 | **1.0000** | 0 |
+| `t` | **1.000000** | **1.000000** | 50/50 | 0.9999 | **1.0000** | 0 |
+| `bimod` | **1.000000** | **1.000000** | 50/50 | 0.9997 | 0.9999 | 2 |
+| `LR` | **1.000000** | **1.000000** | 50/50 | 0.9915 | **1.0000** | 0 |
+| `negbinom` | **1.000000** | **1.000000** | 50/50 | 0.8547 | 0.9958 | 48 |
+| `roc` | **1.000000** | **1.000000** | 50/50 | — | — | — |
+| `mast` | **1.000000** | **1.000000** | 50/50 | 0.7984 | 0.9895 | 144 |
+| `deseq2` | 0.966510 | 0.847811 | 34/50 | 0.4314 | 0.8938 | 1,401 |
+
+Rank correlation is reported *alongside* the max-difference bound rather than
+instead of it, because the two fail differently. A uniform scale error leaves
+every rank perfect and blows up the max; a handful of swapped mid-table genes
+leaves the max tiny and moves the ranks. Here both are clean: fold-change order
+is preserved exactly for all seven cell-level tests.
+
+**Do identical adjusted p-values occur?** Mostly not, and the reason is worth
+stating rather than the rate. The *correction* is identical — both tools compute
+`min(p × 13,714, 1)`, which holds bit-exactly on both sides — but the raw
+p-values feeding it differ by up to **0.54 % relative** on `wilcox`, a real
+difference between SciPy's Wilcoxon and Seurat's, so the product rarely lands on
+the same double. What survives that is what matters: the ordering is exact, and
+**every gene** falls on the same side of 0.05 for `wilcox`, `t` and `LR`.
+
+Two traps in measuring this, both of which had to be fixed before the numbers
+above meant anything:
+
+- **Seurat clamps `p_val_adj` at 1, and 11,858 of 13,712 genes land there.** A
+  bare "fraction identical" therefore reads ≈0.87 before a single interesting
+  gene is considered. `--report` scores the unclamped subset separately.
+- **Neither side's CSV round-tripped a float64.** R's `write.csv` renders 15
+  significant digits, and raising it does not help — R's own `sprintf("%.17g")`
+  is not correctly rounded and emits digits denoting a *different* double.
+  Pandas' `read_csv` misparses about a third of random doubles by an ULP at its
+  default `float_precision`. So the R side now also writes `r_<test>_exact.csv`
+  in C99 hex float (`%a`, a transcription of the IEEE-754 bits rather than a
+  decimal approximation of them), and the Python side reads with
+  `float_precision="round_trip"`. Before that, an "is it identical" comparison
+  was measuring the two languages' text formatters.
 
 ### These numbers are asserted, not just printed
 

@@ -221,9 +221,86 @@ def run_tests(obj, groups: pd.Series, tests=None) -> dict[str, pd.DataFrame]:
     return out
 
 
-def compare(py: pd.DataFrame, r: pd.DataFrame, test: str) -> dict:
+def read_exact(path) -> pd.DataFrame | None:
+    """An R table written as C99 hex floats, or None if it was not written.
+
+    See the `write_exact` note in ``pbmc3k_de_verify.R``: neither R's `write.csv`
+    nor its `sprintf("%.17g")` round-trips a float64, so the ordinary CSV cannot
+    settle whether two values are *identical* — only whether they agree to about
+    15 digits. `%a` transcribes the IEEE-754 bits, and `float.fromhex` reads them
+    back exactly.
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+    raw = pd.read_csv(path, index_col=0, dtype=str)
+    out = {}
+    for col in raw.columns:
+        vals = raw[col]
+        if vals.dropna().str.startswith(("0x", "-0x", "inf", "-inf", "nan")).all():
+            out[col] = vals.map(
+                lambda s: float("nan") if pd.isna(s) else float.fromhex(s))
+        else:
+            out[col] = vals
+    return pd.DataFrame(out, index=raw.index)
+
+
+def compare_adjusted_p(py: pd.DataFrame, r: pd.DataFrame, shared,
+                       exact: pd.DataFrame | None) -> dict:
+    """Agreement on ``p_val_adj`` — the column a manual annotation is read off.
+
+    Reported separately from the raw p-value because it is a different question.
+    A raw p-value is an intermediate; ``p_val_adj`` is what a person looks at and
+    thresholds, so what matters is whether the two tools put a gene on the same
+    side of 0.05, not whether the mantissas agree.
+
+    One trap this deliberately reports around: Seurat clamps ``p_val_adj`` at 1,
+    and on this contrast **11,858 of 13,712 genes** land there in both tools. A
+    bare "fraction identical" is therefore ~0.88 before any of the interesting
+    genes are considered, and would read as agreement where it is mostly just the
+    clamp. The unclamped subset is scored on its own line for that reason.
+    """
+    res: dict = {}
+    if "p_val_adj" not in py or "p_val_adj" not in r:
+        return res
+
+    a = py.loc[shared, "p_val_adj"]
+    b = (exact.loc[shared, "p_val_adj"] if exact is not None
+         else r.loc[shared, "p_val_adj"])
+    ok = a.notna() & b.notna()
+    res["padj_n_compared"] = int(ok.sum())
+    res["padj_source"] = "hex" if exact is not None else "csv_15_digits"
+
+    clamped = ok & (a == 1.0) & (b == 1.0)
+    res["padj_both_clamped_at_1"] = int(clamped.sum())
+    free = ok & ~clamped
+    res["padj_n_unclamped"] = int(free.sum())
+
+    if exact is not None:
+        # Only meaningful against the hex tables; through the 15-digit CSV this
+        # measures R's formatter, not the computation.
+        res["padj_identical"] = float((a[ok] == b[ok]).mean())
+        if free.any():
+            res["padj_identical_unclamped"] = float((a[free] == b[free]).mean())
+
+    with np.errstate(all="ignore"):
+        for sf in (3, 6):
+            res[f"padj_agree_{sf}sf"] = float(
+                np.isclose(a[ok], b[ok], rtol=10.0 ** -sf, atol=0).mean())
+
+    # The number the reviewer's question is actually about: would the two tools
+    # put the same genes in front of someone annotating clusters?
+    for cut in (0.05, 0.01):
+        same = (a[ok] < cut) == (b[ok] < cut)
+        res[f"padj_same_call_at_{cut}"] = float(same.mean())
+        res[f"padj_disagreements_at_{cut}"] = int((~same).sum())
+    return res
+
+
+def compare(py: pd.DataFrame, r: pd.DataFrame, test: str,
+            exact: pd.DataFrame | None = None) -> dict:
     """One test's agreement with Seurat, on the genes both scored."""
-    from scipy.stats import spearmanr
+    from scipy.stats import kendalltau, spearmanr
 
     shared = py.index.intersection(r.index)
     res: dict = {"n_python": len(py), "n_r": len(r), "n_shared": len(shared)}
@@ -232,6 +309,23 @@ def compare(py: pd.DataFrame, r: pd.DataFrame, test: str) -> dict:
         d = np.abs(py.loc[shared, "avg_log2FC"] - r.loc[shared, "avg_log2FC"])
         res["log2fc_max_abs_diff"] = float(d.max())
         res["log2fc_exact"] = bool(d.max() <= LOG2FC_TOLERANCE)
+
+        # Rank agreement, alongside the bound above rather than instead of it:
+        # the two fail differently. A uniform scale error leaves every rank
+        # perfect and blows up the max; a handful of swapped mid-table genes
+        # leaves the max tiny and moves the ranks. Someone ranking markers by
+        # fold change is reading the second.
+        x, y = py.loc[shared, "avg_log2FC"], r.loc[shared, "avg_log2FC"]
+        m = x.notna() & y.notna()
+        if m.sum() > 2:
+            res["log2fc_spearman"] = float(spearmanr(x[m], y[m])[0])
+            res["log2fc_kendall"] = float(kendalltau(x[m], y[m])[0])
+            for k in (10, 25, 50):
+                top_py = set(x[m].abs().sort_values(ascending=False).head(k).index)
+                top_r = set(y[m].abs().sort_values(ascending=False).head(k).index)
+                res[f"log2fc_top{k}_overlap"] = len(top_py & top_r)
+
+    res.update(compare_adjusted_p(py, r, shared, exact))
 
     if test == "roc":
         d = np.abs(py.loc[shared, "myAUC"] - r.loc[shared, "myAUC"])
@@ -301,14 +395,22 @@ def report_concordance():
         )
     rows = []
     for test in TEST_MAP:
-        py = pd.read_csv(FIGURES / f"py_{test}.csv", index_col=0)
-        r = pd.read_csv(FIGURES / f"r_{test.lower()}.csv", index_col=0)
+        # `float_precision="round_trip"` because pandas' default CSV *reader* is
+        # not correctly rounded — it misparses about a third of random doubles by
+        # an ULP. `to_csv` was never the problem; it already writes the shortest
+        # round-trippable form. Without this the Python table is perturbed on the
+        # way back in, and an exactness comparison measures the parser.
+        py = pd.read_csv(FIGURES / f"py_{test}.csv", index_col=0,
+                         float_precision="round_trip")
+        r = pd.read_csv(FIGURES / f"r_{test.lower()}.csv", index_col=0,
+                        float_precision="round_trip")
         # Before anything is compared: was this R table computed on the groups
         # the Python side just wrote? Nothing else here can tell the difference
         # between a port that regressed and an R run left over from a previous
         # clustering, and the second reads exactly like the first.
         check_shared_groups(py, r, source=f"figures_de/r_{test.lower()}.csv")
-        rows.append({"test": test, **compare(py, r, test)})
+        exact = read_exact(FIGURES / f"r_{test.lower()}_exact.csv")
+        rows.append({"test": test, **compare(py, r, test, exact)})
     table = pd.DataFrame(rows).set_index("test")
     _print_report(table)
     verdicts = check_bands(BANDS, measure_bands(table))
@@ -361,6 +463,43 @@ def _print_report(table: pd.DataFrame) -> None:
             continue
         print(f"  {test:10s} {int(row['n_shared']):7d} {fc:10.2e} "
               f"{sp:11.6f} {ex:10.4f} {int(top):4d}/{TOP_N}")
+
+    _print_reader_facing(table)
+
+
+def _print_reader_facing(table: pd.DataFrame) -> None:
+    """The two columns a person actually reads off a marker table.
+
+    The block above scores the statistic. This one scores what someone doing the
+    annotation sees: the fold change they rank by, and the adjusted p they
+    threshold on. Both were unreported until an expert reviewer pointed out that
+    a set-overlap metric answers neither.
+    """
+    # Every cell is formatted through `cell`, because not every column exists for
+    # every row: `roc` has no `p_val_adj`, and a table too short for a rank
+    # correlation (the band tests use a two-gene stub) has no rho or tau. A row
+    # that cannot be scored should print a dash, not raise.
+    def cell(value, spec: str, width: int) -> str:
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return f"{'—':>{width}}"
+        return format(value, spec)
+
+    print(f"\n  {'test':10s} {'logFC rho':>10s} {'logFC tau':>10s} "
+          f"{'top50':>7s} {'padj 6sf':>9s} {'call@.05':>9s} {'differ':>7s}")
+    print("  " + "-" * 68)
+    for test, row in table.iterrows():
+        top = row.get("log2fc_top50_overlap", float("nan"))
+        print(f"  {test:10s} "
+              f"{cell(row.get('log2fc_spearman'), '10.6f', 10)} "
+              f"{cell(row.get('log2fc_kendall'), '10.6f', 10)} "
+              f"{cell(top, '4.0f', 4)}/50 "
+              f"{cell(row.get('padj_agree_6sf'), '9.4f', 9)} "
+              f"{cell(row.get('padj_same_call_at_0.05'), '9.4f', 9)} "
+              f"{cell(row.get('padj_disagreements_at_0.05'), '7.0f', 7)}")
+    print("\n  `call@.05` is the fraction of genes both tools place on the same "
+          "side of\n  adjusted p = 0.05, and `differ` counts the ones they do "
+          "not — the number\n  that matters if the table is being read to "
+          "annotate clusters by hand.")
 
 
 def main():
