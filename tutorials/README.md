@@ -5,6 +5,39 @@ each pairing **R Seurat** code side-by-side with the equivalent **Python Truecel
 
 ---
 
+## New here? Start with the notebook
+
+[**A vial of blood, and nobody told you what's in it**](truecell_guided_tour.ipynb) —
+a guided tour of the whole package in one runnable notebook.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GenomicAI/truecell/blob/main/tutorials/truecell_guided_tour.ipynb)
+
+It takes an unlabelled 32,738 × 2,700 matrix and ends with a named map of the human
+immune system, explaining *why* each step exists rather than only which function to
+call: the object model and its layers, QC, normalization, feature selection, PCA,
+graph clustering, UMAP, marker detection, annotation, pseudobulk, module scores and
+the DE test menu — then a catalogue of everything one PBMC sample cannot demonstrate
+(integration, reference mapping, CITE-seq, hashing, Mixscape, spatial, sketching,
+out-of-core) and a Seurat → truecell translation table.
+
+**It is committed with its outputs**, so all twelve figures and every printed table
+render on GitHub without running anything. Click the badge to get a live copy — it
+downloads its own data and needs about 3–5 minutes end to end.
+
+How it differs from the eighteen below: this is an **on-ramp**, not a verification.
+The tutorials in the table each run the same analysis in R and in Python and report
+how far apart the two land; the notebook teaches the workflow and the judgement calls
+around it — where QC thresholds come from, why `resolution` has no correct value, why
+a UMAP's between-cluster distances mean nothing, and why `find_markers` sorted by
+p-value hands you ribosomal genes.
+
+> The notebook is **generated** by [`build_guided_tour.py`](build_guided_tour.py).
+> Edit that and regenerate; patching the `.ipynb` directly gets reverted on the next
+> build. Its prose quotes numbers the run produces, so re-run and reconcile the text
+> if you change the pipeline.
+
+---
+
 ## Tutorial Overview
 
 | # | Tutorial | Dataset | Key Concepts | Complexity |
